@@ -1,0 +1,8 @@
+# Keil user-specific files
+*.uvopt
+*.uvgui.*
+*.bak
+*.dep
+
+# Build outputs
+project/mdk/out_file/
