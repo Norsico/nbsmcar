@@ -1,0 +1,203 @@
+C251 COMPILER V5.60.0,  SystemConfig                                                       17/08/24  10:34:34  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE SystemConfig
+OBJECT MODULE PLACED IN .\Out_File\SystemConfig.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\CODE\SystemConfig.c XSMALL WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE
+                    - INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER
+                    -\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\SystemConfig.lst) OBJECT(.\Out_File\SystemC
+                    -onfig.obj) 
+
+stmt  level    source
+
+    1          #include "SystemConfig.h"
+    2          extern LADRC_NUM LADRC;
+    3          extern ele flag;
+    4          
+    5          /*BDLC*/
+    6          int BDLC_PWM=6250;
+    7          
+    8          /*ZEBRA*/
+    9          uint8 zebra_num=10;
+   10          
+   11          /*Circle*/
+   12          uint8 lpu=46;
+   13          uint8 rpu=78;
+   14          uint8 lpd=35;
+   15          uint8 rpd=85;
+   16          
+   17          /*Judge*/
+   18          uint8 up_limit=8;
+   19          uint8 down_limit=8;
+   20          uint8 up_lose=11;
+   21          uint8 down_lose=11;
+   22          
+   23          /*Process*/
+   24          uint8 icm_in=50;
+   25          uint8 icm_out=65;
+   26          uint8 cir_inp=20;
+   27          uint8 cir_outp=18;
+   28          uint8 cir_incheck=70;
+   29          uint8 cir_outcheck=150;
+   30           
+   31          uint8 Slope_Data = 0;
+   32          /*Cross*/
+   33          uint8 cross_err = 15;
+   34          uint8 crossf_max= 8;
+   35          
+   36          uint8 Spid_Sel=2;
+   37          float P_Rate=5; 
+   38          float ServoP=18;//basic
+   39          float MaxP=18;
+   40          float ServoD=100;
+   41          int Servo_Mid=5070;
+   42          int Servo_pc=550;
+   43          int16 Servo_Out=0;
+   44          float UFF[7] = { 14.1,
+   45                           14.3, 
+   46                           14.7, 
+   47                           15.2, 
+   48                           15.9, 
+   49                           16.6,
+   50                           16.8 };
+   51          
+   52          /*SpeedJudge*/
+   53          float dv=120;//77
+   54          float l_dv=30;//77
+   55          float r_dv=30;//77
+   56          int tarsp;
+C251 COMPILER V5.60.0,  SystemConfig                                                       17/08/24  10:34:34  PAGE 2   
+
+   57          
+   58          uint16 stright_tarsp=270;//
+   59          uint16 normal_tarsp=230;//
+   60          uint8 cross_tarsp=0;
+   61          uint8 circle_tarsp=225;
+   62          uint8 slope_tarsp=160; 
+   63          
+   64          // uint16 stright_tarsp=200;//
+   65          // uint16 normal_tarsp=180;//
+   66          // uint8 cross_tarsp=0;
+   67          // uint8 circle_tarsp=180;
+   68          // uint8 slope_tarsp=100; 
+   69          
+   70          /*Motor&ENCONDER*/
+   71          
+   72          /*PI For Speed*/
+   73          float LMp=32;   float RMp=32;
+   74          float LMi=13.5;  float RMi=13.5;
+   75          float LMd=5;    float RMd=5;
+   76          
+   77          
+   78          int lsetv = 0,rsetv = 0;
+   79          float lvsp  = 0,rvsp  = 0;
+   80          
+   81          /*Flag*/
+   82          float a_time=0;
+   83          int runflag=1;
+   84          
+   85          uint8 l_num=0;
+   86          uint8 r_num=0;
+   87          uint8 slope_nco=0;
+   88          uint8 cross_nco=0;
+   89          uint8 last_ele=0;
+   90          uint8 ele_num=0;
+   91          
+   92          uint8 lcir_num=2;
+   93          uint8 rcir_num=2;
+   94          uint8 cross_num=5;
+   95          uint8 slope_num=2;
+   96          
+   97          /*GRYO DATA*/
+   98          float pitch = 0;
+   99          float yaw = 0;
+  100          float yaw_count=0;
+  101          float pitch_err=0;
+  102          
+  103          /*Camera*/
+  104          uint16 threshold=0,threshold1=0;
+  105          uint8 old_mid=63,old_mid1=63;
+  106          uint8 Comapre_0 = 33;
+  107          uint8 Comapre_1 = 35;
+  108          int8 ccd_offset=-3;
+  109          int8 ccd1_offset=-1;
+  110          uint8 lp[3]={0};
+  111          uint8 rp[3]={127};
+  112          uint8 keepline=65;
+  113          uint8 incirline=70;
+  114          uint8 outcirline=70;
+  115          float eCCD[3] = {0};
+  116          float ele_count=0;
+  117          float down_arr=0.8;
+  118          float up_arr=0.5 ;
+  119          float down_dec=0;
+  120          float up_dec=0;//10
+  121          
+  122          
+C251 COMPILER V5.60.0,  SystemConfig                                                       17/08/24  10:34:34  PAGE 3   
+
+  123          
+  124          
+  125          float myabs(float x)
+  126          {
+  127   1          if (x>=0)   {return  x;}
+  128   1          else        {return -x;}
+  129   1      }
+  130          
+  131          
+  132          void Device_initialize()
+  133          {
+  134   1          oled_init_spi(); 
+  135   1                    
+  136   1          ccd_init();             
+  137   1          Servo_init();           
+  138   1              Motor_Init();           
+  139   1          // adc_init(ADC_P11,0x01); 
+  140   1          adc_init(ADC_P17,0x01);
+  141   1              gpio_mode(P5_1,GPO_PP); 
+  142   1          gpio_mode(P5_2,GPIO);  
+  143   1          gpio_mode(P1_1,GPIO);
+  144   1          icm20602_init(); 
+  145   1      
+  146   1          tarsp=normal_tarsp;     //ORGINAL TARSPEED
+  147   1          flag.start=1;           //FLAGINIT
+  148   1          flag.cross=0;
+  149   1          flag.lcircle=0;
+  150   1          flag.rcircle=0;
+  151   1          flag.all=0;
+  152   1          flag.slope=0;           
+  153   1      
+  154   1      
+  155   1      
+  156   1          pit_timer_ms(TIM_0,5);      
+  157   1          pit_timer_ms(TIM_1,5);
+  158   1          pit_timer_ms(TIM_2,5);
+  159   1          // pit_timer_ms(TIM_3,5);  
+  160   1      
+  161   1          // delay_ms(2000); 
+  162   1      }
+  163          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       155     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =       215     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =       533     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

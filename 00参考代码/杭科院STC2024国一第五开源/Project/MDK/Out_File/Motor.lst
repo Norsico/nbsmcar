@@ -1,0 +1,206 @@
+C251 COMPILER V5.60.0,  Motor                                                              17/08/24  10:34:33  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE Motor
+OBJECT MODULE PLACED IN .\Out_File\Motor.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\CODE\Motor.c XSMALL WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE INCDIR
+                    -(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..
+                    -\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\Motor.lst) OBJECT(.\Out_File\Motor.obj) 
+
+stmt  level    source
+
+    1          #include "SystemConfig.h"
+    2          extern int lspeed;
+    3          extern int rspeed;
+    4          extern ele flag;
+    5          
+    6          void Motor_Init()
+    7          {
+    8   1          gpio_mode(P3_2,GPIO);
+    9   1          gpio_mode(P0_6,GPIO);
+   10   1          ctimer_count_init(CTIM0_P34);
+   11   1          ctimer_count_init(CTIM3_P04);
+   12   1      
+   13   1          gpio_mode(LMOTOR_DIR,GPO_PP);
+   14   1          gpio_mode(RMOTOR_DIR,GPO_PP);
+   15   1             
+   16   1          pwm_init(LMOTOR_PWM,17000,0);
+   17   1          pwm_init(RMOTOR_PWM,17000,0);
+   18   1      }
+   19          
+   20          void Get_Speed()
+   21          {
+   22   1          if(L_ENCONDER_FORWARD)  {lvsp= 1*ctimer_count_read(CTIM0_P34);ctimer_count_clean(CTIM0_P34);}
+   23   1          else                    {lvsp=-1*ctimer_count_read(CTIM0_P34);ctimer_count_clean(CTIM0_P34);}
+   24   1          if(R_ENCONDER_FORWARD)  {rvsp= 1*ctimer_count_read(CTIM3_P04);ctimer_count_clean(CTIM3_P04);}
+   25   1          else                    {rvsp=-1*ctimer_count_read(CTIM3_P04);ctimer_count_clean(CTIM3_P04);}
+   26   1      }
+   27          
+   28          
+   29          void LMotor_PI(int16 target,int16 eyaw)
+   30          {
+   31   1          static float lMotor_Out;
+   32   1          static float llast_err; 
+   33   1          static float llast_derivative; 
+   34   1          float err;
+   35   1          err = target-lvsp;
+   36   1      
+   37   1          lMotor_Out+=LMp*(err-llast_err)+LMi*err+LMd*((err-llast_err)-llast_derivative);
+   38   1              llast_err=err;
+   39   1          llast_derivative=err-llast_err;
+   40   1      
+   41   1          // if (flag.start==1)      {lMotor_Out=0;}
+   42   1      
+   43   1          if(lMotor_Out> Motor_MAX)    {lMotor_Out= Motor_MAX;}
+   44   1          if(lMotor_Out< Motor_MIN)    {lMotor_Out= Motor_MIN;}
+   45   1      
+   46   1          if (lMotor_Out>=0)      {LMOTOR_FORWARD;pwm_duty(LMOTOR_PWM, lMotor_Out);}
+   47   1          if (lMotor_Out<0)       {LMOTOR_RETREAT;pwm_duty(LMOTOR_PWM,-lMotor_Out);}
+   48   1      }
+*** WARNING C47 IN LINE 29 OF ..\CODE\Motor.c: 'eyaw': unreferenced parameter
+   49          
+   50          void RMotor_PI(int16 target,int16 eyaw)
+   51          {
+   52   1          static float rMotor_Out;
+   53   1          static float rlast_err; 
+   54   1          static float rlast_derivative; 
+   55   1          float err;
+   56   1          err = target-rvsp-eyaw;
+C251 COMPILER V5.60.0,  Motor                                                              17/08/24  10:34:33  PAGE 2   
+
+   57   1      
+   58   1          rMotor_Out+=RMp*(err-rlast_err)+RMi*err+RMd*((err-rlast_err)-rlast_derivative);
+   59   1          rlast_err=err;
+   60   1          rlast_derivative=err-rlast_err;
+   61   1          // if (flag.start==1)      {rMotor_Out=0;}
+   62   1      
+   63   1          if(rMotor_Out> Motor_MAX)    {rMotor_Out= Motor_MAX;}
+   64   1          if(rMotor_Out< Motor_MIN)    {rMotor_Out= Motor_MIN;}
+   65   1      
+   66   1          if (rMotor_Out>=0)      {RMOTOR_FORWARD;pwm_duty(RMOTOR_PWM, rMotor_Out);}
+   67   1          if (rMotor_Out<0)       {RMOTOR_RETREAT;pwm_duty(RMOTOR_PWM,-rMotor_Out);}
+   68   1      }
+   69          
+   70          void START_CAR()
+   71          {
+   72   1          while (flag.start)
+   73   1          {
+   74   2              flag.start=1;
+   75   2              runflag=1;
+   76   2              flag.all=1;
+   77   2              // if (ele_count<8)
+   78   2              // {
+   79   2              //     CCD_Process(KEEP_NORMAL_LINE);
+   80   2              //     Motor_Forward(start_tarsp,start_tarsp);
+   81   2              // }
+   82   2              // else
+   83   2              // {          
+   84   2      
+   85   2                  flag.all=0;
+   86   2                  ele_count=0;
+   87   2                  break;
+   88   2              // }
+   89   2          }
+   90   1          
+   91   1      }
+   92          
+   93          void mt_akermann()
+   94          { 
+   95   1          float turn_angle    =   0;
+   96   1          float v_dif         =   0;
+   97   1      
+   98   1          uint8 bdlc_kp=2.5;
+   99   1      
+  100   1          uint16 BDLC_L=0;
+  101   1          uint16 BDLC_R=0;
+  102   1          turn_angle  =   (Servo_Mid-Servo_Out)/7.5;
+  103   1          v_dif       =   dv*0.01*tan(turn_angle*3.1415926/180)*0.424;
+  104   1      
+  105   1          if (turn_angle>= 20) {turn_angle= 20;}
+  106   1          if (turn_angle<=-20) {turn_angle=-20;}
+  107   1                                                         
+  108   1          if (turn_angle>0)   {lsetv=tarsp;rsetv=(1-v_dif)*tarsp;}//(1+v_dif)*
+  109   1          else                {rsetv=tarsp;lsetv=(1+v_dif)*tarsp;}//(1-v_dif)*
+  110   1      
+  111   1          // if (turn_angle>=0)  //right 
+  112   1          // {
+  113   1          //     BDLC_L=BDLC_PWM;
+  114   1          //     BDLC_R=BDLC_PWM+turn_angle*bdlc_kp;
+  115   1          // }
+  116   1          // if (turn_angle<0)             
+  117   1          // {
+  118   1          //     BDLC_L=BDLC_PWM-turn_angle*bdlc_kp;
+  119   1          //     BDLC_R=BDLC_PWM;
+  120   1          // }
+  121   1      
+  122   1          // if (BDLC_L>=6250){BDLC_L=6250;}
+C251 COMPILER V5.60.0,  Motor                                                              17/08/24  10:34:33  PAGE 3   
+
+  123   1          // if (BDLC_R>=6250){BDLC_R=6250;}
+  124   1              
+  125   1          // if (BDLC_L<=5500){BDLC_L=5500;}
+  126   1          // if (BDLC_R<=5500){BDLC_R=5500;}
+  127   1      
+  128   1      
+  129   1          // if (!runflag)
+  130   1          // {
+  131   1          //     pwm_duty(PWMB_CH1_P00,BDLC_L);
+  132   1          //     pwm_duty(PWMB_CH2_P01,BDLC_R);  
+  133   1          // }
+  134   1          
+  135   1         
+  136   1              
+  137   1      }
+  138          
+  139          void Speed_Judge()
+  140          {
+  141   1          static float addspeed_count=0;
+  142   1          if (myabs(eCCD[1])<=5&&myabs(eCCD[0])<=3&&rp[1]-lp[1]<rpu-lpu+6&&!flag.lcircle&&!flag.rcircle&&!flag.
+             -slope)
+  143   1          {
+  144   2              addspeed_count+=((float)lvsp+(float)rvsp)/225;
+  145   2              if (addspeed_count>10)   {tarsp = stright_tarsp;} 
+  146   2              else  tarsp=normal_tarsp;
+  147   2          } 
+  148   1          else if (!flag.lcircle&&!flag.rcircle&&!flag.slope)
+  149   1          {
+  150   2              addspeed_count=0;
+  151   2              tarsp=normal_tarsp;                                
+  152   2          }
+  153   1          if (flag.lcircle||flag.rcircle)
+  154   1          {
+  155   2              tarsp=circle_tarsp;
+  156   2          }
+  157   1          if (flag.slope)
+  158   1          {
+  159   2              tarsp=slope_tarsp;
+  160   2          } 
+  161   1          if (runflag)
+  162   1          {
+  163   2              tarsp=0;
+  164   2          }
+  165   1      }
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      1367     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =        55     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =         8     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

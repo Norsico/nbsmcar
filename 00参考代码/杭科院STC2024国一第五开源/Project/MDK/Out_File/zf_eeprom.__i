@@ -1,0 +1,1 @@
+"..\..\Libraries\seekfree_libraries\zf_eeprom.c" XSMALL WARNINGLEVEL (3) OPTIMIZE (0,SPEED) BROWSE INCDIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\zf_eeprom.lst) OBJECT(.\Out_File\zf_eeprom.obj)

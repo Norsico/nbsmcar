@@ -1,12 +1,24 @@
 {
-    "files.encoding": "gb2312",
-    "files.autoGuessEncoding": false,
-    "C_Cpp.errorSquiggles": "disabled",
-  
-    "search.exclude": {
-      "**/project/mdk/**": true
-    },
-    "files.associations": {
-      "zf_common_headfile.h": "c"
-    }
+  "files.encoding": "gbk",
+  "files.autoGuessEncoding": true,
+
+  "C_Cpp.errorSquiggles": "disabled",
+
+  "search.exclude": {
+    "**/project/mdk/**": true,
+    "**/Out_File/**": true,
+    "**/out_file/**": true,
+    "**/OUT_FILE/**": true
+  },
+  "files.exclude": {
+    "**/Out_File": true,
+    "**/out_file": true,
+    "**/OUT_FILE": true
+  },
+  "files.watcherExclude": {
+    "**/project/mdk/**": true,
+    "**/Out_File/**": true,
+    "**/out_file/**": true,
+    "**/OUT_FILE/**": true
   }
+}

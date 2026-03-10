@@ -1,0 +1,459 @@
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE MENU
+OBJECT MODULE PLACED IN .\Out_File\MENU.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\CODE\MENU.c XSMALL WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE INCDIR(
+                    -..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc;..\
+                    -USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\MENU.lst) OBJECT(.\Out_File\MENU.obj) 
+
+stmt  level    source
+
+    1          #include "SystemConfig.h"
+    2          
+    3          uint8 old_ccd[128]={0};
+    4          uint8 old_img[128]={0};
+    5          uint8 old_img1[128]={0};
+    6          uint8 old_img2[128]={0};
+    7          
+    8          // uint32 FLASH_DATA[200];
+    9          int menupagenum =9;
+   10          int keymode=1;
+   11          int func=0;
+   12          float Dvi=1;
+   13          void (*fx)(void);
+   14          void voidfx();
+   15          void mainbackground();
+   16          void Servo_Menu();
+   17          void Motor_Menu();
+   18          void Circle_Judge_Menu();
+   19          void Circle_Process_Menu();
+   20          void Camera_Menu();
+   21          void Speed_Planning_Menu();
+   22          void mode_set();
+   23          
+   24          void voidfx(){}
+   25          /*
+   26              int Num;
+   27              int Next;
+   28              int Back;
+   29              int Enter;
+   30              int Esc;
+   31              void (*fx)();
+   32          */
+   33          Menu table[100]=
+   34          {
+   35              //num,next,back,enter,exit
+   36              /*Main_Menu*/
+   37              {PG0+0,PG0+1,PG0+7,PG1,PG0+0,(*mainbackground)},
+   38              {PG0+1,PG0+2,PG0+0,PG2,PG0+1,(*mainbackground)},
+   39              {PG0+2,PG0+3,PG0+1,PG3,PG0+2,(*mainbackground)},
+   40              {PG0+3,PG0+4,PG0+2,PG4,PG0+3,(*mainbackground)},
+   41              {PG0+4,PG0+5,PG0+3,PG5,PG0+4,(*mainbackground)},
+   42              {PG0+5,PG0+6,PG0+4,PG6,PG0+5,(*mainbackground)},
+   43              {PG0+6,PG0+7,PG0+5,PG7,PG0+6,(*mainbackground)},
+   44              {PG0+7,PG0+0,PG0+6,PG8,PG0+7,(*mainbackground)},
+   45                  //num,next,pre,enter,exit
+   46                  /*Servo*/
+   47                  {PG1+0,PG1+1,PG1+7,PG1+0,0,(*Servo_Menu)},
+   48                  {PG1+1,PG1+2,PG1+0,PG1+1,0,(*Servo_Menu)},
+   49                  {PG1+2,PG1+3,PG1+1,PG1+2,0,(*Servo_Menu)},
+   50                  {PG1+3,PG1+4,PG1+2,PG1+3,0,(*Servo_Menu)},
+   51                  {PG1+4,PG1+5,PG1+3,PG1+4,0,(*Servo_Menu)},
+   52                  {PG1+5,PG1+6,PG1+4,PG1+5,0,(*Servo_Menu)},
+   53                  {PG1+6,PG1+7,PG1+5,PG1+6,0,(*Servo_Menu)},
+   54                  {PG1+7,PG1+0,PG1+6,PG1+7,0,(*Servo_Menu)},
+   55          
+   56                  {PG2+0,PG2+1,PG2+7,PG2+0,1,(*Motor_Menu)},
+   57                  {PG2+1,PG2+2,PG2+0,PG2+1,1,(*Motor_Menu)},
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 2   
+
+   58                  {PG2+2,PG2+3,PG2+1,PG2+2,1,(*Motor_Menu)},
+   59                  {PG2+3,PG2+4,PG2+2,PG2+3,1,(*Motor_Menu)},
+   60                  {PG2+4,PG2+5,PG2+3,PG2+4,1,(*Motor_Menu)},
+   61                  {PG2+5,PG2+6,PG2+4,PG2+5,1,(*Motor_Menu)},
+   62                  {PG2+6,PG2+7,PG2+5,PG2+6,1,(*Motor_Menu)},
+   63                  {PG2+7,PG2+0,PG2+6,PG2+7,1,(*Motor_Menu)},
+   64          
+   65                  {PG3+0,PG3+1,PG3+7,PG3+0,2,(*Circle_Judge_Menu)},
+   66                  {PG3+1,PG3+2,PG3+0,PG3+1,2,(*Circle_Judge_Menu)},
+   67                  {PG3+2,PG3+3,PG3+1,PG3+2,2,(*Circle_Judge_Menu)},
+   68                  {PG3+3,PG3+4,PG3+2,PG3+3,2,(*Circle_Judge_Menu)},
+   69                  {PG3+4,PG3+5,PG3+3,PG3+4,2,(*Circle_Judge_Menu)},
+   70                  {PG3+5,PG3+6,PG3+4,PG3+5,2,(*Circle_Judge_Menu)},
+   71                  {PG3+6,PG3+7,PG3+5,PG3+6,2,(*Circle_Judge_Menu)},
+   72                  {PG3+7,PG3+0,PG3+6,PG3+7,2,(*Circle_Judge_Menu)},
+   73          
+   74                  {PG4+0,PG4+1,PG4+7,PG4+0,3,(*Circle_Process_Menu)},
+   75                  {PG4+1,PG4+2,PG4+0,PG4+1,3,(*Circle_Process_Menu)},
+   76                  {PG4+2,PG4+3,PG4+1,PG4+2,3,(*Circle_Process_Menu)},
+   77                  {PG4+3,PG4+4,PG4+2,PG4+3,3,(*Circle_Process_Menu)},
+   78                  {PG4+4,PG4+5,PG4+3,PG4+4,3,(*Circle_Process_Menu)},
+   79                  {PG4+5,PG4+6,PG4+4,PG4+5,3,(*Circle_Process_Menu)},
+   80                  {PG4+6,PG4+7,PG4+5,PG4+6,3,(*Circle_Process_Menu)},
+   81                  {PG4+7,PG4+0,PG4+6,PG4+7,3,(*Circle_Process_Menu)},
+   82          
+   83                  {PG5+0,PG5+1,PG5+7,PG5+0,4,(*Speed_Planning_Menu)},
+   84                  {PG5+1,PG5+2,PG5+0,PG5+1,4,(*Speed_Planning_Menu)},
+   85                  {PG5+2,PG5+3,PG5+1,PG5+2,4,(*Speed_Planning_Menu)},
+   86                  {PG5+3,PG5+4,PG5+2,PG5+3,4,(*Speed_Planning_Menu)},
+   87                  {PG5+4,PG5+5,PG5+3,PG5+4,4,(*Speed_Planning_Menu)},
+   88                  {PG5+5,PG5+6,PG5+4,PG5+5,4,(*Speed_Planning_Menu)},
+   89                  {PG5+6,PG5+7,PG5+5,PG5+6,4,(*Speed_Planning_Menu)},
+   90                  {PG5+7,PG5+0,PG5+6,PG5+7,4,(*Speed_Planning_Menu)},
+   91          
+   92                  {PG6+0,PG6+1,PG6+7,PG6+0,5,(*Camera_Menu)},
+   93                  {PG6+1,PG6+2,PG6+0,PG6+1,5,(*Camera_Menu)},
+   94                  {PG6+2,PG6+3,PG6+1,PG6+2,5,(*Camera_Menu)},
+   95                  {PG6+3,PG6+4,PG6+2,PG6+3,5,(*Camera_Menu)},
+   96                  {PG6+4,PG6+5,PG6+3,PG6+4,5,(*Camera_Menu)},
+   97                  {PG6+5,PG6+6,PG6+4,PG6+5,5,(*Camera_Menu)},
+   98                  {PG6+6,PG6+7,PG6+5,PG6+6,5,(*Camera_Menu)},
+   99                  {PG6+7,PG6+0,PG6+6,PG6+7,5,(*Camera_Menu)},
+  100          
+  101                  {PG7+0,PG7+1,PG7+7,PG7+0,6,(*mode_set)},
+  102                  {PG7+1,PG7+2,PG7+0,PG7+1,6,(*mode_set)},
+  103                  {PG7+2,PG7+3,PG7+1,PG7+2,6,(*mode_set)},
+  104                  {PG7+3,PG7+4,PG7+2,PG7+3,6,(*mode_set)},
+  105                  {PG7+4,PG7+5,PG7+3,PG7+4,6,(*mode_set)},
+  106                  {PG7+5,PG7+6,PG7+4,PG7+5,6,(*mode_set)},
+  107                  {PG7+6,PG7+7,PG7+5,PG7+6,6,(*mode_set)},
+  108                  {PG7+7,PG7+0,PG7+6,PG7+7,6,(*mode_set)},
+  109          
+  110                  // {PG8+0,PG8+1,PG8+7,PG8+0,1,(*Circle_Process_Menu)},
+  111                  // {PG8+1,PG8+2,PG8+0,PG8+1,1,(*Circle_Process_Menu)},
+  112                  // {PG8+2,PG8+3,PG8+1,PG8+2,1,(*Circle_Process_Menu)},
+  113                  // {PG8+3,PG8+4,PG8+2,PG8+3,1,(*Circle_Process_Menu)},
+  114                  // {PG8+4,PG8+5,PG8+3,PG8+4,1,(*Circle_Process_Menu)},
+  115                  // {PG8+5,PG8+6,PG8+4,PG8+5,1,(*Circle_Process_Menu)},
+  116                  // {PG8+6,PG8+7,PG8+5,PG8+6,1,(*Circle_Process_Menu)},
+  117                  // {PG8+7,PG8+0,PG8+6,PG8+7,1,(*Circle_Process_Menu)},
+  118          };
+  119          
+  120          void SelectdotShowing(int set)
+  121          {
+  122   1          uint8 i = 0;
+  123   1          if (keymode==1)
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 3   
+
+  124   1          {
+  125   2              for (i = NumStart; i <NumEnd; i++)
+  126   2              {
+  127   3                  if (i!=(func-set)) {show_str(0,i," ");}
+  128   3                  if (i==(func-set)) {show_str(0,i,">");}
+  129   3              }
+  130   2          }
+  131   1          if (keymode==2)
+  132   1          {
+  133   2              for (i = NumStart; i <NumEnd; i++)
+  134   2              {
+  135   3                  if (i!=(func-set)) {show_str(0,i," ");}
+  136   3                  if (i==(func-set)) {show_str(0,i,"-");}
+  137   3              }
+  138   2          }
+  139   1      }
+  140          
+  141          void mainbackground()
+  142          {
+  143   1          SelectdotShowing(PG0);
+  144   1          show_str(x_main,line0 ,"ServoPID       ");
+  145   1          show_str(x_main,line1 ,"MotorPID       ");
+  146   1          show_str(x_main,line2 ,"CircleJudge    ");
+  147   1          show_str(x_main,line3 ,"CircleProcess  ");
+  148   1          show_str(x_main,line4 ,"Speed_Planning ");
+  149   1          show_str(x_main,line5 ,"Camera         ");
+  150   1          show_str(x_main,line6 ,"RunMode        ");
+  151   1          show_str(x_main,line7 ,"Setting        ");
+  152   1          
+  153   1          if (func==7&&key_press){show_str(56,line7,"flashed!");delay_ms(200);clear(0x00);}//set eep  
+  154   1      }
+  155          
+  156          void Servo_Menu()
+  157          {
+  158   1          SelectdotShowing(PG1);
+  159   1          show_str(x_main,line0 ,"UFF0        ");show_float(x_sec, line0 , UFF[0] , 2, 1);
+  160   1          show_str(x_main,line1 ,"UFF1        ");show_float(x_sec, line1 , UFF[1] , 2, 1);
+  161   1          show_str(x_main,line2 ,"UFF2        ");show_float(x_sec, line2 , UFF[2] , 2, 1);
+  162   1          show_str(x_main,line3 ,"UFF3        ");show_float(x_sec, line3 , UFF[3] , 2, 1);
+  163   1          show_str(x_main,line4 ,"UFF4        ");show_float(x_sec, line4 , UFF[4] , 2, 1);
+  164   1          show_str(x_main,line5 ,"UFF5        ");show_float(x_sec, line5 , UFF[5] , 2, 1);
+  165   1          show_str(x_main,line6 ,"UFF6        ");show_float(x_sec, line6 , UFF[6] , 2, 1);
+  166   1          show_str(x_main,line7 ,"Servo_Mid   ");show_int  (x_sec, line7 , Servo_Mid);
+  167   1      
+  168   1      
+  169   1          // if (Spid_Sel<=0){Spid_Sel=0;}
+  170   1          // if (Spid_Sel>=2){Spid_Sel=2;}
+  171   1      
+  172   1          // show_str(x_main,line7 ,"PID_MODE    ");                                       
+  173   1          // switch (Spid_Sel)
+  174   1          // {
+  175   1          //     case 0:show_str(x_sec,line7 ,"Npid");break;
+  176   1          //     case 1:show_str(x_sec,line7 ,"Ppid");break;
+  177   1          //     case 2:show_str(x_sec,line7 ,"Fpid");break;   
+  178   1          //     default:break;
+  179   1          // }
+  180   1          
+  181   1      }
+  182          
+  183          void Motor_Menu()
+  184          {
+  185   1          SelectdotShowing(PG2);
+  186   1          show_str(x_main,line0 ,"BDLC_PWM  ");show_int  (x_sec, line0 , BDLC_PWM);
+  187   1          show_str(x_main,line1 ,"DV        ");show_float(x_sec, line1 , dv,3,1);
+  188   1          show_str(x_main,line2 ,"Lp        ");show_float(x_sec, line2 , LMp,3,1);
+  189   1          show_str(x_main,line3 ,"Li        ");show_float(x_sec, line3 , LMi,3,1);
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 4   
+
+  190   1          show_str(x_main,line4 ,"Rp        ");show_float(x_sec, line4 , RMp,3,1);
+  191   1          show_str(x_main,line5 ,"Ri        ");show_float(x_sec, line5 , RMi,3,1);
+  192   1          show_str(x_main,line6 ,"Zebra_Num ");show_int  (x_sec, line6 , zebra_num);
+  193   1          show_str(x_main,line7 ,"Servo_Mid ");show_int  (x_sec, line7 , Servo_Mid);
+  194   1          // if (BDLC_PWM>=6300){BDLC_PWM=0;}
+  195   1      }
+  196           
+  197          void Circle_Judge_Menu()
+  198          {
+  199   1          SelectdotShowing(PG3);
+  200   1          show_str(x_main,line0 ,"Up_Limit   ");show_int  (x_sec, line0 , up_limit);
+  201   1          show_str(x_main,line1 ,"Down_Limit ");show_int  (x_sec, line1 , down_limit);
+  202   1          show_str(x_main,line2 ,"Up_lose    ");show_int  (x_sec, line2 , up_lose);
+  203   1          show_str(x_main,line3 ,"Down_Lose  ");show_int  (x_sec, line3 , down_lose);
+  204   1          show_str(x_main,line4 ,"Cross_Lose ");show_int  (x_sec, line4 , cross_err);
+  205   1          show_str(x_main,line5 ,"Cross_Limit");show_int  (x_sec, line5 , crossf_max);
+  206   1      }
+  207          
+  208          void Circle_Process_Menu()
+  209          {
+  210   1          SelectdotShowing(PG4);
+  211   1          show_str(x_main,line0 ,"ICM_IN     ");   show_int  (x_sec, line0 , icm_in);
+  212   1          show_str(x_main,line1 ,"ICM_OUT    ");   show_int  (x_sec, line1 , icm_out);
+  213   1          show_str(x_main,line2 ,"Cir_INP    ");   show_int  (x_sec, line2 , cir_inp);
+  214   1          show_str(x_main,line3 ,"Cir_OUTP   ");   show_int  (x_sec, line3 , cir_outp);
+  215   1          show_str(x_main,line4 ,"Cir_InCheck");   show_int  (x_sec, line4 , cir_incheck);    
+  216   1          show_str(x_main,line5 ,"Cir_OutCheck");  show_int  (x_sec, line5 , cir_outcheck);
+  217   1      
+  218   1      }
+  219          
+  220          void Speed_Planning_Menu()
+  221          {
+  222   1          SelectdotShowing(PG5);
+  223   1          show_str(x_main,line0 ,"normalvel ");    show_int  (x_sec, line0 , normal_tarsp);
+  224   1          show_str(x_main,line1 ,"circlrvel ");    show_int  (x_sec, line1 , circle_tarsp);    
+  225   1          show_str(x_main,line2 ,"slopevel  ");    show_int  (x_sec, line2 , slope_tarsp);
+  226   1          show_str(x_main,line3 ,"stright_dv");    show_int  (x_sec, line3 , stright_tarsp);
+  227   1      }
+  228          
+  229          void Camera_Menu()
+  230          {
+  231   1          SelectdotShowing(PG6);
+  232   1          show_str(x_main,line0 ,"Comapre_0 ");show_int  (x_sec, line0 , Comapre_0);
+  233   1          show_str(x_main,line1 ,"Comapre_1 ");show_int  (x_sec, line1 , Comapre_1);
+  234   1          show_str(x_main,line2 ,"DOWN_DEC  ");show_int  (x_sec, line2 , down_dec);
+  235   1          show_str(x_main,line3 ,"UP_DEC    ");show_int  (x_sec, line3 , up_dec);
+  236   1          show_str(x_main,line4 ,"KEEPLINE  ");show_int  (x_sec, line4 , keepline);
+  237   1          show_str(x_main,line5 ,"INCIRLINE ");show_int  (x_sec, line5 , incirline);
+  238   1          show_str(x_main,line6 ,"OUTCIRLINE");show_int  (x_sec, line6 , outcirline);
+  239   1          show_str(x_main,line7 ,"CCD_OFFSET");show_int  (x_sec, line7 , ccd_offset);
+  240   1      }
+  241          
+  242          void mode_set()
+  243          {
+  244   1          SelectdotShowing(PG7);
+  245   1          show_str(x_main,line0 ,"run_mode  ");//show_int  (x_sec, line0 , Comapre_0);
+  246   1          show_str(x_main,line1 ,"lcir_num  ");show_int  (x_sec, line1 , lcir_num);
+  247   1          show_str(x_main,line2 ,"rcir_num  ");show_int  (x_sec, line2 , rcir_num);
+  248   1          show_str(x_main,line3 ,"cross_num ");show_int  (x_sec, line3 , cross_num);
+  249   1          show_str(x_main,line4 ,"slope_num ");show_int  (x_sec, line4 , slope_num);
+  250   1          show_str(x_main,line5 ,"direction ");//show_int  (x_sec, line5 , incirline);
+  251   1          show_str(x_main,line6 ,"OUTCIRLINE");//show_int  (x_sec, line6 , outcirline);   
+  252   1      }
+  253          
+  254          void EEPROMSetData(void)
+  255          {
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 5   
+
+  256   1          if(keymode==2)
+  257   1          {
+  258   2              switch (func)
+  259   2              {
+  260   3                  case PG1+0:UFF[0]  +=Dvi*0.1;       break;
+  261   3                  case PG1+1:UFF[1]  +=Dvi*0.1;       break;
+  262   3                  case PG1+2:UFF[2]  +=Dvi*0.1;       break;
+  263   3                  case PG1+3:UFF[3]  +=Dvi*0.1;       break;
+  264   3                  case PG1+4:UFF[4]  +=Dvi*0.1;       break;
+  265   3                  case PG1+5:UFF[5]  +=Dvi*0.1;       break;
+  266   3                  case PG1+6:UFF[6]  +=Dvi*0.1;       break;
+  267   3                  case PG1+7:Servo_Mid +=Dvi*5;       break;
+  268   3      
+  269   3                  case PG2+0:BDLC_PWM+=Dvi*10;        break;
+  270   3                  case PG2+1:dv+=Dvi*1;               break;
+  271   3                  case PG2+2:LMp+=Dvi*1;              break;
+  272   3                  case PG2+3:LMi+=Dvi*0.1;            break;
+  273   3                  case PG2+4:RMp+=Dvi*1;              break;
+  274   3                  case PG2+5:RMi+=Dvi*0.1;            break;
+  275   3                  case PG2+6:zebra_num+=Dvi*1;        break;
+  276   3                  
+  277   3      
+  278   3                  case PG3+0:up_limit+=Dvi*1;         break;
+  279   3                  case PG3+1:down_limit+=Dvi*1;       break;
+  280   3                  case PG3+2:up_lose+=Dvi;            break;
+  281   3                  case PG3+3:down_lose+=Dvi;          break;
+  282   3                  case PG3+4:cross_err+=Dvi;          break;
+  283   3                  case PG3+5:crossf_max+=Dvi;         break;
+  284   3      
+  285   3                  case PG4+0:icm_in+=Dvi;             break;
+  286   3                  case PG4+1:icm_out+=Dvi;            break;
+  287   3                  case PG4+2:cir_inp+=Dvi;            break;
+  288   3                  case PG4+3:cir_outp+=Dvi;           break;
+  289   3                  case PG4+4:cir_incheck+=Dvi;        break;
+  290   3                  case PG4+5:cir_outcheck+=Dvi*1;     break;
+  291   3      
+  292   3                  case PG5+0:normal_tarsp+=Dvi*1;     break;
+  293   3                  case PG5+1:circle_tarsp+=Dvi*1;     break;
+  294   3                  case PG5+2:slope_tarsp+=Dvi*1;      break;
+  295   3                  case PG5+3:stright_tarsp+=Dvi*10;   break;
+  296   3      
+  297   3      
+  298   3                  case PG6+0:Comapre_0+=Dvi*1;        break;
+  299   3                  case PG6+1:Comapre_1+=Dvi*1;        break;
+  300   3                  case PG6+2:down_dec+=Dvi;           break;
+  301   3                  case PG6+3:up_dec+=Dvi;             break;
+  302   3                  case PG6+4:keepline+=Dvi;           break;
+  303   3                  case PG6+5:incirline+=Dvi;          break;
+  304   3                  case PG6+6:outcirline+=Dvi;         break;
+  305   3                  case PG6+7:ccd_offset+=Dvi;         break;
+  306   3      
+  307   3                  case PG7+0:cross_num+=Dvi*1;        break;
+  308   3                  case PG7+1:lcir_num+=Dvi*1;         break;
+  309   3                  case PG7+2:rcir_num+=Dvi;           break;
+  310   3              }
+  311   2          }Dvi=0;
+  312   1      }
+  313          
+  314          void image_ori_bin()
+  315          {
+  316   1          uint8 i = 0;
+  317   1          uint8 j=0,t=0,y=0;
+  318   1      
+  319   1              for ( i = 0; i < 128; i++)
+  320   1              {
+  321   2              j = image[i];
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 6   
+
+  322   2                      if (j!=old_img[i])
+  323   2                      {
+  324   3                              oled_putpixel_spi(i,j,0x00);
+  325   3                              oled_putpixel_spi(i,old_img[i],0xff);
+  326   3                              old_img[i]=j;
+  327   3                      }
+  328   2              }
+  329   1          for ( i = 0; i < 128; i++)
+  330   1              {
+  331   2              t = image1[i];
+  332   2                      if (t!=old_img1[i])
+  333   2                      {
+  334   3                              oled_putpixel_spi(i,t,0x00);
+  335   3                              oled_putpixel_spi(i,old_img1[i],0xff);
+  336   3                              old_img1[i]=t;
+  337   3                      }
+  338   2              }
+  339   1          for ( i = 0; i < 128; i++)
+  340   1              {
+  341   2              y = image2[i];
+  342   2                      if (y!=old_img2[i])
+  343   2                      {
+  344   3                              oled_putpixel_spi(i,y,0x01);
+  345   3                              oled_putpixel_spi(i,old_img2[i],0xff);
+  346   3                              old_img1[i]=y;
+  347   3                      }
+  348   2              }
+  349   1          if (P11)
+  350   1              {
+  351   2                      show_str(0,0,"N");
+  352   2              }
+  353   1              else
+  354   1              {
+  355   2                      show_str(0,0,"Y");
+  356   2              }
+  357   1          show_int(0,1,lp[1]);show_int(43,1,eCCD[1]);show_int(85,1,rp[1]);
+  358   1          show_int(0,2,lp[0]);show_int(43,2,eCCD[0]);show_int(85,2,rp[0]);
+  359   1          if (key_right)
+  360   1          {
+  361   2      
+  362   2              lpu=lp[1];rpu=rp[1];
+  363   2              lpd=lp[0];rpd=rp[0]; 
+  364   2              delay_ms(100);
+  365   2      
+  366   2          }
+  367   1          
+  368   1      
+  369   1      }
+  370          
+  371          
+  372          int Key_Scan()
+  373          {
+  374   1      
+  375   1          if (keymode==2&&key_left&&func>=PG1&&func<=PG8+8) {keymode=1;}
+  376   1          if (keymode==1&&key_press&&func>=PG1&&func<=PG8+8){keymode=2;}
+  377   1          
+  378   1          if(keymode==1&&(key_up||key_down||key_left||key_right||key_press))
+  379   1          {
+  380   2              delay_ms(8);
+  381   2              
+  382   2              if      (key_up)    return UP;
+  383   2              else if (key_down)  return DOWN;
+  384   2              else if (key_left)  {clear(0x00);return LEFT;}
+  385   2              else if (key_right) return RIGHT;
+  386   2              else if (key_press) {clear(0x00);return PRESS;}
+  387   2          }
+C251 COMPILER V5.60.0,  MENU                                                               17/08/24  10:34:33  PAGE 7   
+
+  388   1      
+  389   1          if (keymode==2&&(key_up||key_down))
+  390   1          {
+  391   2              delay_ms(8);
+  392   2              if      (key_up)    return ADD;
+  393   2              else if (key_down)  return DEC;
+  394   2          }
+  395   1      
+  396   1          return 0;
+  397   1      }
+  398          
+  399          void Menu_display()
+  400          {
+  401   1          if (Key_Scan()==DOWN)   {func=table[func].Next;}
+  402   1          if (Key_Scan()==UP)     {func=table[func].Back;}
+  403   1          if (Key_Scan()==PRESS)  {delay_ms(10);func=table[func].Enter;}
+  404   1          if (Key_Scan()==LEFT)   {func=table[func].Esc;}
+  405   1          if (Key_Scan()==ADD)    {Dvi= 1;}
+  406   1          if (Key_Scan()==DEC)    {Dvi=-1;}
+  407   1      
+  408   1          fx=table[func].fx;
+  409   1          (*fx)();
+  410   1          EEPROMSetData();
+  411   1      }
+  412          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =      4474     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =      1731     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =      2440     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

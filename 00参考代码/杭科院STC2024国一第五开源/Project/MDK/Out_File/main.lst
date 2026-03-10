@@ -1,0 +1,116 @@
+C251 COMPILER V5.60.0,  main                                                               17/08/24  10:34:33  PAGE 1   
+
+
+C251 COMPILER V5.60.0, COMPILATION OF MODULE main
+OBJECT MODULE PLACED IN .\Out_File\main.obj
+COMPILER INVOKED BY: C:\Keil_v5\C251\BIN\C251.EXE ..\USER\src\main.c XSMALL WARNINGLEVEL(3) OPTIMIZE(0,SPEED) BROWSE INC
+                    -DIR(..\..\Libraries\libraries;..\..\Libraries\seekfree_libraries;..\..\Libraries\seekfree_peripheral;..\CODE;..\USER\inc
+                    -;..\USER\src;..\..\Libraries\seekfree_components) DEBUG PRINT(.\Out_File\main.lst) OBJECT(.\Out_File\main.obj) 
+
+stmt  level    source
+
+    1          #include  "SystemConfig.h"
+    2          extern ele flag;
+    3          extern LADRC_NUM LADRC;
+    4          float oci =0;
+    5          
+    6          uint16 sum=0;
+    7          void Show_Data()
+    8          {
+    9   1      
+   10   1              
+   11   1      }   
+   12          
+   13          void main()
+   14          {
+   15   1              clock_init(SYSTEM_CLOCK_56M);
+   16   1              board_init();
+   17   1              // Ladrc_Init(&LADRC);
+   18   1              // Ladrc_Reset(&LADRC);
+   19   1              Device_initialize();
+   20   1      
+   21   1          while(1)
+   22   1          {
+   23   2                      LMOTOR_FORWARD;pwm_duty(LMOTOR_PWM, 800);
+   24   2                      RMOTOR_FORWARD;pwm_duty(RMOTOR_PWM, 800);
+   25   2                      delay_ms(2000);
+   26   2                      LMOTOR_RETREAT;pwm_duty(LMOTOR_PWM, 800);
+   27   2                      RMOTOR_RETREAT;pwm_duty(RMOTOR_PWM, 800);
+   28   2                      delay_ms(2000);
+   29   2                      // Show_Data();
+   30   2                      // ccd_mode(compare,KEEP_NORMAL_LINE);
+   31   2              // elements();
+   32   2                      // SystemCtrl();
+   33   2          }
+   34   1      }
+   35          
+   36          void Car_Debug()
+   37          {
+   38   1              runflag=1;
+   39   1      }
+   40          
+   41          void BEM_START()
+   42          {
+   43   1              clear(0x00);
+   44   1              pwm_init(PWMB_CH2_P01,333,3000);
+   45   1              pwm_init(PWMB_CH1_P00,333,3000);
+   46   1              delay_ms(1000); 
+   47   1              pwm_duty(PWMB_CH2_P01,5500);
+   48   1              pwm_duty(PWMB_CH1_P00,5500);
+   49   1              delay_ms(1000); 
+   50   1              pwm_duty(PWMB_CH2_P01,BDLC_PWM);
+   51   1              pwm_duty(PWMB_CH1_P00,BDLC_PWM);
+   52   1              delay_ms(1000); 
+   53   1              runflag=0;              
+   54   1      }
+   55          
+   56          void SystemCtrl()
+   57          {       
+C251 COMPILER V5.60.0,  main                                                               17/08/24  10:34:33  PAGE 2   
+
+   58   1              if (SetMenu)                                    {Menu_display();}
+   59   1              if (IMAGE_M)                                    {img1_get();image_ori_bin();}
+   60   1              if (ST_CAR&&key_right)                  {if(runflag)BEM_START();}                  
+   61   1              if (DEBUG_CAR)                                  
+   62   1              {
+   63   2                      runflag=1;
+   64   2                      ele_num=0;
+   65   2                      oci=0;
+   66   2                      l_num=0;
+   67   2                      r_num=0;
+   68   2                      slope_nco=0;
+   69   2                      cross_nco=0;
+   70   2                      last_ele=0;
+   71   2              }
+   72   1              if (TEST_CAR)
+   73   1              {
+   74   2                      if (key_right)
+   75   2                      oled_init_spi(); 
+   76   2              }
+   77   1              
+   78   1      }
+   79          
+
+
+Module Information          Static   Overlayable
+------------------------------------------------
+  code size            =       432     ------
+  ecode size           =    ------     ------
+  data size            =    ------     ------
+  idata size           =    ------     ------
+  pdata size           =    ------     ------
+  xdata size           =    ------     ------
+  xdata-const size     =    ------     ------
+  edata size           =         6     ------
+  bit size             =    ------     ------
+  ebit size            =    ------     ------
+  bitaddressable size  =    ------     ------
+  ebitaddressable size =    ------     ------
+  far data size        =    ------     ------
+  huge data size       =    ------     ------
+  const size           =    ------     ------
+  hconst size          =        14     ------
+End of Module Information.
+
+
+C251 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
