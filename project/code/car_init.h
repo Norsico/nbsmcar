@@ -3,6 +3,6 @@
 
 #include "zf_common_headfile.h"
 
-void seekfree_assistant_wifi_init(const char *wifi_ssid, const char *wifi_password, const char *target_ip);
+void car_init(uint8 enable_wifi, const char *wifi_ssid, const char *wifi_password, const char *target_ip);
 
 #endif

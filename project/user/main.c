@@ -1,6 +1,7 @@
+
 #include "zf_common_headfile.h"
 #include "car_init.h"
-
+#include "car_motor.h"
 
 // **************************** 代码区域 ****************************
 
@@ -9,32 +10,15 @@ void main(void)
     clock_init(SYSTEM_CLOCK_96M); 				// 时钟配置及系统初始化<务必保留>
     debug_init();                       		// 调试串口信息初始化
 
-    
-    seekfree_assistant_wifi_init("QQ", "1234567890xia", "192.168.43.236");
+    car_init(0, NULL, NULL, NULL);
 
-    seekfree_assistant_oscilloscope_data.channel_num = 1;
-    seekfree_assistant_oscilloscope_data.dat[0] = 0.0f;
+    car_motor_stop_all();
+    car_motor_set_speed(RIGHT_MOTOR, 20);            // 右后轮：往前走，PWM=20%
 
-    printf("\r\n assistant param[1] -> oscilloscope channel[0] \r\n");
-
-    // 此处编写用户代码 例如外设初始化代码等
     while(1)
     {
-        seekfree_assistant_data_analysis();
 
-        if(seekfree_assistant_parameter_update_flag[0])
-        {
-            seekfree_assistant_oscilloscope_data.dat[0] = seekfree_assistant_parameter[0];
-            seekfree_assistant_parameter_update_flag[0] = 0;
-        }
-
-        seekfree_assistant_oscilloscope_send(&seekfree_assistant_oscilloscope_data);
-
-        system_delay_ms(20);
-
-        // 此处编写需要循环执行的代码
+        system_delay_ms(200);
     }
 }
 // **************************** 代码区域 ****************************
-
-

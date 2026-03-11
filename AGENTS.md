@@ -58,3 +58,5 @@ smcar_code/
 - 如果 Keil 报 `unprintable character`，先检查源码注释里是否混入了控制字符，不要先假设是编译器不支持 UTF-8。
 - `project/code/` 下新增的 `.c` 文件需要同时登记到 `project/mdk/seekfree.uvproj` 的 `code` 组。
 - 仓库顶层目录当前使用 `01Tools/` 和 `02libraries/`，Keil 工程路径也需要保持同步。
+- 当前车辆是四轮结构：前轮由舵机控制转向，后轮由两路直流电机驱动；已确认 `RIGHT_MOTOR` 映射到 P75/P74 这一组。
+- `car_init()` 现在默认可跳过 WiFi 初始化，但会始终初始化后轮直流电机。

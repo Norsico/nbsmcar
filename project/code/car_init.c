@@ -1,4 +1,5 @@
 #include "car_init.h"
+#include "car_motor.h"
 
 static const char *car_target_ip_or_default(const char *target_ip)
 {
@@ -10,9 +11,18 @@ static const char *car_target_ip_or_default(const char *target_ip)
     return WIFI_SPI_TARGET_IP;
 }
 
-void seekfree_assistant_wifi_init(const char *wifi_ssid, const char *wifi_password, const char *target_ip)
+void car_init(uint8 enable_wifi, const char *wifi_ssid, const char *wifi_password, const char *target_ip)
 {
-    const char *connect_ip = car_target_ip_or_default(target_ip);
+    const char *connect_ip = NULL;
+
+    car_motor_init();
+
+    if(!enable_wifi)
+    {
+        return;
+    }
+
+    connect_ip = car_target_ip_or_default(target_ip);
 
     while(wifi_spi_init(wifi_ssid, wifi_password))
     {

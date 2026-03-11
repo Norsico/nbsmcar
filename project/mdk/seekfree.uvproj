@@ -829,6 +829,16 @@
               <FileType>5</FileType>
               <FilePath>..\code\car_init.h</FilePath>
             </File>
+            <File>
+              <FileName>car_motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\car_motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>car_motor.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\car_motor.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
