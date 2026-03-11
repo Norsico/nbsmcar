@@ -272,7 +272,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\libraries\zf_common;..\..\libraries\zf_components;..\..\libraries\zf_device;..\..\libraries\zf_driver;..\user;..\code;..\..\libraries\zf_components\stc32g_usb_lib;..\..\libraries\zf_components\seekfree_assistant</IncludePath>
+              <IncludePath>..\..\02libraries\zf_common;..\..\02libraries\zf_components;..\..\02libraries\zf_device;..\..\02libraries\zf_driver;..\user;..\code;..\..\02libraries\zf_components\stc32g_usb_lib;..\..\02libraries\zf_components\seekfree_assistant</IncludePath>
             </VariousControls>
           </C251>
           <Ax51>
@@ -284,7 +284,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\libraries\zf_common</IncludePath>
+              <IncludePath>..\..\02libraries\zf_common</IncludePath>
             </VariousControls>
           </Ax51>
           <Lx51>
@@ -327,7 +327,7 @@
             <File>
               <FileName>version.txt</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\doc\version.txt</FilePath>
+              <FilePath>..\..\02libraries\doc\version.txt</FilePath>
             </File>
           </Files>
         </Group>
@@ -337,87 +337,87 @@
             <File>
               <FileName>stc32g144k246.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\stc32g144k246.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\stc32g144k246.h</FilePath>
             </File>
             <File>
               <FileName>START251.A51</FileName>
               <FileType>2</FileType>
-              <FilePath>..\..\libraries\zf_common\START251.A51</FilePath>
+              <FilePath>..\..\02libraries\zf_common\START251.A51</FilePath>
             </File>
             <File>
               <FileName>zf_common_headfile.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_headfile.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_headfile.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_typedef.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_typedef.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_typedef.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_typedef.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_typedef.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_typedef.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_clock.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_clock.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_clock.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_clock.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_clock.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_clock.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_interrupt.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_interrupt.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_interrupt.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_interrupt.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_interrupt.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_interrupt.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_debug.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_debug.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_debug.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_debug.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_debug.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_debug.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_fifo.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_fifo.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_fifo.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_fifo.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_fifo.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_fifo.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_font.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_font.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_font.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_font.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_font.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_font.h</FilePath>
             </File>
             <File>
               <FileName>zf_common_function.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_function.c</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_function.c</FilePath>
             </File>
             <File>
               <FileName>zf_common_function.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_common\zf_common_function.h</FilePath>
+              <FilePath>..\..\02libraries\zf_common\zf_common_function.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -427,132 +427,132 @@
             <File>
               <FileName>zf_driver_adc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_adc.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_adc.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_adc.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_adc.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_adc.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_delay.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_delay.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_delay.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_delay.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_delay.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_delay.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_eeprom.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_eeprom.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_eeprom.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_eeprom.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_eeprom.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_eeprom.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_encoder.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_encoder.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_encoder.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_encoder.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_encoder.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_encoder.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_exti.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_exti.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_exti.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_exti.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_exti.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_exti.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_gpio.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_gpio.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_gpio.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_gpio.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_gpio.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_pit.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_pit.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_pit.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_pit.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_pit.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_pit.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_pwm.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_pwm.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_pwm.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_pwm.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_pwm.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_pwm.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_soft_iic.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_soft_iic.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_soft_iic.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_soft_iic.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_soft_iic.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_soft_iic.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_spi.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_spi.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_spi.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_spi.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_spi.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_spi.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_timer.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_timer.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_timer.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_timer.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_timer.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_timer.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_uart.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_uart.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_uart.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_uart.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_uart.h</FilePath>
             </File>
             <File>
               <FileName>zf_driver_usb_cdc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_usb_cdc.c</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_usb_cdc.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_usb_cdc.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_usb_cdc.h</FilePath>
+              <FilePath>..\..\02libraries\zf_driver\zf_driver_usb_cdc.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -562,162 +562,162 @@
             <File>
               <FileName>zf_device_type.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_type.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_type.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_type.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_type.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_type.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_config.LIB</FileName>
               <FileType>4</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_config.LIB</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_config.LIB</FilePath>
             </File>
             <File>
               <FileName>zf_device_config.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_config.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_config.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_mt9v03x.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_mt9v03x.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_mt9v03x.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_mt9v03x.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_mt9v03x.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_mt9v03x.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_mt9v03x_dma.LIB</FileName>
               <FileType>4</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_mt9v03x_dma.LIB</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_mt9v03x_dma.LIB</FilePath>
             </File>
             <File>
               <FileName>zf_device_mt9v03x_dma.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_mt9v03x_dma.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_mt9v03x_dma.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_ips114.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips114.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ips114.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_ips114.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips114.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ips114.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_tft180.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_tft180.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_tft180.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_tft180.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_tft180.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_tft180.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_ips200.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips200.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ips200.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_ips200.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips200.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ips200.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_ips200pro.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips200pro.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ips200pro.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_ips200pro.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips200pro.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ips200pro.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_ble6a20.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ble6a20.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ble6a20.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_ble6a20.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ble6a20.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_ble6a20.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_wifi_spi.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_wifi_spi.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_wifi_spi.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_wifi_spi.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_wifi_spi.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_wifi_spi.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_wireless_uart.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_wireless_uart.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_wireless_uart.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_wireless_uart.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_wireless_uart.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_wireless_uart.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_dl1a.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_dl1a.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_dl1a.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_dl1a.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_dl1a.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_dl1a.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_dl1b.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_dl1b.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_dl1b.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_dl1b.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_dl1b.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_dl1b.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu660ra.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu660ra.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_imu660ra.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu660ra.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu660ra.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_imu660ra.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu660rb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu660rb.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_imu660rb.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu660rb.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu660rb.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_imu660rb.h</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu963ra.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu963ra.c</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_imu963ra.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu963ra.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu963ra.h</FilePath>
+              <FilePath>..\..\02libraries\zf_device\zf_device_imu963ra.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -727,97 +727,109 @@
             <File>
               <FileName>config.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\config.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\config.h</FilePath>
             </File>
             <File>
               <FileName>stc.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\stc.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\stc.h</FilePath>
             </File>
             <File>
               <FileName>usb.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb.c</FilePath>
             </File>
             <File>
               <FileName>usb.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb.h</FilePath>
             </File>
             <File>
               <FileName>usb_desc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_desc.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_desc.c</FilePath>
             </File>
             <File>
               <FileName>usb_desc.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_desc.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_desc.h</FilePath>
             </File>
             <File>
               <FileName>usb_req_class.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_class.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_req_class.c</FilePath>
             </File>
             <File>
               <FileName>usb_req_class.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_class.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_req_class.h</FilePath>
             </File>
             <File>
               <FileName>usb_req_std.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_std.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_req_std.c</FilePath>
             </File>
             <File>
               <FileName>usb_req_std.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_std.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_req_std.h</FilePath>
             </File>
             <File>
               <FileName>usb_req_vendor.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_vendor.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_req_vendor.c</FilePath>
             </File>
             <File>
               <FileName>usb_req_vendor.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_vendor.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\usb_req_vendor.h</FilePath>
             </File>
             <File>
               <FileName>util.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\util.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\util.c</FilePath>
             </File>
             <File>
               <FileName>util.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\util.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\stc32g_usb_lib\util.h</FilePath>
             </File>
             <File>
               <FileName>seekfree_assistant.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\seekfree_assistant\seekfree_assistant.c</FilePath>
             </File>
             <File>
               <FileName>seekfree_assistant.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\seekfree_assistant\seekfree_assistant.h</FilePath>
             </File>
             <File>
               <FileName>seekfree_assistant_interface.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant_interface.c</FilePath>
+              <FilePath>..\..\02libraries\zf_components\seekfree_assistant\seekfree_assistant_interface.c</FilePath>
             </File>
             <File>
               <FileName>seekfree_assistant_interface.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant_interface.h</FilePath>
+              <FilePath>..\..\02libraries\zf_components\seekfree_assistant\seekfree_assistant_interface.h</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
           <GroupName>code</GroupName>
+          <Files>
+            <File>
+              <FileName>car_init.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\car_init.c</FilePath>
+            </File>
+            <File>
+              <FileName>car_init.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\car_init.h</FilePath>
+            </File>
+          </Files>
         </Group>
         <Group>
           <GroupName>user</GroupName>
