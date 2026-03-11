@@ -8,7 +8,7 @@ from pathlib import Path
 
 TEXT_SUFFIXES = {".c", ".h"}
 SKIP_DIRS = {".git", ".hg", ".svn", "__pycache__"}
-FALLBACK_ENCODINGS = ("utf-8", "gb18030", "gbk", "gb2312", "latin-1")
+FALLBACK_ENCODINGS = ("utf-8", "gb18030", "gbk", "gb2312")
 
 
 def parse_args() -> argparse.Namespace:
@@ -47,6 +47,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only print the final summary.",
     )
+    parser.add_argument(
+        "--allow-latin1",
+        action="store_true",
+        help="Try latin-1 as a last-resort fallback. Use only when you know files are single-byte encoded.",
+    )
     return parser.parse_args()
 
 
@@ -78,7 +83,11 @@ def detect_encoding(data: bytes) -> tuple[str | None, str | None]:
             return encoding, data.decode(encoding)
         except UnicodeDecodeError:
             continue
-    return None, None
+
+    try:
+        return "latin-1", data.decode("latin-1")
+    except UnicodeDecodeError:
+        return None, None
 
 
 def detect_newline(data: bytes) -> str:
@@ -96,7 +105,7 @@ def detect_newline(data: bytes) -> str:
 
 
 def normalize_text(text: str, newline: str) -> str:
-    normalized = text.replace("\r\n", "\n").replace("\r", "\n").replace("\u0085", "\n")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
     if newline == "\n":
         return normalized
     return normalized.replace("\n", newline)
@@ -124,6 +133,9 @@ def convert_file(path: Path, args: argparse.Namespace) -> tuple[str, str]:
     encoding, text = detect_encoding(original_bytes)
     if encoding is None or text is None:
         return "skipped", "undecodable or binary-looking"
+
+    if encoding == "latin-1" and not args.allow_latin1:
+        return "skipped", "latin-1 fallback disabled"
 
     original_newline = detect_newline(original_bytes)
     output_newline = choose_newline(args.line_endings, original_newline)

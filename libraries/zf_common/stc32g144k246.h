@@ -528,11 +528,10 @@ sfr         RSTCFG      =           0xff;
 
 /////////////////////////////////////////////////
 //
-//å¦ä¸ç¹æ®åè½å¯å­å¨ä½äºæ©å±RAMåºå
-//è®¿é®è¿äºå¯å­å?éå
-å°EAXFRè®¾ç½®ä¸?,æå¯æ­£å¸¸è¯»å
+// The following special function registers are located in extended RAM.
+// Set EAXFR before accessing them, otherwise reads and writes will fail.
 //    EAXFR = 1;
-//æè?
+// or
 //    P_SW2 |= 0x80;
 ///////////////////////////////////////////////////
 
@@ -2754,9 +2753,8 @@ sfr         RSTCFG      =           0xff;
 
 /////////////////////////////////////////////////
 
-#define	EAXSFR()		EAXFR = 1		/* MOVX A,@DPTR/MOVX @DPTR,Aæä»¤çæä½å?¹è±¡ä¸ºæ©å±SFR(XSFR) */
-#define	EAXRAM()		EAXFR = 0		/* MOVX A,@DPTR/MOVX @DPTR,Aæä»¤çæä½å?¹è±¡ä¸ºæ©å±RAM(XRAM) */
-
+#define	EAXSFR()		EAXFR = 1		/* MOVX accesses extended SFR (XSFR). */
+#define	EAXRAM()		EAXFR = 0		/* MOVX accesses extended RAM (XRAM). */
 /////////////////////////////////////////////////
 #define NOP1()  _nop_()
 #define NOP2()  NOP1(),NOP1()
