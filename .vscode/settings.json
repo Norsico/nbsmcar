@@ -20,5 +20,9 @@
     "**/Out_File/**": true,
     "**/out_file/**": true,
     "**/OUT_FILE/**": true
+  },
+  "files.associations": {
+    "zf_common_headfile.h": "c",
+    "cstdio": "c"
   }
 }
