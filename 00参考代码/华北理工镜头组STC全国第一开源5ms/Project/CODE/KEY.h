@@ -1,19 +1,19 @@
 #ifndef _KEY_H_
 #define _KEY_H_
 
-#define KEY1_PIN    P37 //·µ»Ø
-#define KEY2_PIN    P46 //ÉÏ
-#define KEY3_PIN    P45 //ÏÂ
-#define KEY4_PIN    P36 //¼õ
-#define KEY5_PIN    P51 //¼Ó
-#define KEY6_PIN    P52 //È·¶¨
+#define KEY1_PIN    P37 //è¿”å›
+#define KEY2_PIN    P46 //ä¸Š
+#define KEY3_PIN    P45 //ä¸‹
+#define KEY4_PIN    P36 //å‡
+#define KEY5_PIN    P51 //åŠ 
+#define KEY6_PIN    P52 //ç¡®å®š
 
 extern uint8 Model;
 extern uint8 grade_flag;
 extern uint8 ips114_show_flag;
 extern uint8 lose;
 extern uint8 plus;
-extern uint8 Augle_flag; //¶ş¼¶²Ëµ¥±êÖ¾
+extern uint8 Augle_flag; //äºŒçº§èœå•æ ‡å¿—
 extern uint8 key_flag;
 extern uint8 ips114_show_element_flag;
 extern uint8 ips114_show_ring_flag;

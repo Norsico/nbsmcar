@@ -3,7 +3,7 @@
 
 #define SPEEDL_PLUSE   CTIM0_P34
 #define SPEEDR_PLUSE   CTIM3_P04
-//¶¨Òå·½ÏòÒı½Å
+//å®šä¹‰æ–¹å‘å¼•è„š
 #define SPEEDL_DIR     P35
 #define SPEEDR_DIR     P53
 
@@ -13,6 +13,6 @@ extern float encoder_integral;
 extern float encoder;
 extern float encoder_integra2;
 
-void EncoderCount(void);//±àÂëÆ÷¼ÆÊıº¯Êı
+void EncoderCount(void);//ç¼–ç å™¨è®¡æ•°å‡½æ•°
 
 #endif

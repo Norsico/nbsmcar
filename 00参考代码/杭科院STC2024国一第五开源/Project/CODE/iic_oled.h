@@ -13,7 +13,7 @@
 #define	Light_Set	0xFF 
 #define X_WIDTH 	128
 #define Y_WIDTH 	64	    						  
-//-----------------OLED IIC端口操作----------------  					   
+//-----------------OLED IIC绔彛鎿嶄綔----------------  					   
 
 #define OLED_SCLK_Clr() P25=0
 #define OLED_SCLK_Set() P25=1
@@ -22,11 +22,11 @@
 #define OLED_SDIN_Set() P24=1
 
  		     
-#define OLED_CMD  0	//命令模式
-#define OLED_DATA 1	//数据模式
+#define OLED_CMD  0	//鍛戒护妯″紡
+#define OLED_DATA 1	//鏁版嵁妯″紡
 
 
-//OLED操作方法
+//OLED鎿嶄綔鏂规硶
 void OLED_WR_Byte(unsigned dat,unsigned cmd);  
 void OLED_Display_On(void);
 void OLED_Display_Off(void);	   							   		    

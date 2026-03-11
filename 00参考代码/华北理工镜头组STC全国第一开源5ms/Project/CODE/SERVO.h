@@ -21,7 +21,7 @@ typedef struct
 {
 	float z_p;
 	float z_d;
-	//»·µºpd
+	//ç¯å²›pd
 	float R_50_P;
 	float R_50_D;
 	

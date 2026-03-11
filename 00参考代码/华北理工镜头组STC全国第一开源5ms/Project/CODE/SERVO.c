@@ -7,7 +7,7 @@ int16 Pid_Kp = 0;
 int16 Pid_Kd = 0;
 
 PID Pid;
-//»·µºµÄpdÓë±êÖ¾Î»
+//ç¯å²›çš„pdä¸æ ‡å¿—ä½
 uint8 Pid_Ring_flag=0;
 
 int16 Pid_Ring_50_P=0;
@@ -62,7 +62,7 @@ void PID_subsection()
 		Pid.z_p =0.01*Pid_Ring_90_P;
 		Pid.z_d =0.01*Pid_Ring_90_D;
 	}
-	//ipsÏÔÊ¾µÄ²ÎÊı
+	//ipsæ˜¾ç¤ºçš„å‚æ•°
 	Pid.R_50_P =0.01*Pid_Ring_50_P;
 	Pid.R_50_D =0.01*Pid_Ring_50_D;
 	
@@ -85,7 +85,7 @@ void servo_ccd()
 
 void servo_Control()
 {
-	if(SERVO_duty>Servo_delatduty_max)    //¶æ»úPWMÏŞ·ù
+	if(SERVO_duty>Servo_delatduty_max)    //èˆµæœºPWMé™å¹…
 	{
 		SERVO_duty = Servo_delatduty_max;
 	}

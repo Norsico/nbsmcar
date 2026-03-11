@@ -1,8 +1,8 @@
 #include "headfile.h"
 
-uint8 Ring_50=0;//½µËÙ
-uint8 Ring_60=0;//¸ú70»·²ÎÊıÒ»Ñù
-uint8 Ring_90=0;//Ó¦¸Ã¿ÉÒÔ¸ú80»·Ò»Ñù
+uint8 Ring_50=0;//é™é€Ÿ
+uint8 Ring_60=0;//è·Ÿ70ç¯å‚æ•°ä¸€æ ·
+uint8 Ring_90=0;//åº”è¯¥å¯ä»¥è·Ÿ80ç¯ä¸€æ ·
 
 int8 Ring_num=0;
 int8 Ring_flag[4]={0};
@@ -75,7 +75,7 @@ uint16 Angle_Ring=0;
 uint8 Ring_left=0;
 uint8 Ring_right=0;
 
-//»·µºui
+//ç¯å²›ui
 uint8 Find_Ring_qulv=0;
 uint8 Fing_Ring_sideline=0;
 
@@ -91,7 +91,7 @@ void Ring()
 {
 	switch(Ring_state)
 	{
-		case No_Ring: //×ö·ÀÎóÅĞÍäµÀ
+		case No_Ring: //åšé˜²è¯¯åˆ¤å¼¯é“
 			if(CCD1_left_flag==0 && CCD1_right_flag==1 && Trk.right_qulu<=12 && black_write_2==0)
 			{
 				Ring_state=Find_Ring;
@@ -108,7 +108,7 @@ void Ring()
 				encoder_integral=100;
 				encoder_Ring=encoder_integral;
 			}
-			//ÒòÎªÍäÈëÊ®×Ö»áµ¼ÖÂ»·µºÎóÅĞ£¬·ÀÎóÅĞ
+			//å› ä¸ºå¼¯å…¥åå­—ä¼šå¯¼è‡´ç¯å²›è¯¯åˆ¤ï¼Œé˜²è¯¯åˆ¤
 			if((Ring_left==1 || Ring_right==1) && CCD1_left_flag==0 && CCD1_right_flag==0 && black_write_2==0 && black_write_1==0)
 			{
 				Ring_state=No_Ring;
@@ -168,7 +168,7 @@ void Ring()
 		case Ready_In_Ring:
 			if(Ring_left==1 && abs(encoder_Ring-encoder_integral)>In_Ring_encoder)
 			{
-				Ring_state=In_Ring; //×¼±¸·Ö´óĞ¡»·pdÓëËÙ¶È
+				Ring_state=In_Ring; //å‡†å¤‡åˆ†å¤§å°ç¯pdä¸é€Ÿåº¦
 				if(Ring_50==1)
 				{
 					Ring_Speed=11;
@@ -188,7 +188,7 @@ void Ring()
 			
 			if(Ring_right==1 && abs(encoder_Ring-encoder_integral)>In_Ring_encoder)
 			{
-				Ring_state=In_Ring; //×¼±¸·Ö´óĞ¡»·pdÓëËÙ¶È
+				Ring_state=In_Ring; //å‡†å¤‡åˆ†å¤§å°ç¯pdä¸é€Ÿåº¦
 				if(Ring_50==1)
 				{
 					Ring_Speed=11;
@@ -301,13 +301,13 @@ void Ramp()
 		encoder_integral=100;
 		encoder_ramp=encoder_integral;
 	}
-	//ÉÏÆÂµ½ÏÂÆÂ
+	//ä¸Šå¡åˆ°ä¸‹å¡
 	if(Ramp_flag==1 && abs(encoder_ramp-encoder_integral)>Up_Ramp_encoder)
 	{
 		Ramp_flag=2;
 		encoder_ramp=encoder_integral;
 	}
-	//ÏÂÆÂ ³öÆÂ Çå±êÖ¾Î»
+	//ä¸‹å¡ å‡ºå¡ æ¸…æ ‡å¿—ä½
 	if(Ramp_flag==2 && abs(encoder_ramp-encoder_integral)>Out_Ramp_encoder)
 	{
 		Ramp_flag=0;

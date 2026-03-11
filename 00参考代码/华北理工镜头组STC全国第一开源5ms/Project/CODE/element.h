@@ -1,12 +1,12 @@
 #ifndef __ELEMENT_H_
 #define __ELEMENT_H_
 
-#define No_Ring            0			//Ã»»·
-#define Find_Ring    			 1			//ÕÒµ½»·
-#define Ready_In_Ring    	 2			//ÕÒµ½»·
-#define In_Ring      			 3			//ÔÚ»·Àï
-#define Ready_Out_Ring     4			//×¼±¸
-#define Out_Ring     	 	   5			//³ö»·
+#define No_Ring            0			//æ²¡ç¯
+#define Find_Ring    			 1			//æ‰¾åˆ°ç¯
+#define Ready_In_Ring    	 2			//æ‰¾åˆ°ç¯
+#define In_Ring      			 3			//åœ¨ç¯é‡Œ
+#define Ready_Out_Ring     4			//å‡†å¤‡
+#define Out_Ring     	 	   5			//å‡ºç¯
 #define Ready_No_Ring      6
 
 extern uint8 Ring_big;

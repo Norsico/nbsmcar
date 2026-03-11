@@ -22,7 +22,7 @@ typedef struct
 }MOTOR_PID;
 
 extern float Desire_Speed;
-extern int16 Motor_Pid_speed_Z; //uiµ÷½ÚµÄËÙ
+extern int16 Motor_Pid_speed_Z; //uiè°ƒèŠ‚çš„é€Ÿ
 extern int16 Motor_Pid_Z_L_Ki;
 extern int16 Motor_Pid_Z_L_Kp;
 extern int16 Motor_Pid_Z_R_Ki;
@@ -30,13 +30,13 @@ extern int16 Motor_Pid_Z_R_Kp;
 extern int16 Motor_Pid_Dif_P;
 extern MOTOR_PID Motor_Pid;
 
-extern int16 Linear_speed;//Ö±µÀËÙ¶È
-extern int16 Curve_speed; //ÍäµÀËÙ¶È
+extern int16 Linear_speed;//ç›´é“é€Ÿåº¦
+extern int16 Curve_speed; //å¼¯é“é€Ÿåº¦
 
-extern int16 Up_Ramp_speed;//ÉÏÆÂËÙ¶È
-extern int16 Out_Ramp_speed;//ÏÂÆÂËÙ¶È
+extern int16 Up_Ramp_speed;//ä¸Šå¡é€Ÿåº¦
+extern int16 Out_Ramp_speed;//ä¸‹å¡é€Ÿåº¦
 
-//»·µºËÙ¶È
+//ç¯å²›é€Ÿåº¦
 extern uint8 Ring_Speed;
 
 extern int16 Ready_In_50_Ring_speed;
@@ -52,7 +52,7 @@ extern int16 In_90_Ring_speed;
 extern int16 Ready_Out_90_Ring_speed;
 /***************Motor_Control************/
 extern uint8 stop_flag;
-extern uint8 block_time; //¶Â×ªÊ±¼ä¼ÇÂ¼
+extern uint8 block_time; //å µè½¬æ—¶é—´è®°å½•
 extern uint8 stop_time;
 
 /***************Motor_Control************/
