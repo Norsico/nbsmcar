@@ -1,5 +1,6 @@
 #include "car_init.h"
 #include "car_motor.h"
+#include "car_servo.h"
 
 static const char *car_target_ip_or_default(const char *target_ip)
 {
@@ -15,6 +16,7 @@ void car_init(uint8 enable_wifi, const char *wifi_ssid, const char *wifi_passwor
 {
     const char *connect_ip = NULL;
 
+    car_servo_init();
     car_motor_init();
 
     if(!enable_wifi)
