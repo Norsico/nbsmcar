@@ -1,6 +1,12 @@
 #include "car_init.h"
 #include "car_motor.h"
 #include "car_servo.h"
+#include "encoder.h"
+
+// WiFi 默认配置
+#define DEFAULT_WIFI_SSID       "QQ"
+#define DEFAULT_WIFI_PASSWORD   "1234567890xia"
+#define DEFAULT_TARGET_IP       "192.168.43.236"
 
 static const char *car_target_ip_or_default(const char *target_ip)
 {
@@ -9,24 +15,31 @@ static const char *car_target_ip_or_default(const char *target_ip)
         return target_ip;
     }
 
-    return WIFI_SPI_TARGET_IP;
+    return DEFAULT_TARGET_IP;
 }
 
 void car_init(uint8 enable_wifi, const char *wifi_ssid, const char *wifi_password, const char *target_ip)
 {
     const char *connect_ip = NULL;
+    const char *use_ssid = NULL;
+    const char *use_password = NULL;
 
+    // 初始化车辆基础模块
     car_servo_init();
     car_motor_init();
+    encoder_init();
 
     if(!enable_wifi)
     {
         return;
     }
 
+    // 使用默认 WiFi 参数（如果未提供）
+    use_ssid = (wifi_ssid && wifi_ssid[0]) ? wifi_ssid : DEFAULT_WIFI_SSID;
+    use_password = (wifi_password && wifi_password[0]) ? wifi_password : DEFAULT_WIFI_PASSWORD;
     connect_ip = car_target_ip_or_default(target_ip);
 
-    while(wifi_spi_init(wifi_ssid, wifi_password))
+    while(wifi_spi_init(use_ssid, use_password))
     {
         printf("\r\n connect wifi failed. \r\n");
         system_delay_ms(100);
