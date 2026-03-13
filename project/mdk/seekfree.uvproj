@@ -849,6 +849,16 @@
               <FileType>5</FileType>
               <FilePath>..\code\car_servo.h</FilePath>
             </File>
+            <File>
+              <FileName>SearchLine.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\SearchLine.c</FilePath>
+            </File>
+            <File>
+              <FileName>SearchLine.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\SearchLine.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

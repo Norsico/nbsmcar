@@ -4,5 +4,8 @@
 *.bak
 *.dep
 
+# AI prompts
+CLAUDE.md
+
 # Build outputs
 project/mdk/out_file/
