@@ -1,6 +1,6 @@
 #include "car_servo.h"
 
-// 前轮舵机默认只允许在 80-100 度之间动作，超范围会强制限幅，避免打角过大损伤机构。
+// 前轮舵机默认只允许在 80-100 度之间
 #define CAR_SERVO_DUTY(angle)     ((float)PWM_DUTY_MAX / (1000.0 / (float)CAR_SERVO_FREQ) * (0.5 + (float)(angle) / 90.0))
 
 #if ((CAR_SERVO_FREQ < 50) || (CAR_SERVO_FREQ > 300))
