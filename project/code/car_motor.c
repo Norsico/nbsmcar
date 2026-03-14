@@ -56,6 +56,8 @@ void car_motor_init(void)
 
     gpio_init(LEFT_MOTOR_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
     pwm_init(LEFT_MOTOR_PWM_PIN, CAR_MOTOR_PWM_FREQ, 0);
+
+    car_motor_stop_all();
 }
 
 void car_motor_set_speed(car_motor_index_enum motor, int8 speed_percent)

@@ -869,6 +869,26 @@
               <FileType>5</FileType>
               <FilePath>..\code\encoder.h</FilePath>
             </File>
+            <File>
+              <FileName>motor_pid.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\motor_pid.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_pid.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\motor_pid.h</FilePath>
+            </File>
+            <File>
+              <FileName>tuning_param.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\tuning_param.c</FilePath>
+            </File>
+            <File>
+              <FileName>tuning_param.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\tuning_param.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

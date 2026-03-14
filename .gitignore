@@ -6,6 +6,7 @@
 
 # AI prompts
 CLAUDE.md
+.claude\settings.local.json
 
 # Build outputs
 project/mdk/out_file/

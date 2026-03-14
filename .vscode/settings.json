@@ -23,6 +23,7 @@
   },
   "files.associations": {
     "zf_common_headfile.h": "c",
-    "cstdio": "c"
+    "cstdio": "c",
+    "motor_pid.h": "c"
   }
 }

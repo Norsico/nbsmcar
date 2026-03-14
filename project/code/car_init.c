@@ -2,6 +2,7 @@
 #include "car_motor.h"
 #include "car_servo.h"
 #include "encoder.h"
+#include "motor_pid.h"
 
 // WiFi 默认配置
 #define DEFAULT_WIFI_SSID       "QQ"
@@ -28,6 +29,7 @@ void car_init(uint8 enable_wifi, const char *wifi_ssid, const char *wifi_passwor
     car_servo_init();
     car_motor_init();
     encoder_init();
+    motor_pid_init();  // 初始化电机PID控制器
 
     if(!enable_wifi)
     {
