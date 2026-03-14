@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /mnt/c/Users/lenovo/Desktop/智能车/smcar_code/02libraries -name \"*seekfree_assistant*\" | grep -E \"\\\\.\\(c|h\\)$\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
