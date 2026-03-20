@@ -1,7 +1,8 @@
 #ifndef _APP_KEY_H_
 #define _APP_KEY_H_
 
-#include "zf_common_headfile.h"
+#include "zf_common_typedef.h"
+#include "zf_driver_gpio.h"
 
 /* 按键引脚定义 */
 #define KEY1_PIN (IO_P32)

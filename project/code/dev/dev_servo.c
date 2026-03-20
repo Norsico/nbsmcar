@@ -6,39 +6,49 @@
 
 #include "dev_servo.h"
 
-/************ 限幅函数 ************/
-static float servo_limit(float value, float max_val, float min_val)
+// 前轮舵机默认只允许在 80-100 度之间
+#define CAR_SERVO_DUTY(angle)     ((float)PWM_DUTY_MAX / (1000.0 / (float)CAR_SERVO_FREQ) * (0.5 + (float)(angle) / 90.0))
+#if ((CAR_SERVO_FREQ < 50) || (CAR_SERVO_FREQ > 300))
+    #error "CAR_SERVO_FREQ ERROR!"
+#endif
+
+// 舵机角度限幅函数
+static uint8 car_servo_limit_angle(uint8 angle)
 {
-    if (value > max_val) return max_val;
-    if (value < min_val) return min_val;
-    return value;
+    if(angle < CAR_SERVO_MIN_ANGLE)
+    {
+        return CAR_SERVO_MIN_ANGLE;
+    }
+
+    if(angle > CAR_SERVO_MAX_ANGLE)
+    {
+        return CAR_SERVO_MAX_ANGLE;
+    }
+
+    return angle;
+}
+// 设置舵机角度
+void car_servo_set_angle(uint8 angle)
+{
+    uint8 safe_angle = 0;
+
+    safe_angle = car_servo_limit_angle(angle);
+    pwm_set_duty(CAR_SERVO_PWM_PIN, CAR_SERVO_DUTY(safe_angle));
+}
+// 回中函数
+void car_servo_set_center(void)
+{
+    car_servo_set_angle(CAR_SERVO_CENTER_ANGLE);
+}
+// 舵机PWM初始化
+void car_servo_init(void)
+{
+    pwm_init(CAR_SERVO_PWM_PIN, CAR_SERVO_FREQ, CAR_SERVO_DUTY(CAR_SERVO_CENTER_ANGLE));
 }
 
-/************ PID参数初始化 ************/
-static void pid_param_init(servo_pid_t *pid, float kp, float ki, float kd, float max_out, float min_out)
-{
-    pid->param.kp = kp;
-    pid->param.ki = ki;
-    pid->param.kd = kd;
-    pid->param.max_out = max_out;
-    pid->param.min_out = min_out;
-    pid->param.deadband = 0.0f;
-}
-
-/************ PID控制器初始化 ************/
-static void pid_init(servo_pid_t *pid)
-{
-    pid->target = 0.0f;
-    pid->current = 0.0f;
-    pid->error = 0.0f;
-    pid->prev_error = 0.0f;
-    pid->integral = 0.0f;
-    pid->output = 0.0f;
-    pid->dt = 0.01f;  // 默认10ms
-}
 
 /************ 单环PID计算 ************/
-static float pid_calc(servo_pid_t *pid, float target, float current)
+static float pid_calc(pid_control_t *pid, float target, float current)
 {
     float p_out, i_out, d_out;
 
@@ -61,7 +71,7 @@ static float pid_calc(servo_pid_t *pid, float target, float current)
     // 积分项 (带抗饱和)
     pid->integral = pid->integral + pid->error * pid->dt;
     // 积分限幅
-    pid->integral = servo_limit(pid->integral, pid->param.max_out / pid->param.ki, pid->param.min_out / pid->param.ki);
+    pid->integral = pid_output_limit(pid->integral, pid->param.max_out / pid->param.ki, pid->param.min_out / pid->param.ki);
     i_out = pid->param.ki * pid->integral;
 
     // 微分项
@@ -74,7 +84,7 @@ static float pid_calc(servo_pid_t *pid, float target, float current)
     pid->output = p_out + i_out + d_out;
 
     // 输出限幅
-    pid->output = servo_limit(pid->output, pid->param.max_out, pid->param.min_out);
+    pid->output = pid_output_limit(pid->output, pid->param.max_out, pid->param.min_out);
 
     return pid->output;
 }
@@ -145,7 +155,7 @@ float servo_cascade_calc(servo_cascade_t *ctrl, float error)
     gyro_output = pid_calc(&ctrl->gyro_loop, angle_output, ctrl->gyro_rate);
 
     // 最终输出限幅
-    gyro_output = servo_limit(gyro_output, ctrl->servo_max, ctrl->servo_min);
+    gyro_output = pid_output_limit(gyro_output, ctrl->servo_max, ctrl->servo_min);
 
     // 加上中值偏移
     return gyro_output + ctrl->servo_center;

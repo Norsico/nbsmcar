@@ -35,6 +35,7 @@ void key_scan(void)
     uint8 key2;
     uint8 key3;
     uint8 key4;
+		uint8 key_cur;
     static uint8 key_last = 0;  /* 上一次按键状态 */
 
     /* 读取4个按键状态，按下为低电平 */
@@ -44,7 +45,7 @@ void key_scan(void)
     key4 = gpio_get_level(KEY4_PIN);
 
     /* 合并4个按键状态 */
-    uint8 key_cur = (key1 & key2 & key3 & key4);
+    key_cur = (key1 & key2 & key3 & key4);
 
     /* 检测按键下降沿（从高电平变为低电平，即按下瞬间） */
     if(key_cur == KEY_PRESS && key_last != KEY_PRESS)

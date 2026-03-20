@@ -6,15 +6,18 @@
 #include "dev_wifi.h"
 #include "zf_driver_gpio.h"
 
-/************ 全局变量 ************/
+/************ 静态变量 ************/
 static uint8 wifi_initialized = 0;
 
 /************ 初始化 ************/
-uint8 wifi_init(void)
+uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* target_ip)
 {
-    uint8 retry = 0;
-    uint8 ret;
-
+    const char* WIFI_SSID = (wifi_ssid && wifi_ssid[0]) ? wifi_ssid : DEFAULT_WIFI_SSID;
+		const char* WIFI_PASSWORD = (wifi_password && wifi_password[0]) ? wifi_password : DEFAULT_WIFI_PASSWORD;
+		const char* TARGET_IP = (target_ip && target_ip[0]) ? target_ip : DEFAULT_TARGET_IP; // c语言特性，\0 为假
+		uint8 retry = 0;
+		uint8 ret = 0;
+	
     printf("\r\n[WiFi] ========================================");
     printf("\r\n[WiFi] WiFi Driver Starting...");
     printf("\r\n[WiFi] SSID: %s", WIFI_SSID);
@@ -22,6 +25,7 @@ uint8 wifi_init(void)
     printf("\r\n[WiFi] TARGET_IP: %s", WIFI_SPI_TARGET_IP);
     printf("\r\n[WiFi] TARGET_PORT: %s", WIFI_SPI_TARGET_PORT);
     printf("\r\n[WiFi] ----------------------------------------");
+
 
     // 循环尝试初始化
     while(retry < 5)
@@ -47,6 +51,7 @@ uint8 wifi_init(void)
             printf("\r\n[WiFi] ========================================\r\n");
 
             // 初始化Seekfree Assistant
+						seekfree_assistant_init();
             seekfree_assistant_interface_init(SEEKFREE_ASSISTANT_WIFI_SPI);
             wifi_initialized = 1;
             return 0;
@@ -67,58 +72,8 @@ uint8 wifi_init(void)
             printf("\r\n[WiFi] Waiting 2s before retry...\r\n");
             system_delay_ms(2000);
         }
-    }
-
-    printf("\r\n[WiFi] ERROR: All init attempts failed!");
-    printf("\r\n[WiFi] Please check:");
-    printf("\r\n  1. Hardware connection");
-    printf("\r\n  2. SPI pin definitions in zf_device_wifi_spi.h");
-    printf("\r\n  3. Try re-powering the WiFi module\r\n");
+    } 
     return 1;
 }
 
-/************ WiFi任务 ************/
-void wifi_task(void)
-{
-    if(!wifi_initialized)
-        return;
-
-    // 处理上位机指令
-    seekfree_assistant_data_analysis();
-}
-
-/************ 发送示波器数据 ************/
-void wifi_send_oscilloscope(float ch1, float ch2, float ch3, float ch4)
-{
-    if(!wifi_initialized)
-        return;
-
-    seekfree_assistant_oscilloscope_data.channel_num = 4;
-    seekfree_assistant_oscilloscope_data.dat[0] = ch1;
-    seekfree_assistant_oscilloscope_data.dat[1] = ch2;
-    seekfree_assistant_oscilloscope_data.dat[2] = ch3;
-    seekfree_assistant_oscilloscope_data.dat[3] = ch4;
-
-    seekfree_assistant_oscilloscope_send(&seekfree_assistant_oscilloscope_data);
-}
-
-/************ 参数处理 ************/
-uint8 wifi_param_updated(uint8 index)
-{
-    if(index >= SEEKFREE_ASSISTANT_SET_PARAMETR_COUNT)
-        return 0;
-
-    if(seekfree_assistant_parameter_update_flag[index])
-    {
-        seekfree_assistant_parameter_update_flag[index] = 0;
-        return 1;
-    }
-    return 0;
-}
-
-float wifi_get_param(uint8 index)
-{
-    if(index >= SEEKFREE_ASSISTANT_SET_PARAMETR_COUNT)
-        return 0.0f;
-    return seekfree_assistant_parameter[index];
-}
+ 

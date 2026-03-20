@@ -272,7 +272,7 @@
               <MiscControls></MiscControls>
               <Define></Define>
               <Undefine></Undefine>
-              <IncludePath>..\..\02libraries\zf_common;..\..\02libraries\zf_components;..\..\02libraries\zf_device;..\..\02libraries\zf_driver;..\user;..\code;..\..\02libraries\zf_components\stc32g_usb_lib;..\..\02libraries\zf_components\seekfree_assistant</IncludePath>
+              <IncludePath>..\..\02libraries\zf_common;..\..\02libraries\zf_components;..\..\02libraries\zf_device;..\..\02libraries\zf_driver;..\user;..\code;..\..\02libraries\zf_components\stc32g_usb_lib;..\..\02libraries\zf_components\seekfree_assistant;..\user\app</IncludePath>
             </VariousControls>
           </C251>
           <Ax51>
@@ -820,36 +820,6 @@
           <GroupName>code</GroupName>
           <Files>
             <File>
-              <FileName>car_init.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\car_init.c</FilePath>
-            </File>
-            <File>
-              <FileName>car_init.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\car_init.h</FilePath>
-            </File>
-            <File>
-              <FileName>car_motor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\car_motor.c</FilePath>
-            </File>
-            <File>
-              <FileName>car_motor.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\car_motor.h</FilePath>
-            </File>
-            <File>
-              <FileName>car_servo.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\car_servo.c</FilePath>
-            </File>
-            <File>
-              <FileName>car_servo.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\car_servo.h</FilePath>
-            </File>
-            <File>
               <FileName>SearchLine.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\SearchLine.c</FilePath>
@@ -860,26 +830,6 @@
               <FilePath>..\code\SearchLine.h</FilePath>
             </File>
             <File>
-              <FileName>encoder.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\encoder.c</FilePath>
-            </File>
-            <File>
-              <FileName>encoder.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\encoder.h</FilePath>
-            </File>
-            <File>
-              <FileName>motor_pid.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\motor_pid.c</FilePath>
-            </File>
-            <File>
-              <FileName>motor_pid.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\motor_pid.h</FilePath>
-            </File>
-            <File>
               <FileName>tuning_param.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\tuning_param.c</FilePath>
@@ -888,6 +838,16 @@
               <FileName>tuning_param.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\tuning_param.h</FilePath>
+            </File>
+            <File>
+              <FileName>pid_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\pid_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>system_state.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\system_state.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -908,6 +868,61 @@
               <FileName>main.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\user\main.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>dev</GroupName>
+          <Files>
+            <File>
+              <FileName>dev_imu.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_imu.c</FilePath>
+            </File>
+            <File>
+              <FileName>dev_servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_servo.c</FilePath>
+            </File>
+            <File>
+              <FileName>dev_wifi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_wifi.c</FilePath>
+            </File>
+            <File>
+              <FileName>dev_motor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_motor.c</FilePath>
+            </File>
+            <File>
+              <FileName>dev_wheel.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_wheel.c</FilePath>
+            </File>
+            <File>
+              <FileName>dev_encoder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_encoder.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>app</GroupName>
+          <Files>
+            <File>
+              <FileName>app_display.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\app\app_display.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_display_pro.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\app\app_display_pro.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\app\app_key.c</FilePath>
             </File>
           </Files>
         </Group>

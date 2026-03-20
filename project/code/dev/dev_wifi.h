@@ -11,23 +11,13 @@
 #include "seekfree_assistant.h"
 
 /************ WiFi配置 ************/
-#define WIFI_SSID     "nova 11"      // WiFi名称
-#define WIFI_PASSWORD "6bmxppq525m2jgx"  // WiFi密码
+#define DEFAULT_WIFI_SSID     "nova 11"      // WiFi名称
+#define DEFAULT_WIFI_PASSWORD "6bmxppq525m2jgx"  // WiFi密码
+#define DEFAULT_TARGET_IP 		""					// IP地址
 
 /************ 接口函数 ************/
 // WiFi模块初始化
-extern uint8 wifi_init(void);
+uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* target_ip);
 
-// WiFi任务处理（需在主循环中调用）
-extern void wifi_task(void);
-
-// 发送示波器数据
-extern void wifi_send_oscilloscope(float ch1, float ch2, float ch3, float ch4);
-
-// 检查参数是否更新
-extern uint8 wifi_param_updated(uint8 index);
-
-// 获取参数值
-extern float wifi_get_param(uint8 index);
 
 #endif

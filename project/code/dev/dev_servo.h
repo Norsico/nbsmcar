@@ -10,39 +10,24 @@
 
 /************ 头文件 ************/
 #include "zf_common_typedef.h"
+#include "pid_control.h"
+#include "zf_driver_pwm.h"
 
-/************ PID参数结构体 ************/
-typedef struct
-{
-    float kp;           // 比例系数
-    float ki;           // 积分系数
-    float kd;           // 微分系数
-    float max_out;      // 输出限幅最大值
-    float min_out;      // 输出限幅最小值
-    float deadband;     // 死区
-} servo_pid_param_t;
-
-/************ PID控制器结构体 ************/
-typedef struct
-{
-    servo_pid_param_t param;    // PID参数
-    float target;               // 目标值
-    float current;              // 当前值
-    float error;                // 当前误差
-    float prev_error;           // 上一次误差
-    float integral;             // 积分累加
-    float output;               // PID输出
-    float dt;                    // 采样周期(秒)
-} servo_pid_t;
+/*********** 宏定义 *************/
+#define CAR_SERVO_PWM_PIN         (PWME_CH3P_PA4)
+#define CAR_SERVO_FREQ            (50)
+#define CAR_SERVO_MIN_ANGLE       (80)
+#define CAR_SERVO_CENTER_ANGLE    (90)
+#define CAR_SERVO_MAX_ANGLE       (100)
 
 /************ 串级控制器结构体 ************/
 typedef struct
 {
     // 外环：角度环 (位置误差 -> 期望角速度)
-    servo_pid_t angle_loop;
+    pid_control_t angle_loop;
 
     // 内环：角速度环 (期望角速度 - 实测角速度 -> 舵机角度)
-    servo_pid_t gyro_loop;
+    pid_control_t gyro_loop;
 
     // 实测角速度 (由外部输入)
     float gyro_rate;
@@ -150,5 +135,10 @@ extern float servo_get_target_gyro(servo_cascade_t *ctrl);
  * @return 角速度误差
  */
 extern float servo_get_gyro_error(servo_cascade_t *ctrl);
+
+/************ 舵机基础控制函数 ************/
+extern void car_servo_init(void);
+extern void car_servo_set_angle(uint8 angle);
+extern void car_servo_set_center(void);
 
 #endif /* __DEV_SERVO_H__ */
