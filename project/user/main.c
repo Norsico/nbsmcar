@@ -1,145 +1,243 @@
 /*********************************************************************************************************************
-* STC32G144K Opensourec Library 即（STC32G144K 开源库）是一个基于官方 SDK 接口的第三方开源库
-* Copyright (c) 2025 SEEKFREE 逐飞科技
+* STC32G144K Opensourec Library
+* Copyright (c) 2025 SEEKFREE
 *
-* 本文件是STC32G144K开源库的一部分
-*
-* STC32G144K 开源库 是免费软件
-* 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
-* 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
-*
-* 本开源库的发布是希望它能发挥作用，但并未对其作任何的保证
-* 甚至没有隐含的适销性或适合特定用途的保证
-* 更多细节请参见 GPL
-*
-* 您应该在收到本开源库的同时收到一份 GPL 的副本
-* 如果没有，请参阅<https://www.gnu.org/licenses/>
-*
-* 额外注明：
-* 本开源库使用 GPL3.0 开源许可证协议 以上许可申明为译文版本
-* 许可申明英文版在 libraries/doc 文件夹下的 GPL3_permission_statement.txt 文件中
-* 许可证副本在 libraries 文件夹下 即该文件夹下的 LICENSE 文件
-* 欢迎各位使用并传播本程序 但修改内容时必须保留逐飞科技的版权声明（即本声明）
-*
-* 文件名称          
-* 公司名称          成都逐飞科技有限公司
-* 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
-* 开发环境          MDK FOR C251
-* 适用平台          STC32G144K
-* 店铺链接          https://seekfree.taobao.com/
-*
-* 修改记录
-* 日期              作者           备注
-* 2025-11-20        大W            first version
 ********************************************************************************************************************/
-
 #include "zf_common_headfile.h"
+#include "system_state.h"
+#include "app_display.h"
+#include "app_key.h"
+#include "dev_imu.h"
+#include "dev_wifi.h"
 
-// STC无刷电调仅支持3S锂电池，请按照规定使用电池
-// STC无刷电调仅支持3S锂电池，请按照规定使用电池
-// STC无刷电调仅支持3S锂电池，请按照规定使用电池
+/************ 宏定义 ************/
+#define TICKS_MS 1         // 系统tick 1ms
+#define KEY_SCAN_PERIOD 20 // 按键扫描 50Hz
+#define IMU_PERIOD 10      // 陀螺仪读取 100Hz
+#define DISPLAY_PERIOD 100 // 显示刷新 10Hz
+#define WIFI_PERIOD 50     // WiFi任务 20Hz
+#define LED_DEBUG (IO_P52)			// 调试LED
 
-// *************************** 例程硬件连接说明 ***************************
-//      模块管脚            单片机管脚
-//      PWM_1           	PA1
-//      PWM_2           	PA3
-//      PWM_3           	PA5
-//      PWM_4           	PA7
-//      GND             	GND
-//
-//      接线端子 +          电池正极
-//      接线端子 -          电池负极
-//
-// 使用 学习主板 进行测试
-//      将模块的电源接线端子与主板的驱动供电端子连接
-//      将模块的信号接口使用配套灰排线与主板电机信号接口连接 请注意接线方向 不确定方向就是用万用表确认一下 引脚参考上方核心板连接
-//      将主板与供电电池正确连接
-
-// *************************** 例程测试说明 ***************************
-// 1.核心板烧录完成本例程 主板电池供电
-//
-// 2.如果接了STC无刷电调，可以看到 无刷电调控制风扇转动。
-//
-// 3.如果没有接电机 使用万用表可以在驱动电机输出端子上测量到输出电压变化
-//
-// 如果发现现象与说明严重不符 请参照本文件最下方 例程常见问题说明 进行排查
-
-// **************************** 代码区域 ****************************
-#define FREQ               (50)                                                // 控制频率为50HZ，最高支持300HZ
+#define SERVO_FREQ               (50)                                                // 控制频率为50HZ，最高支持300HZ
 #define PWM_1              (PWMF_CH1_PA1)
 #define PWM_2              (PWMF_CH2_PA3)
 #define PWM_3              (PWMF_CH3_PA5)
 #define PWM_4              (PWMF_CH4_PA7)
+/************ WDT 宏定义 ************/
+// 直接进行寄存器操作
+#define WDT_PRESCALER  0x07       // PS=7, ~1049ms@96MHz
+#define wdt_enable()   (WDT_CONTR = 0x20 | 0x10 | WDT_PRESCALER)  // EN+CLR+PS
+#define wdt_feed()     (WDT_CONTR |= 0x10)   // CLR_WDT=1
 
+/************* 全局变量 ****************/
+// 系统参数
+volatile system_state_t g_system_state = SYS_INIT;
+vuint32 g_system_ticks = 0;
+// 各任务计数器
+vuint32 g_key_ticks =0;
+vuint32 g_imu_ticks = 0;
+vuint32 g_display_ticks = 0;
+vuint32 g_wifi_ticks = 0;
+// 任务执行标志位
+vuint8 g_flag_key = 0;
+vuint8 g_flag_imu = 0;
+vuint8 g_flag_display = 0;
+vuint8 g_flag_wifi = 0;
 
-uint16 duty = 0;
+// 其他变量
+uint8 imu_retry = 0;
+const uint8 IMU_MAX_RETRY = 50; // 最多尝试 50 次
+const uint8 IMU_CALIBRATE_SAMPLES = 50; // 零偏校准采样次数
+/******** 外部函数 **********/
+//	extern void key_scan_task();
+//	extern void camera_task();
+//	extern void motor_task();
+//	extern void imu_task();
+
+/************** 定时器回调函数 **********/
+void system_tick_handler(void)
+{
+	g_system_ticks++;
+
+	// 按键扫描 20ms
+	if(g_system_ticks - g_key_ticks >= KEY_SCAN_PERIOD){
+		g_key_ticks = g_system_ticks;
+		g_flag_key = 1;
+	}
+
+	// 陀螺仪读取 10ms
+	if(g_system_ticks - g_imu_ticks >= IMU_PERIOD){
+		g_imu_ticks = g_system_ticks;
+		g_flag_imu = 1;
+	}
+
+	// 显示 100ms
+	if(g_system_ticks - g_display_ticks >= DISPLAY_PERIOD){
+		g_display_ticks = g_system_ticks;
+		g_flag_display = 1;
+	}
+
+	// WiFi任务 50ms
+	if(g_system_ticks - g_wifi_ticks >= WIFI_PERIOD){
+		g_wifi_ticks = g_system_ticks;
+		g_flag_wifi = 1;
+	}
+}
+
 void main(void)
 {
-    clock_init(SYSTEM_CLOCK_96M); 				// 时钟配置及系统初始化<务必保留>
-    debug_init();                       		// 调试串口信息初始化
+	uint8 i;  // C251 语法：循环变量必须在函数开头声明
 
-   
-    // 此处编写用户代码 例如外设初始化代码等
-    pwm_init(PWM_1, FREQ, 0);                   // PWM 通道1 初始化频率 50Hz  占空比初始为 0
-    pwm_init(PWM_2, FREQ, 0);                   // PWM 通道2 初始化频率 50Hz  占空比初始为 0
-    // pwm_init(PWM_3, FREQ, 0);                   // PWM 通道2 初始化频率 50Hz  占空比初始为 0
-    // pwm_init(PWM_4, FREQ, 0);                   // PWM 通道2 初始化频率 50Hz  占空比初始为 0
-    // 此处编写用户代码 例如外设初始化代码等
+	// 系统初始化
+	clock_init(SYSTEM_CLOCK_96M);
+	debug_init();
+	gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+	// ----- 安全模式 ------
+	// 检查看门狗复位标志
+	if(WDT_FLAG)
+	{
+		WDT_FLAG = 0;
+		while(1)
+		{
+			gpio_toggle_level(LED_DEBUG);
+			system_delay_ms(100);
+		}
+	}
 
-    // 电调控制是看高电平时间，范围： 1ms-2ms
-    // 1ms 为 0%
-    // 2ms 为 100%
+	// ----- 正常启动 ------
 
-    duty = 1.0 / 20 * 10000;        // (1ms/20ms * 10000)（10000是PWM的满占空比时候的值） 10000为PWM最大值
-
-    while(1)
-    {
-		// 此处编写需要循环执行的代码
-
-        // 计算无刷电调转速   （1ms - 2ms）/20ms * 10000（10000是PWM的满占空比时候的值）
-        // 在50Hz的控制频率下，无刷电调转速 0%   为 500
-        
-        // 在50Hz的控制频率下，无刷电调转速 20%  为 600
-        // 在50Hz的控制频率下，无刷电调转速 40%  为 700
-        // 在50Hz的控制频率下，无刷电调转速 60%  为 800
-        // 在50Hz的控制频率下，无刷电调转速 80%  为 900
-        // 在50Hz的控制频率下，无刷电调转速 100% 为 1000
-		
-		// 电调支持50hz-300hz的控制频率
-
-		// 50Hz的控制频率 ，从0%到100%占空比为500到1000
-
-		// 100Hz的控制频率，从0%到100%占空比为1000到2000
-		// 200Hz的控制频率，从0%到100%占空比为2000到4000
-		// 300Hz的控制频率，从0%到100%占空比为3000到6000
-		// 如果，看了此段话再来问，我会再次截图给你这段话。
-		
-        // 修改duty的值，可以修改无刷电调转速
-
-        duty++;
-        if(800 < duty)
-        {
-            duty = 500;
-        }
-
-        // 这两个是负压
-        // pwm_set_duty(PWM_1, duty);
-        // pwm_set_duty(PWM_2, duty);
-
-        // pwm_set_duty(PWM_3, 625);
-        // pwm_set_duty(PWM_4, 650);
-        system_delay_ms(10);
-        // 此处编写需要循环执行的代码
+	// 用户初始化代码
+	/*
+	while(1)
+		{
+        if(imu_init())
+            printf("\r\nIMU660RA init error.");      // IMU660RA 初始化失败
+        else
+            break;
+        gpio_toggle_level(LED_DEBUG);                     // 翻转 LED 引脚输出电平 控制 LED 亮灭 初始化出错这个灯会闪的很慢
     }
+	// while初始化时间可能较长
+		display_init(); // 显示屏初始化
+	
+		// 测试代码
+    // 设置 IMU 采样周期 (10ms = 0.01s)
+    imu_set_dt(IMU_PERIOD * 0.001f);
+
+    // 执行零偏校准 (需要在静止状态下)
+    // 注意：校准过程避免USB大量数据输出，防止CDC枚举异常
+    imu_calibrate(IMU_CALIBRATE_SAMPLES);
+
+    // 校准完成后输出状态
+		// 由于typec口使用的是软件仿真的串口，和程序强相关，调试信息无法很好地显示
+    //printf("\r\nIMU calibrate OK! offset: x=%d, y=%d, z=%d",
+    //       imu_get_offset_x(), imu_get_offset_y(), imu_get_offset_z());
+
+	*/
+	// WiFi初始化
+/*
+	if(wifi_init())
+	{
+		// WiFi初始化失败 - 闪烁3次 (快闪)
+		printf("\r\n[Error] WiFi init failed! LED blink 3 times.");
+		for(i = 0; i < 3; i++)
+		{
+			gpio_toggle_level(LED_DEBUG);
+			system_delay_ms(200);
+		}
+		g_system_state = SYS_EMERGENCY;
+	}
+	else
+	{
+		// 检查IP
+		if(wifi_spi_ip_addr_port[0] == '\0' || wifi_spi_ip_addr_port[0] == '0')
+		{
+			// 无IP - 慢闪3次
+			printf("\r\n[Error] No IP address! LED blink 3 times (slow).");
+			for(i = 0; i < 3; i++)
+			{
+				gpio_toggle_level(LED_DEBUG);
+				system_delay_ms(500);
+			}
+			g_system_state = SYS_EMERGENCY;
+		}
+		else
+		{
+			// 连接 TCP 服务器（电脑上的逐飞助手）
+			printf("\r\n[WiFi] Connecting to TCP server: 192.168.43.144:8086...");
+			if(wifi_spi_socket_connect("TCP", "192.168.43.144", "8086", "8086"))
+			{
+				printf("\r\n[WiFi] TCP connection FAILED!");
+				// TCP失败 - 快闪5次
+				printf("\r\n[Error] TCP failed! LED blink 3 times (fast).");
+				for(i = 0; i < 5; i++)
+				{
+					gpio_toggle_level(LED_DEBUG);
+					system_delay_ms(100);
+				}
+				g_system_state = SYS_EMERGENCY;
+			}
+			else
+			{
+				printf("\r\n[WiFi] TCP connected!");
+				gpio_set_level(LED_DEBUG, GPIO_LOW);  // LED常亮表示成功
+			}
+		}
+	}
+*/
+	/* 按键和激光笔初始化 */
+	key_init();
+	// 初始化完成
+	pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler); // 启动定时器2进行时间片调度
+	// 如果是初始化状态
+	if(g_system_state == SYS_INIT)
+	{
+		g_system_state = SYS_PREPARE;
+	}
+
+	while(1)
+	{
+
+
+		switch(g_system_state){
+			case SYS_PREPARE:
+				// 陀螺仪数据 100Hz
+				if(g_flag_imu){
+					g_flag_imu = 0;
+					//imu_update();                 // 读取原始数据
+					//imu_angle_update(IMU_PERIOD * 0.001f);  // 更新角度积分
+
+					// 调试输出 - 原始数据
+					// printf("\r\nAcc: x=%5d, y=%5d, z=%5d", imu_get_acc_x(), imu_get_acc_y(), imu_get_acc_z());
+					// printf("\r\nGyro: x=%5d, y=%5d, z=%5d", imu_get_gyro_x(), imu_get_gyro_y(), imu_get_gyro_z());
+
+					// 调试输出 - 累计角度
+					// printf("\r\nYaw: %7.2f  Pitch: %7.2f  Roll: %7.2f", imu_get_yaw(), imu_get_pitch(), imu_get_roll());
+				}
+				// 按键扫描 50Hz
+				if(g_flag_key){
+					g_flag_key = 0;
+					key_scan();       // 按键扫描
+					laser_process(); // 激光笔控制
+				}
+				// 显示信息 10Hz
+				if(g_flag_display){
+					g_flag_display = 0;
+				}
+				// WiFi任务 20Hz
+				if(g_flag_wifi){
+					g_flag_wifi = 0;
+				}
+				//wifi_task();
+				//wifi_send_oscilloscope(0.1,0.2,0.3,0.4);
+				break;
+			case SYS_RUNNING:
+				break;
+			case SYS_STOPED:
+				break;
+			case SYS_EMERGENCY:
+				break;
+			default:
+				break;
+		}
+	}
 }
-// **************************** 代码区域 ****************************
-
-// *************************** 例程常见问题说明 ***************************
-// 遇到问题时请按照以下问题检查列表检查
-//
-// 问题1：电机不转或者模块输出电压无变化
-//      如果使用主板测试，主板必须要用电池供电
-//      检查模块是否正确连接供电 必须使用电源线供电 不能使用杜邦线
-//      查看程序是否正常烧录，是否下载报错，确认正常按下复位按键
-//      万用表测量对应 PWM 引脚电压是否变化，如果不变化证明程序未运行，或者引脚损坏，或者接触不良 联系技术客服
-

@@ -12,6 +12,13 @@ claude/settings.local.json
 # VS Code
 .vscode/settings.json
 
-
 # Build outputs
-project/mdk/out_file/
+out_file/
+*.hex
+*.bin
+*.lst
+*.map
+*.opt
+
+#Git
+.git/
