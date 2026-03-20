@@ -6,6 +6,11 @@
 
 # AI prompts
 CLAUDE.md
+claude/settings.local.json
+.claude/settings.local.json
+
+# VS Code
+.vscode/settings.json
 
 
 # Build outputs
