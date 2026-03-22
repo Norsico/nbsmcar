@@ -10,22 +10,35 @@
 #define KEY3_PIN (IO_PB3)
 #define KEY4_PIN (IO_PB4)
 
-/* 激光笔引脚 */
-#define LASER_PIN (IO_P67)
-
-/* 激光笔点亮时间 (ms) */
-#define LASER_ON_TIME 500
-
+/* 按键序号 */
+enum {
+	KEY1=0,
+	KEY2,
+	KEY3,
+	KEY4,
+	KEY_MAX
+};
 /* 按键状态 */
 typedef enum {
-    KEY_RELEASE = 1,
-    KEY_PRESS = 0
+	KEY_IDLE = 0,
+	KEY_SHORT,
+	KEY_LONG
 } key_state_t;
+
+
+/* 按键结构体 */
+typedef struct {
+	uint8 level:1; // 电平
+	key_state_t state;
+	uint16 interval; // 抬起间隔
+} key_info_t;
+
+
+extern key_info_t keys_info[KEY_MAX];
 
 /* 函数声明 */
 void key_init(void);
-void key_scan(void);
-void laser_on(uint32 ms);
-void laser_process(void);
+void key_update(void);
+
 
 #endif
