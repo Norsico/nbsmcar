@@ -11,9 +11,9 @@
 #include "seekfree_assistant.h"
 
 /************ WiFi配置 ************/
-#define DEFAULT_WIFI_SSID     "nova 11"      // WiFi名称
-#define DEFAULT_WIFI_PASSWORD "6bmxppq525m2jgx"  // WiFi密码
-#define DEFAULT_TARGET_IP 		""					// IP地址
+#define DEFAULT_WIFI_SSID     "QQ"      // WiFi名称
+#define DEFAULT_WIFI_PASSWORD "1234567890xia"  // WiFi密码
+#define DEFAULT_TARGET_IP 		"192.168.43.236"					// IP地址
 
 /************ 接口函数 ************/
 // WiFi模块初始化

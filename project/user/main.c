@@ -12,9 +12,15 @@
 #include "dev_motor.h"
 #include "dev_wheel.h"
 #include "dev_encoder.h"
+#include "dev_wifi.h"
 
 #include "app_key.h"
 #include "my_delay.h"
+
+/*********** 调试变量 *****************/
+const char ssid[] = "nova 11";
+const char password[] = "6bmxppq525m2jgx";
+const char targetIP[] = "192.168.43.144";
 
 void main(void)
 {
@@ -50,12 +56,17 @@ void main(void)
 		if(power_adc_judge()){
 			// 低电量报警
 			buzzer_on();
-			my_delay_s(3);
+			my_delay_s(1);
 			buzzer_off();
 			// 启用会直接进入紧急状态
 			//g_system_state = SYS_EMERGENCY;
 		}
 		
+		// 调试器件初始化
+		if(wifi_init(ssid,password,targetIP)){
+			// 1代表失败
+			gpio_set_level(LED_DEBUG,0);
+		}
 		
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
 		// 检查是否为初始化状态（无错误）
@@ -72,19 +83,28 @@ void main(void)
         switch(g_system_state){
             case SYS_PREPARE:
                 if(g_flag_imu){
+									// IMU
                     g_flag_imu = 0;
                 }
                 if(g_flag_key){
+									// 按键
                     g_flag_key = 0;
                     key_update();
 										key_event_poll();
                 }
                 if(g_flag_display){
+									// 屏幕
                     g_flag_display = 0;
                 }
                 if(g_flag_wifi){
+									// WiFi
                     g_flag_wifi = 0;
                 }
+								if(g_flag_encoder){
+									// 编码器
+									g_flag_encoder = 0;
+									encoder_update();
+								}
                 break;
             case SYS_RUNNING:
                 break;
