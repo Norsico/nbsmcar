@@ -5,8 +5,11 @@
 ********************************************************************************************************************/
 #include "zf_common_headfile.h"
 #include "system_state.h"
-#include "app_key.h"
-
+#include "dev_key.h"
+#include "dev_other.h"
+#include "dev_servo.h"
+#include "dev_adc.h"
+#include "dev_motor.h"
 void main(void)
 {
     // 系统初始化
@@ -26,7 +29,22 @@ void main(void)
     }
 
     // ----- 正常启动 ------
-    key_init();
+		
+    key_init(); // 按键
+		other_init(); // 蜂鸣器激光笔
+		power_adc_init(); // 电池电量ADC
+		car_servo_init(); // 舵机初始化并回中
+		bldc_motor_init(); // 无刷电机
+		
+		
+		if(power_adc_judge()){
+			// 低电量报警
+			buzzer_on();
+			system_delay_ms(20);
+			buzzer_off();
+		}
+		
+		
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
 		// 检查是否为初始化状态（无错误）
     if(g_system_state == SYS_INIT)
@@ -46,7 +64,7 @@ void main(void)
                 }
                 if(g_flag_key){
                     g_flag_key = 0;
-                    key_scan();
+                    key_update();
                 }
                 if(g_flag_display){
                     g_flag_display = 0;

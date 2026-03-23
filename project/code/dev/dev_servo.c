@@ -43,6 +43,7 @@ void car_servo_set_center(void)
 // 舵机PWM初始化
 void car_servo_init(void)
 {
+		// pwm初始化，直接回中
     pwm_init(CAR_SERVO_PWM_PIN, CAR_SERVO_FREQ, CAR_SERVO_DUTY(CAR_SERVO_CENTER_ANGLE));
 }
 

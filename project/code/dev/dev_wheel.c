@@ -69,7 +69,7 @@ void car_wheel_stop_all(void)
 void car_wheel_init(void)
 {
     gpio_init(RIGHT_MOTOR_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    pwm_init(RIGHT_MOTOR_PWM_PIN, WHELL_PWM_FREQ, 0); //
+    pwm_init(RIGHT_MOTOR_PWM_PIN, WHELL_PWM_FREQ, 0);
 
     gpio_init(LEFT_MOTOR_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
     pwm_init(LEFT_MOTOR_PWM_PIN, WHELL_PWM_FREQ, 0);
