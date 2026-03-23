@@ -3,4 +3,6 @@
 
 #include "zf_driver_delay.h"
 
+void my_delay_s(uint8 s);
+
 #endif

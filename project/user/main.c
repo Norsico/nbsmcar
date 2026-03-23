@@ -10,6 +10,12 @@
 #include "dev_servo.h"
 #include "dev_adc.h"
 #include "dev_motor.h"
+#include "dev_wheel.h"
+#include "dev_encoder.h"
+
+#include "app_key.h"
+#include "my_delay.h"
+
 void main(void)
 {
     // 系统初始化
@@ -35,13 +41,19 @@ void main(void)
 		power_adc_init(); // 电池电量ADC
 		car_servo_init(); // 舵机初始化并回中
 		bldc_motor_init(); // 无刷电机
+		car_wheel_init(); // 直流电机
+		car_wheel_pid_init(); // 电机pid结构体初始化
+		encoder_update(); // 编码器初始化
+		key_event_init(); // 按键事件初始化
 		
 		
 		if(power_adc_judge()){
 			// 低电量报警
 			buzzer_on();
-			system_delay_ms(20);
+			my_delay_s(3);
 			buzzer_off();
+			// 启用会直接进入紧急状态
+			//g_system_state = SYS_EMERGENCY;
 		}
 		
 		
@@ -65,6 +77,7 @@ void main(void)
                 if(g_flag_key){
                     g_flag_key = 0;
                     key_update();
+										key_event_poll();
                 }
                 if(g_flag_display){
                     g_flag_display = 0;
