@@ -264,7 +264,7 @@
             <uUch>0</uUch>
             <uFlt64>1</uFlt64>
             <Fuzzy>3</Fuzzy>
-            <Optim>0</Optim>
+            <Optim>3</Optim>
             <wLevel>3</wLevel>
             <SizSpd>0</SizSpd>
             <AcaOpt>0</AcaOpt>
@@ -854,6 +854,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\my_delay.c</FilePath>
             </File>
+            <File>
+              <FileName>ackerman.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\ackerman.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -923,6 +928,11 @@
               <FileName>dev_key.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\dev\dev_key.c</FilePath>
+            </File>
+            <File>
+              <FileName>dev_display.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_display.c</FilePath>
             </File>
           </Files>
         </Group>

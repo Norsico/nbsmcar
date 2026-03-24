@@ -4,7 +4,7 @@
 #include "zf_driver_adc.h"
 
 #define PWOER_ADC_PIN (ADC1_CH0_P10)
-#define ADC_RESOLUTION (ADC_8BIT) // 不给太高，只要能读取即可
+#define ADC_RESOLUTION (ADC_8BIT) // 涓嶇粰澶珮锛屽彧瑕佽兘璇诲彇鍗冲彲
 #define ADC_RANGE (256.0f)
 
 void power_adc_init(void);

@@ -1,6 +1,6 @@
 #include "my_delay.h"
 
-// ÑÓÊ±s
+// å»¶æ—¶s
 void my_delay_s(uint8 s){
 	uint8 i ;
 	uint8 j ;

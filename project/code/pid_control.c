@@ -1,6 +1,6 @@
 #include "pid_control.h"
 
-/************ ÏŞ·ùº¯Êı ************/
+/************ é™å¹…å‡½æ•° ************/
 float pid_output_limit(float value, float max_val, float min_val)
 {
     if (value > max_val) return max_val;
@@ -8,7 +8,7 @@ float pid_output_limit(float value, float max_val, float min_val)
     return value;
 }
 
-/************ PID²ÎÊı³õÊ¼»¯ ************/
+/************ PIDå‚æ•°åˆå§‹åŒ– ************/
 void pid_param_init(pid_control_t *pid, float kp, float ki, float kd, float max_out, float min_out)
 {
     pid->param.kp = kp;
@@ -19,7 +19,7 @@ void pid_param_init(pid_control_t *pid, float kp, float ki, float kd, float max_
     pid->param.deadband = 0.0f;
 }
 
-/************ PID¿ØÖÆÆ÷³õÊ¼»¯ ************/
+/************ PIDæ§åˆ¶å™¨åˆå§‹åŒ– ************/
 void pid_init(pid_control_t *pid)
 {
     pid->target = 0.0f;
@@ -28,19 +28,19 @@ void pid_init(pid_control_t *pid)
     pid->prev_error = 0.0f;
     pid->integral = 0.0f;
     pid->output = 0.0f;
-    pid->dt = 0.01f;  // Ä¬ÈÏ10ms
+    pid->dt = 0.01f;  // é»˜è®¤10ms
 }
-/************ ÔöÁ¿Ê½PI¿ØÖÆÆ÷ ************/
+/************ å¢é‡å¼PIæ§åˆ¶å™¨ ************/
 void pid_incremental_pi(pid_control_t* pid,int16 value,int16 target)
 {
-	// ¼ÆËãÎó²î
+	// è®¡ç®—è¯¯å·®
 	float error = target-value;
 	float prev_error = pid->error;
-	// Ğ´Èë
+	// å†™å…¥
 	pid->error = error;
 	pid->prev_error = prev_error;
-	// ÔöÁ¿Ê½PIËã·¨£º¦¤u = Kp*(e(k)-e(k-1)) + Ki*e(k)
+	// å¢é‡å¼PIç®—æ³•ï¼šÎ”u = Kp*(e(k)-e(k-1)) + Ki*e(k)
 	pid->output += pid->param.kp * (error - prev_error) + pid->param.ki * error;
-	// ÏŞ·ù
+	// é™å¹…
 	pid->output = pid_output_limit(pid->output,pid->param.max_out,pid->param.min_out);
 }

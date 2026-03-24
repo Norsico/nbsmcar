@@ -1,13 +1,13 @@
 #ifndef _DEV_MOTOR_H_
 #define _DEV_MOTOR_H_
 
-// ÎŞË¢µç»úËÙ¶È¿ØÖÆ
+// æ— åˆ·ç”µæœºé€Ÿåº¦æ§åˆ¶
 
 #include "zf_driver_pwm.h"
 
 #define BLDC_MOTOR_1 (PWME_CH1N_PA1)
 #define BLDC_MOTOR_2 (PWME_CH2N_PA3)
-#define BLDC_MOTOR_FREQ (50) // ¿ØÖÆÆµÂÊ50£¬×î¸ßÖ§³Ö300
+#define BLDC_MOTOR_FREQ (50) // æ§åˆ¶é¢‘ç‡50ï¼Œæœ€é«˜æ”¯æŒ300
 
 
 void bldc_motor_init(void);
