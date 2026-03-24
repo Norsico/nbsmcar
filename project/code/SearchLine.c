@@ -80,11 +80,15 @@ static uint8 SearchLine_Find_Extreme_Value(uint8 *value_array, uint8 start_index
 
 void Get_Reference_Point(void)
 {
-    uint16 start_row = Search_Image_H - REFRENCEROW;
-    uint16 end_row = Search_Image_H;
+    uint16 end_row = SEARCH_VALID_BOTTOM_ROW + 1;
+    uint16 start_row = 0;
+    uint16 sample_rows = 0;
     uint16 i = 0;
     uint16 row = 0;
     uint32 gray_sum = 0;
+
+    start_row = (uint16)SearchLine_Limit_Int32((int32)end_row - REFRENCEROW, SEARCH_VALID_TOP_ROW, SEARCH_VALID_BOTTOM_ROW);
+    sample_rows = end_row - start_row;
 
     for(row = start_row; row < end_row; row++)
     {
@@ -94,7 +98,7 @@ void Get_Reference_Point(void)
         }
     }
 
-    Reference_Point = (uint8)(gray_sum / (REFRENCEROW * Search_Image_W));
+    Reference_Point = (uint8)(gray_sum / (sample_rows * Search_Image_W));
     White_Max_Point = (uint8)SearchLine_Limit_Int32((int32)Reference_Point * WHITEMAXMUL / 10, BLACKPOINT, 255);
     White_Min_Point = (uint8)SearchLine_Limit_Int32((int32)Reference_Point * WHITEMINMUL / 10, BLACKPOINT, 255);
 }
@@ -103,6 +107,8 @@ void Search_Reference_Col(void)
 {
     int16 col = 0;
     int16 row = 0;
+    int16 row_bottom = SEARCH_VALID_BOTTOM_ROW;
+    int16 row_top = SEARCH_VALID_TOP_ROW + STOPROW;
     uint8 current_gray = 0;
     uint8 compare_gray = 0;
     uint16 gray_sum = 0;
@@ -110,16 +116,16 @@ void Search_Reference_Col(void)
 
     for(col = 0; col < Search_Image_W; col++)
     {
-        Remote_Distance[col] = STOPROW;
+        Remote_Distance[col] = SEARCH_VALID_TOP_ROW;
 
-        for(row = Search_Image_H - 1; row > STOPROW; row--)
+        for(row = row_bottom; row >= row_top; row--)
         {
             current_gray = mt9v03x_image[row][col];
             compare_gray = mt9v03x_image[row - STOPROW][col];
 
             if(current_gray < White_Min_Point)
             {
-                Remote_Distance[col] = (uint8)(row - 1);
+                Remote_Distance[col] = (uint8)SearchLine_Limit_Int32(row - 1, SEARCH_VALID_TOP_ROW, SEARCH_VALID_BOTTOM_ROW);
                 break;
             }
 
@@ -135,9 +141,9 @@ void Search_Reference_Col(void)
             }
 
             contrast = ((int16)current_gray - (int16)compare_gray) * 200 / (int16)gray_sum;
-            if((contrast > Reference_Contrast_Ratio) || (row == (STOPROW + 1)))
+            if(contrast > Reference_Contrast_Ratio)
             {
-                Remote_Distance[col] = (uint8)(row - 1);
+                Remote_Distance[col] = (uint8)SearchLine_Limit_Int32(row - 1, SEARCH_VALID_TOP_ROW, SEARCH_VALID_BOTTOM_ROW);
                 break;
             }
         }
@@ -149,170 +155,137 @@ void Search_Reference_Col(void)
 
 void Search_line(void)
 {
-    uint8 row_max = Search_Image_H - STOPROW;
-    uint8 row_min = STOPROW;
-    uint8 col_max = Search_Image_W - 3;
+    int16 row_max = SEARCH_VALID_BOTTOM_ROW;
+    int16 row_min = SEARCH_VALID_TOP_ROW;
+    uint8 col_max = Search_Image_W - 1 - CONTRASTOFFSET;
     uint8 col_min = 3;
     int16 leftstartcol = Reference_Col;
+    int16 leftendcol = col_min;
     int16 rightstartcol = Reference_Col;
-    int16 leftendcol = 0;
-    int16 rightendcol = Search_Image_W;
+    int16 rightendcol = col_max;
     uint8 temp1 = 0;
     uint8 temp2 = 0;
     int16 temp3 = 0;
-    int16 leftstop = 0;
-    int16 rightstop = 0;
-    int16 stoppoint = 0;
     int16 col = 0;
     int16 row = 0;
+    uint8 left_found_this_row = 0;
+    uint8 right_found_this_row = 0;
 
     // 初始化边界线为默认值
-    for(row = row_max; row > row_min; row--)
+    for(row = row_max; row >= row_min; row--)
     {
         Left_Edge_Line[row] = col_min - CONTRASTOFFSET;
         Right_Edge_Line[row] = col_max + CONTRASTOFFSET;
     }
 
     // 从底部向上逐行搜索
-    for(row = row_max; row > row_min; row--)
+    for(row = row_max; row >= row_min; row--)
     {
         // 左边界搜索
-        if(!leftstop)
+        left_found_this_row = 0;
+
+        if(row < row_max)
         {
-            for(col = leftstartcol; col >= leftendcol; col--)
+            leftstartcol = SearchLine_Limit_Int32((int32)Left_Edge_Line[row + 1] + SEARCHRANGE, col_min, Search_Image_W - 1 - CONTRASTOFFSET);
+            leftendcol = SearchLine_Limit_Int32((int32)Left_Edge_Line[row + 1] - SEARCHRANGE, col_min, leftstartcol);
+            Left_Edge_Line[row] = Left_Edge_Line[row + 1];
+        }
+        else
+        {
+            leftstartcol = Reference_Col;
+            leftendcol = col_min;
+            Left_Edge_Line[row] = col_min;
+        }
+
+        for(col = leftstartcol; col >= leftendcol; col--)
+        {
+            temp1 = mt9v03x_image[row][col];
+
+            // 当前点已经是黑区，说明这一行搜索起点不在白区内，直接保留上一行结果
+            if(temp1 < White_Min_Point)
             {
-                temp1 = mt9v03x_image[row][col];
-                temp2 = mt9v03x_image[row][col - CONTRASTOFFSET];
+                break;
+            }
 
-                // 判断参考列是否为黑点，如为黑点则停止搜索
-                if(temp1 < White_Min_Point && col == leftstartcol && leftstartcol == Reference_Col)
+            temp2 = mt9v03x_image[row][col - CONTRASTOFFSET];
+
+            // 左侧对比点仍然很白，说明还在白区内部，继续往左搜
+            if(temp2 > White_Max_Point)
+            {
+                continue;
+            }
+
+            // 计算白区到左侧暗区的对比度，超过阈值就认为命中左边界
+            if((temp1 + temp2) != 0)
+            {
+                temp3 = (temp1 - temp2) * 200 / (temp1 + temp2);
+                if(temp3 > Reference_Contrast_Ratio)
                 {
-                    leftstop = 1;
-                    for(stoppoint = row; stoppoint >= 0; stoppoint--)
-                    {
-                        Left_Edge_Line[stoppoint] = col_min;
-                    }
+                    Left_Edge_Line[row] = (uint8)SearchLine_Limit_Int32(col - CONTRASTOFFSET + 1, col_min, Search_Image_W - 1 - CONTRASTOFFSET);
+                    left_found_this_row = 1;
                     break;
-                }
-
-                // 判断搜索起始列是否为黑点，如为黑点则修正搜索起始范围
-                if((temp1 < White_Min_Point && col == leftstartcol) || (leftstartcol != Reference_Col && col == col_min + 1))
-                {
-                    if(leftstartcol < Reference_Col)
-                    {
-                        col = Reference_Col;
-                        leftstartcol = Reference_Col;
-                    }
-                }
-
-                // 判断搜索结束列是否为白点，如为白点则修正搜索结束范围
-                if(temp1 > White_Min_Point && col == leftendcol)
-                {
-                    if(leftendcol > col_min)
-                    {
-                        leftendcol = col_min;
-                    }
-                }
-
-                // 判断当前点是否为黑点，如为黑点则不进行对比直接赋值
-                if(temp1 < White_Min_Point && leftstartcol == Reference_Col)
-                {
-                    Left_Edge_Line[row] = (uint8)col;
-                    break;
-                }
-
-                // 判断对比点是否为白点，如为白点则直接跳过
-                if(temp2 > White_Max_Point)
-                {
-                    continue;
-                }
-
-                // 计算对比度
-                if((temp1 + temp2) != 0)
-                {
-                    temp3 = (temp1 - temp2) * 200 / (temp1 + temp2);
-                    // 判断对比度是否超过阈值，如超过阈值则认为是左边界，或者已经搜索到搜索边界，则直接赋值边界
-                    if(temp3 > Reference_Contrast_Ratio || col == col_min + 1)
-                    {
-                        Left_Edge_Line[row] = col - CONTRASTOFFSET + 1;
-                        // 刷新搜索范围
-                        leftendcol = SearchLine_Limit_Int32(col - SEARCHRANGE, col_min, col);
-                        break;
-                    }
                 }
             }
+        }
+
+        if(!left_found_this_row && row == row_max)
+        {
+            Left_Edge_Line[row] = col_min;
         }
 
         // 右边界搜索
-        if(!rightstop)
+        right_found_this_row = 0;
+
+        if(row < row_max)
         {
-            for(col = rightstartcol; col <= rightendcol; col++)
+            rightstartcol = SearchLine_Limit_Int32((int32)Right_Edge_Line[row + 1] - SEARCHRANGE, Reference_Col, col_max);
+            rightendcol = SearchLine_Limit_Int32((int32)Right_Edge_Line[row + 1] + SEARCHRANGE, rightstartcol, col_max);
+            Right_Edge_Line[row] = Right_Edge_Line[row + 1];
+        }
+        else
+        {
+            rightstartcol = Reference_Col;
+            rightendcol = col_max;
+            Right_Edge_Line[row] = Search_Image_W - 1;
+        }
+
+        for(col = rightstartcol; col <= rightendcol; col++)
+        {
+            temp1 = mt9v03x_image[row][col];
+
+            // 当前点已经是黑区，说明这一行搜索起点不在白区内，直接保留上一行结果
+            if(temp1 < White_Min_Point)
             {
-                temp1 = mt9v03x_image[row][col];
-                temp2 = mt9v03x_image[row][col + CONTRASTOFFSET];
+                break;
+            }
 
-                // 判断参考列是否为黑点，如为黑点则停止搜索
-                if(temp1 < White_Min_Point && col == rightstartcol && rightstartcol == Reference_Col)
+            temp2 = mt9v03x_image[row][col + CONTRASTOFFSET];
+
+            // 右侧对比点仍然很白，说明还在白区内部，继续往右搜
+            if(temp2 > White_Max_Point)
+            {
+                continue;
+            }
+
+            // 计算白区到右侧暗区的对比度，超过阈值就认为命中右边界
+            if((temp1 + temp2) != 0)
+            {
+                temp3 = (temp1 - temp2) * 200 / (temp1 + temp2);
+                if(temp3 > Reference_Contrast_Ratio)
                 {
-                    rightstop = 1;
-                    for(stoppoint = row; stoppoint >= 0; stoppoint--)
-                    {
-                        Right_Edge_Line[stoppoint] = col_max;
-                    }
+                    Right_Edge_Line[row] = (uint8)SearchLine_Limit_Int32(col + CONTRASTOFFSET - 1, Reference_Col, Search_Image_W - 1);
+                    right_found_this_row = 1;
                     break;
-                }
-
-                // 判断搜索起始列是否为黑点，如为黑点则修正搜索起始范围
-                if((temp1 < White_Min_Point && col == rightstartcol) || (rightstartcol != Reference_Col && col == col_max - 1))
-                {
-                    if(rightstartcol > Reference_Col)
-                    {
-                        col = Reference_Col;
-                        rightstartcol = Reference_Col;
-                    }
-                }
-
-                // 判断搜索结束列是否为白点，如为白点则修正搜索结束范围
-                if(temp1 > White_Min_Point && col == rightendcol)
-                {
-                    if(rightendcol < col_max)
-                    {
-                        rightendcol = col_max;
-                    }
-                }
-
-                // 判断当前点是否为黑点，如为黑点则不进行对比直接赋值
-                if(temp1 < White_Min_Point && rightstartcol == Reference_Col)
-                {
-                    Right_Edge_Line[row] = (uint8)col;
-                    break;
-                }
-
-                // 判断对比点是否为白点，如为白点则直接跳过
-                if(temp2 > White_Max_Point)
-                {
-                    continue;
-                }
-
-                // 计算对比度
-                if((temp1 + temp2) != 0)
-                {
-                    temp3 = (temp1 - temp2) * 200 / (temp1 + temp2);
-                    // 判断对比度是否超过阈值，如超过阈值则认为是右边界，或者已经搜索到搜索边界，则直接赋值边界
-                    if(temp3 > Reference_Contrast_Ratio || col == col_max - 1)
-                    {
-                        Right_Edge_Line[row] = col + CONTRASTOFFSET - 1;
-                        // 刷新搜索范围
-                        rightendcol = SearchLine_Limit_Int32(col + SEARCHRANGE, col, col_max);
-                        break;
-                    }
                 }
             }
         }
 
+        if(!right_found_this_row && row == row_max)
+        {
+            Right_Edge_Line[row] = Search_Image_W - 1;
+        }
+
         // 更新下一行的搜索起始点
-        leftstartcol = Left_Edge_Line[row];
-        rightstartcol = Right_Edge_Line[row];
     }
 }
 
@@ -323,8 +296,15 @@ void SearchLine_Update_Center(void)
 
     for(row = 0; row < Search_Image_H; row++)
     {
-        center_value = ((uint16)Left_Edge_Line[row] + (uint16)Right_Edge_Line[row]) / 2;
-        Center_Line[row] = (uint8)SearchLine_Limit_Int32(center_value, CONTRASTOFFSET, Search_Image_W - 1 - CONTRASTOFFSET);
+        if(row < SEARCH_VALID_TOP_ROW || row > SEARCH_VALID_BOTTOM_ROW)
+        {
+            Center_Line[row] = Search_Image_W / 2;
+        }
+        else
+        {
+            center_value = ((uint16)Left_Edge_Line[row] + (uint16)Right_Edge_Line[row]) / 2;
+            Center_Line[row] = (uint8)SearchLine_Limit_Int32(center_value, CONTRASTOFFSET, Search_Image_W - 1 - CONTRASTOFFSET);
+        }
     }
 }
 
@@ -340,7 +320,7 @@ void SearchLine_DrawOverlay(void)
 {
     uint16 row = 0;
 
-    for(row = STOPROW + 1; row < Search_Image_H; row++)
+    for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
     {
         ips200_draw_point(Left_Edge_Line[row], row, RGB565_RED);
         ips200_draw_point(Right_Edge_Line[row], row, RGB565_GREEN);
@@ -350,7 +330,7 @@ void SearchLine_DrawOverlay(void)
     ips200_show_string(0, 128, "REF:");
     ips200_show_uint8(32, 128, Reference_Col);
     ips200_show_string(64, 128, "CTR:");
-    ips200_show_uint8(96, 128, Center_Line[Search_Image_H - 1]);
+    ips200_show_uint8(96, 128, Center_Line[SEARCH_VALID_BOTTOM_ROW]);
     ips200_show_string(0, 144, "WMIN:");
     ips200_show_uint8(40, 144, White_Min_Point);
     ips200_show_string(72, 144, "WMAX:");

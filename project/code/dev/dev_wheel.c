@@ -29,7 +29,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 		if(wheel == RIGHT_MOTOR){
 			// 右电机
 			if(speed>0){
-				gpio_set_level(RIGHT_MOTOR_DIR_PIN,GPIO_HIGH);
+				gpio_set_level(RIGHT_MOTOR_DIR_PIN,GPIO_LOW);
 				duty = (uint32)(speed) * (PWM_DUTY_MAX / 100);
 			}
 			else{
@@ -45,7 +45,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 				duty = (uint32)(speed) * (PWM_DUTY_MAX / 100);
 			}
 			else{
-				gpio_set_level(LEFT_MOTOR_DIR_PIN,GPIO_HIGH);
+				gpio_set_level(LEFT_MOTOR_DIR_PIN,GPIO_LOW);
 				duty = (uint32)(-speed) * (PWM_DUTY_MAX / 100);				
 			}
 			pwm_set_duty(LEFT_MOTOR_PWM_PIN, duty);			
@@ -82,7 +82,7 @@ void car_wheel_init(void)
 pid_control_t wheel_pid_left;
 pid_control_t wheel_pid_right;
 
-void wheel_pid_init(pid_control_t* pid){
+static void wheel_pid_init(pid_control_t* pid){
 	// 参数结构体设置
 	pid->param.kp = 7.0f;
 	pid->param.ki = 1.16f;
@@ -154,7 +154,7 @@ static void car_wheel_update_right(void)
 	car_wheel_set_speed(RIGHT_MOTOR,speed_percent);
 }
 // 车轮速度更新函数
-void car_wheel_updata(void)
+void car_wheel_update(void)
 {
 	// 获取当前编码器速度（编码器未移植）
 	int16 current_left = encoder_get_left();

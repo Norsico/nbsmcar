@@ -29,8 +29,11 @@
 // imu660ra_acc_transition(value)    // 返回 g
 
 /************ 接口函数 ************/
-// 陀螺仪模块初始化
+// 陀螺仪模块初始化（单次尝试）
 #define imu_init()    imu660ra_init()
+
+// 陀螺仪模块初始化（带重试）
+extern uint8 imu_init_with_retry(void);
 
 // 更新陀螺仪数据（读取传感器）
 #define imu_update()  do{ imu660ra_get_acc(); imu660ra_get_gyro(); }while(0)

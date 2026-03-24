@@ -4,8 +4,7 @@
 #include "zf_driver_gpio.h"
 #include "zf_driver_pwm.h"
 
-#define BUZZER_PWM (PWMC_CH2N_P65)
-#define BUZZER_FREQ (1000)
+#define BUZZER_PIN (IO_P65)
 #define LASER_PIN (IO_P67)
 
 void other_init(void);

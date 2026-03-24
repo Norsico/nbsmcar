@@ -28,10 +28,10 @@ extern pid_control_t wheel_pid_right;
 void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent); // 单独设置速度
 void car_wheel_set_dual(int8 right_wheel_speed_percent, int8 left_wheel_speed_percent); // 设置占空比
 void car_wheel_stop_all(void);  // 全部停止
-void car_wheel_init(void);
-void car_wheel_pid_init(void);
-void car_wheel_set_target(float left_speed, float right_speed);
-void car_wheel_updata(void); // 初始化
+void car_wheel_init(void); // 初始化
+void car_wheel_pid_init(void); // pid结构体初始化
+void car_wheel_set_target(float left_speed, float right_speed); // 手动设置目标值
+void car_wheel_update(void); // 自动调用pid进行车轮更新函数
 
 #endif
 

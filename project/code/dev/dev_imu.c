@@ -23,6 +23,47 @@ static uint8 imu_calibrated; // 校准标志
 // 采样周期（秒）
 static float imu_dt;         // 默认值在 imu_set_dt 中设置
 
+/************ 初始化重试参数 ************/
+#define IMU_INIT_RETRY_MAX    5       // 最大重试次数
+#define IMU_INIT_RETRY_DELAY  100     // 重试间隔 (ms)
+
+/************ 初始化函数 ************/
+/**
+ * @brief IMU初始化（带重试机制）
+ * @return 0 初始化成功，1 初始化失败
+ *
+ * 功能说明：
+ *   由于IMU可能在上电时未就绪，添加重试机制提高初始化成功率
+ *
+ * 重试策略：
+ *   - 最多重试5次
+ *   - 每次间隔100ms
+ *   - 任意一次成功即返回成功
+ */
+uint8 imu_init_with_retry(void)
+{
+    uint8 retry = 0;
+
+    while(retry < IMU_INIT_RETRY_MAX)
+    {
+        if(imu_init() == 0)
+        {
+            // 初始化成功
+            return 0;
+        }
+
+        // 初始化失败，延时后重试
+        retry++;
+        if(retry < IMU_INIT_RETRY_MAX)
+        {
+            system_delay_ms(IMU_INIT_RETRY_DELAY);
+        }
+    }
+
+    // 重试次数用尽，初始化失败
+    return 1;
+}
+
 /************ 角度积分函数 ************/
 /**
  * @brief 更新角度积分（需在固定周期调用）

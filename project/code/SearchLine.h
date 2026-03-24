@@ -20,6 +20,12 @@
 #define SEARCHRANGE                 (20)
 #define STOPROW                     (3)
 #define CONTRASTOFFSET              (3)
+#define SEARCH_IGNORE_TOP_PERCENT   (10)
+#define SEARCH_IGNORE_BOTTOM_PERCENT (5)
+#define SEARCH_IGNORE_TOP_ROWS      ((Search_Image_H * SEARCH_IGNORE_TOP_PERCENT) / 100)
+#define SEARCH_IGNORE_BOTTOM_ROWS   ((Search_Image_H * SEARCH_IGNORE_BOTTOM_PERCENT) / 100)
+#define SEARCH_VALID_TOP_ROW        (((SEARCH_IGNORE_TOP_ROWS) > (STOPROW)) ? (SEARCH_IGNORE_TOP_ROWS) : (STOPROW))
+#define SEARCH_VALID_BOTTOM_ROW     (Search_Image_H - 1 - SEARCH_IGNORE_BOTTOM_ROWS)
 
 extern uint8 Reference_Point;
 extern uint8 Reference_Col;

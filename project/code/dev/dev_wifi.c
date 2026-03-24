@@ -50,6 +50,10 @@ uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* targ
             printf("\r\n[WiFi] IP:Port = %s", wifi_spi_ip_addr_port);
             printf("\r\n[WiFi] ========================================\r\n");
 
+						// socket连接
+						while(wifi_spi_socket_connect("TCP",TARGET_IP,"8086","8086")){
+							system_delay_ms(100);
+						};
             // 初始化Seekfree Assistant
 						seekfree_assistant_init();
             seekfree_assistant_interface_init(SEEKFREE_ASSISTANT_WIFI_SPI);
@@ -69,8 +73,8 @@ uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* targ
 
         if(retry < 5)
         {
-            printf("\r\n[WiFi] Waiting 2s before retry...\r\n");
-            system_delay_ms(2000);
+            printf("\r\n[WiFi] Waiting 100ms before retry...\r\n");
+            system_delay_ms(100);
         }
     } 
     return 1;
