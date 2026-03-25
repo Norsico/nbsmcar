@@ -17,6 +17,7 @@
 #include "ackerman.h"
 
 #include "app_key.h"
+#include "app_line.h"
 #include "app_display.h"
 #include "my_delay.h"
 
@@ -75,6 +76,7 @@ void main(void)
 #if IPS_ENABLE
     display_init();
 #endif
+    line_app_init();
 
     // 陀螺仪初始化并调零
     if(!imu_init_with_retry()){
@@ -111,6 +113,7 @@ void main(void)
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
+                    line_app_process_frame();
                 }
 #if IPS_ENABLE
                 if(g_flag_display){
@@ -130,6 +133,7 @@ void main(void)
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
+                    line_app_process_frame();
                 }
                 if(g_flag_encoder){
                     // 编码器

@@ -78,6 +78,32 @@ static uint8 SearchLine_Find_Extreme_Value(uint8 *value_array, uint8 start_index
     return best_index;
 }
 
+static uint8 SearchLine_Get_Filtered_Gray(int16 row, int16 col)
+{
+    uint16 gray_sum = 0;
+    uint8 sample_count = 0;
+
+    row = SearchLine_Limit_Int32(row, 0, Search_Image_H - 1);
+    col = SearchLine_Limit_Int32(col, 0, Search_Image_W - 1);
+
+    gray_sum += mt9v03x_image[row][col];
+    sample_count++;
+
+    if(row > SEARCH_VALID_TOP_ROW)
+    {
+        gray_sum += mt9v03x_image[row - 1][col];
+        sample_count++;
+    }
+
+    if(row < SEARCH_VALID_BOTTOM_ROW)
+    {
+        gray_sum += mt9v03x_image[row + 1][col];
+        sample_count++;
+    }
+
+    return (uint8)(gray_sum / sample_count);
+}
+
 void Get_Reference_Point(void)
 {
     uint16 end_row = SEARCH_VALID_BOTTOM_ROW + 1;
@@ -120,8 +146,8 @@ void Search_Reference_Col(void)
 
         for(row = row_bottom; row >= row_top; row--)
         {
-            current_gray = mt9v03x_image[row][col];
-            compare_gray = mt9v03x_image[row - STOPROW][col];
+            current_gray = SearchLine_Get_Filtered_Gray(row, col);
+            compare_gray = SearchLine_Get_Filtered_Gray(row - STOPROW, col);
 
             if(current_gray < White_Min_Point)
             {
@@ -199,7 +225,7 @@ void Search_line(void)
 
         for(col = leftstartcol; col >= leftendcol; col--)
         {
-            temp1 = mt9v03x_image[row][col];
+            temp1 = SearchLine_Get_Filtered_Gray(row, col);
 
             // 当前点已经是黑区，说明这一行搜索起点不在白区内，直接保留上一行结果
             if(temp1 < White_Min_Point)
@@ -207,7 +233,7 @@ void Search_line(void)
                 break;
             }
 
-            temp2 = mt9v03x_image[row][col - CONTRASTOFFSET];
+            temp2 = SearchLine_Get_Filtered_Gray(row, col - CONTRASTOFFSET);
 
             // 左侧对比点仍然很白，说明还在白区内部，继续往左搜
             if(temp2 > White_Max_Point)
@@ -251,7 +277,7 @@ void Search_line(void)
 
         for(col = rightstartcol; col <= rightendcol; col++)
         {
-            temp1 = mt9v03x_image[row][col];
+            temp1 = SearchLine_Get_Filtered_Gray(row, col);
 
             // 当前点已经是黑区，说明这一行搜索起点不在白区内，直接保留上一行结果
             if(temp1 < White_Min_Point)
@@ -259,7 +285,7 @@ void Search_line(void)
                 break;
             }
 
-            temp2 = mt9v03x_image[row][col + CONTRASTOFFSET];
+            temp2 = SearchLine_Get_Filtered_Gray(row, col + CONTRASTOFFSET);
 
             // 右侧对比点仍然很白，说明还在白区内部，继续往右搜
             if(temp2 > White_Max_Point)
@@ -322,15 +348,24 @@ void SearchLine_DrawOverlay(void)
 
     for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
     {
-        ips200_draw_point(Left_Edge_Line[row], row, RGB565_RED);
-        ips200_draw_point(Right_Edge_Line[row], row, RGB565_GREEN);
-        ips200_draw_point(Center_Line[row], row, RGB565_YELLOW);
+        if(Left_Edge_Line[row] < CAMERA_VALID_W)
+        {
+            ips200_draw_point(Left_Edge_Line[row], row, RGB565_GREEN);
+        }
+
+        if(Right_Edge_Line[row] < CAMERA_VALID_W)
+        {
+            ips200_draw_point(Right_Edge_Line[row], row, RGB565_GREEN);
+        }
+
+        if(Center_Line[row] < CAMERA_VALID_W)
+        {
+            ips200_draw_point(Center_Line[row], row, RGB565_RED);
+        }
     }
 
-    ips200_show_string(0, 128, "REF:");
-    ips200_show_uint8(32, 128, Reference_Col);
-    ips200_show_string(64, 128, "CTR:");
-    ips200_show_uint8(96, 128, Center_Line[SEARCH_VALID_BOTTOM_ROW]);
+    ips200_show_string(0, 128, "CTR:");
+    ips200_show_uint8(32, 128, Center_Line[SEARCH_VALID_BOTTOM_ROW]);
     ips200_show_string(0, 144, "WMIN:");
     ips200_show_uint8(40, 144, White_Min_Point);
     ips200_show_string(72, 144, "WMAX:");
