@@ -4,6 +4,11 @@
 volatile system_state_t g_system_state = SYS_INIT;  // 系统状态：INIT/PREPARE/RUNNING/STOPED/EMERGENCY
 uint8 system_error = 0;                               // 系统错误标志：非0表示发生错误，进入紧急状态
 
+// 功能使能标志
+uint8 gips_enable = IPS_ENABLE;                      // 屏幕使能标志：1启用，0禁用
+uint8 gwifi_enable = WIFI_ENABLE;                    // WiFi使能标志：1启用，0禁用
+uint8 gdebug_enable = 1;                             // 屏幕/WiFi调试使能标志：1启用，0禁用
+
 vuint32 g_system_ticks = 0;                           // 系统Tick计数器，每1ms加1
 vuint32 g_key_ticks = 0;                              // 按键扫描计时器
 vuint32 g_imu_ticks = 0;                              // IMU读取计时器

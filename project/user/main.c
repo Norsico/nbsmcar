@@ -88,8 +88,8 @@ void main(void)
     // 检查是否为初始化状态（无错误）
     if(g_system_state == SYS_INIT)
     {
-        g_system_state = SYS_RUNNING;
-        //g_system_state = SYS_PREPARE;
+        //g_system_state = SYS_RUNNING;
+        g_system_state = SYS_PREPARE;
     }
     car_wheel_set_target(50,0);
 
@@ -100,6 +100,7 @@ void main(void)
 
         switch(g_system_state){
             case SYS_PREPARE: // 准备状态
+                g_ips_enable = 1;
                 if(g_flag_imu){
                     // IMU
                     g_flag_imu = 0;
@@ -107,8 +108,9 @@ void main(void)
                 if(g_flag_key){
                     // 按键
                     g_flag_key = 0;
-                    key_update();
+                    key_update(); // 按键
                     key_event_poll();
+										switch_update(); // 拨码开关
                 }
                 if(g_flag_center){
                     // 搜线算法
@@ -130,6 +132,7 @@ void main(void)
 
                 break;
             case SYS_RUNNING: // 运行状态
+                g_ips_enable = 0;
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
