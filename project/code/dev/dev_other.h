@@ -6,6 +6,8 @@
 
 #define BUZZER_PIN (IO_P65)
 #define LASER_PIN (IO_P67)
+#define SWITCH_PIN1 (IO_PB0)
+#define SWITCH_PIN2 (IO_PB1)
 
 void other_init(void);
 // 蜂鸣器

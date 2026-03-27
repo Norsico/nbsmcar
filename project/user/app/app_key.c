@@ -13,6 +13,9 @@ static void key1_handler(key_state_t state){
 			gpio_set_level(LED_DEBUG,0);
 			break;
 		case KEY_LONG:
+			if(g_system_state == SYS_PREPARE){
+				g_system_state = SYS_RUNNING;
+			}
 			break;
 	}
 }
@@ -21,9 +24,12 @@ static void key2_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
+			gpio_set_level(LED_DEBUG,1);
 			break;
 		case KEY_LONG:
-			gpio_set_level(LED_DEBUG,1);
+			if(g_system_state == SYS_RUNNING){
+				g_system_state = SYS_PREPARE;
+			}			
 			break;
 	}
 }

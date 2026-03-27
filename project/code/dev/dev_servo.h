@@ -18,7 +18,7 @@
 #define CAR_SERVO_FREQ            (50)
 #define CAR_SERVO_MIN_ANGLE       (80)
 #define CAR_SERVO_CENTER_ANGLE    (90)
-#define CAR_SERVO_MAX_ANGLE       (100)
+#define CAR_SERVO_MAX_ANGLE       (110)
 
 /************ 串级控制器结构体 ************/
 typedef struct

@@ -30,63 +30,106 @@ void main(void)
     {
         if(mt9v03x_finish_flag)
         {
-            uint8 row, col;
+            uint8 row;
+            uint8 bottom_row = SEARCH_VALID_BOTTOM_ROW;
+            uint8 reference_distance = 0;
+            uint8 left_bottom_col = 0;
+            uint8 right_bottom_col = 0;
+            uint8 center_bottom_col = 0;
 
             Get_Reference_Point();
             Search_Reference_Col();
             Search_line();
             SearchLine_Update_Center();
+            // 联合查看最长白列、左右边界和中线
             ips200_show_gray_image(0, 0, mt9v03x_image[0], CAMERA_RAW_W, CAMERA_RAW_H, CAMERA_VALID_W, CAMERA_RAW_H, 0);
 
-            // 画出参考列的垂直线（绿色）
+            reference_distance = Remote_Distance[Reference_Col];
+            left_bottom_col = Left_Edge_Line[bottom_row];
+            right_bottom_col = Right_Edge_Line[bottom_row];
+            center_bottom_col = Center_Line[bottom_row];
+
+            // 最长白列对应的参考列（绿色）
             for(row = 0; row < CAMERA_RAW_H; row++)
             {
                 ips200_draw_point(Reference_Col, row, RGB565_GREEN);
             }
 
-            // 画出远距离数组的可视化（蓝色点）
-            for(col = 10; col < CAMERA_VALID_W - 10; col += 5)  // 每5列画一个点
+            // 左边界（黄色）
+            for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
             {
-                if(Remote_Distance[col] < CAMERA_RAW_H)
+                if(Left_Edge_Line[row] < CAMERA_VALID_W)
                 {
-                    ips200_draw_point(col, Remote_Distance[col], RGB565_BLUE);
+                    ips200_draw_point(Left_Edge_Line[row], row, RGB565_YELLOW);
                 }
             }
 
-            // 画出中心线（红色虚线）- 每隔2行画一个点
-            for(row = 0; row < CAMERA_RAW_H; row += 2)
+            // 右边界（青色）
+            for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
             {
-                ips200_draw_point(Center_Line[row], row, RGB565_RED);
+                if(Right_Edge_Line[row] < CAMERA_VALID_W)
+                {
+                    ips200_draw_point(Right_Edge_Line[row], row, RGB565_CYAN);
+                }
             }
 
-            // 画出左边界线（黄色虚线）- 每隔2行画一个点
-            for(row = 0; row < CAMERA_RAW_H; row += 2)
+            // 中线 = (左边界 + 右边界) / 2（红色）
+            for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
             {
-                ips200_draw_point(Left_Edge_Line[row], row, RGB565_YELLOW);
+                if(Center_Line[row] < CAMERA_VALID_W)
+                {
+                    ips200_draw_point(Center_Line[row], row, RGB565_RED);
+                }
             }
 
-            // 画出右边界线（青色虚线）- 每隔2行画一个点
-            for(row = 0; row < CAMERA_RAW_H; row += 2)
+            // 参考列对应的远距离落点仍然保留，辅助判断搜索起点是否可靠（蓝色）
+            ips200_draw_point(Reference_Col, reference_distance, RGB565_BLUE);
+            if(reference_distance > 0)
             {
-                ips200_draw_point(Right_Edge_Line[row], row, RGB565_CYAN);
+                ips200_draw_point(Reference_Col, reference_distance - 1, RGB565_BLUE);
+            }
+            if(reference_distance + 1 < CAMERA_RAW_H)
+            {
+                ips200_draw_point(Reference_Col, reference_distance + 1, RGB565_BLUE);
             }
 
-            ips200_show_string(0, 128, "L00:");
-            ips200_show_uint8(32, 128, mt9v03x_image[0][0]);
-            ips200_show_string(64, 128, "R00:");
-            ips200_show_uint8(96, 128, mt9v03x_image[0][CAMERA_LAST_VALID_COL]);
+            // 底部中线位置打红色十字，方便先看最近处是否居中
+            ips200_draw_point(center_bottom_col, bottom_row, RGB565_RED);
+            if(bottom_row > 0)
+            {
+                ips200_draw_point(center_bottom_col, bottom_row - 1, RGB565_RED);
+            }
+            if(bottom_row + 1 < CAMERA_RAW_H)
+            {
+                ips200_draw_point(center_bottom_col, bottom_row + 1, RGB565_RED);
+            }
+            if(center_bottom_col > 0)
+            {
+                ips200_draw_point(center_bottom_col - 1, bottom_row, RGB565_RED);
+            }
+            if(center_bottom_col + 1 < CAMERA_VALID_W)
+            {
+                ips200_draw_point(center_bottom_col + 1, bottom_row, RGB565_RED);
+            }
+
             ips200_show_string(0, 144, "REF:");
             ips200_show_uint8(32, 144, Reference_Point);
             ips200_show_string(64, 144, "MIN:");
             ips200_show_uint8(96, 144, White_Min_Point);
             ips200_show_string(128, 144, "MAX:");
             ips200_show_uint8(160, 144, White_Max_Point);
-            ips200_show_string(0, 160, "RCOL:");
-            ips200_show_uint8(40, 160, Reference_Col);
-            ips200_show_string(80, 160, "RD:");
-            ips200_show_uint8(104, 160, Remote_Distance[Reference_Col]);
-            ips200_show_string(128, 160, "CTR:");
-            ips200_show_uint8(160, 160, Center_Line[CAMERA_RAW_H - 1]);
+            ips200_show_string(0, 160, "RC:");
+            ips200_show_uint8(24, 160, Reference_Col);
+            ips200_show_string(56, 160, "RY:");
+            ips200_show_uint8(80, 160, reference_distance);
+            ips200_show_string(112, 160, "CT:");
+            ips200_show_uint8(136, 160, center_bottom_col);
+            ips200_show_string(0, 176, "LB:");
+            ips200_show_uint8(24, 176, left_bottom_col);
+            ips200_show_string(56, 176, "RB:");
+            ips200_show_uint8(80, 176, right_bottom_col);
+            ips200_show_string(112, 176, "ROW:");
+            ips200_show_uint8(144, 176, bottom_row);
             mt9v03x_finish_flag = 0;
         }
     }

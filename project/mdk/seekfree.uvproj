@@ -945,6 +945,11 @@
               <FilePath>..\user\app\app_display.c</FilePath>
             </File>
             <File>
+              <FileName>app_line.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\app\app_line.c</FilePath>
+            </File>
+            <File>
               <FileName>app_key.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\user\app\app_key.c</FilePath>
