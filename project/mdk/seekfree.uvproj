@@ -859,6 +859,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\ackerman.c</FilePath>
             </File>
+            <File>
+              <FileName>wifi_tuning_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\wifi_tuning_config.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

@@ -39,8 +39,6 @@ typedef enum {
 #define WIFI_ENABLE (1)
 /* 屏幕功能编译开关：打开后可通过拨码切到 UI 屏幕模式。 */
 #define IPS_ENABLE  (1)
-/* 保留当前本地测试链路，不走调参和 IMU 初始化。 */
-#define SERVO_PUSH_TEST_ENABLE  (1)
 /************ 全局变量 ************/
 // 系统状态
 extern volatile system_state_t g_system_state;  // 系统当前状态

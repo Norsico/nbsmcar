@@ -60,7 +60,7 @@ void main(void)
     encoder_init(); // 编码器初始化
     key_event_init(); // 按键事件初始化
     ackerman_init(); // 阿克曼运动学初始化
-#if !SERVO_PUSH_TEST_ENABLE
+#if WIFI_ENABLE
     if(wifi_mode_enable)
     {
         tuning_param_boot_init(); // 根据拨码结果决定是否进入WiFi调参模式
@@ -82,14 +82,12 @@ void main(void)
 
     // 调试器件初始化
 #if WIFI_ENABLE
-#if !SERVO_PUSH_TEST_ENABLE
     if(wifi_mode_enable)
     {
         if(tuning_param_start_transport()){
             // 1代表失败
         }
     }
-#endif
 #endif
 #if IPS_ENABLE
     if(ui_mode_enable)
@@ -104,14 +102,9 @@ void main(void)
 #else
     {
 #endif
-#if SERVO_PUSH_TEST_ENABLE
-        /* 手推调试时始终初始化巡线模块，避免被调参配置跳过。 */
-        line_app_init();
-#else
         if(!wifi_mode_enable || !tuning_param_should_skip_line_init()){
             line_app_init();
         }
-#endif
     }
 
     // 陀螺仪初始化并调零
@@ -121,12 +114,10 @@ void main(void)
 #else
     {
 #endif
-#if !SERVO_PUSH_TEST_ENABLE
         if(!imu_init_with_retry()){
             // 初始化成功
             imu_calibrate(100); // 100 次采样计算零偏
         }
-#endif
     }
 
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
@@ -165,13 +156,9 @@ void main(void)
                     }
                     else
                     {
-#if SERVO_PUSH_TEST_ENABLE
-                        line_app_process_frame();
-#else
                         if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
                             line_app_process_frame();
                         }
-#endif
                     }
                 }
 #if IPS_ENABLE
@@ -185,9 +172,7 @@ void main(void)
                 if(wifi_mode_enable && g_flag_wifi){
                     // WiFi
                     g_flag_wifi = 0;
-#if !SERVO_PUSH_TEST_ENABLE
                     tuning_param_task();
-#endif
                 }
 #endif
 
@@ -205,23 +190,17 @@ void main(void)
                     }
                     else
                     {
-#if SERVO_PUSH_TEST_ENABLE
-                        line_app_process_frame();
-#else
                         if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
                             line_app_process_frame();
                         }
-#endif
                     }
                 }
                 if(g_flag_encoder){
                     // 编码器
                     g_flag_encoder = 0;
-#if !SERVO_PUSH_TEST_ENABLE
                     encoder_update();
                     // 更新后调用PID控制电机速度
                     car_wheel_update();
-#endif
                     //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
                 }
                 if(g_flag_imu){
@@ -243,9 +222,7 @@ void main(void)
 #if WIFI_ENABLE
                 if(wifi_mode_enable && g_flag_wifi){
                     g_flag_wifi = 0;
-#if !SERVO_PUSH_TEST_ENABLE
                     tuning_param_task();
-#endif
                 }
 #endif
                 break;
