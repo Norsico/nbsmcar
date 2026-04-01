@@ -18,6 +18,6 @@
 /************ 接口函数 ************/
 // WiFi模块初始化
 uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* target_ip);
-
+uint8 wifi_is_initialized(void); // 检查函数
 
 #endif

@@ -10,6 +10,10 @@ uint8 Remote_Distance[Search_Image_W] = {0};
 uint8 Left_Edge_Line[Search_Image_H] = {0};
 uint8 Right_Edge_Line[Search_Image_H] = {0};
 uint8 Center_Line[Search_Image_H] = {0};
+/* 单独记录显示有效性，避免沿用上一行的旧值被画成竖直假边界。 */
+static uint8 Left_Edge_Found[Search_Image_H] = {0};
+static uint8 Right_Edge_Found[Search_Image_H] = {0};
+static uint8 Center_Line_Found[Search_Image_H] = {0};
 
 static int32 SearchLine_Limit_Int32(int32 value, int32 limit1, int32 limit2)
 {
@@ -78,30 +82,66 @@ static uint8 SearchLine_Find_Extreme_Value(uint8 *value_array, uint8 start_index
     return best_index;
 }
 
-static uint8 SearchLine_Get_Filtered_Gray(int16 row, int16 col)
+static void SearchLine_Copy_Row_Result(uint8 src_row, uint8 dst_row)
 {
-    uint16 gray_sum = 0;
-    uint8 sample_count = 0;
+    Left_Edge_Line[dst_row] = Left_Edge_Line[src_row];
+    Right_Edge_Line[dst_row] = Right_Edge_Line[src_row];
+    Left_Edge_Found[dst_row] = Left_Edge_Found[src_row];
+    Right_Edge_Found[dst_row] = Right_Edge_Found[src_row];
+}
+
+static void SearchLine_Fill_Remote_Distance_Block(uint8 start_col, uint8 value)
+{
+    int16 col = 0;
+    int16 col_end = 0;
+
+    col_end = SearchLine_Limit_Int32((int32)start_col + SEARCH_COL_STEP - 1, 0, Search_Image_W - 1);
+    for(col = start_col; col <= col_end; col++)
+    {
+        Remote_Distance[col] = value;
+    }
+}
+
+static uint8 SearchLine_Row_Open_To_Left(int16 row)
+{
+    int16 col = 0;
 
     row = SearchLine_Limit_Int32(row, 0, Search_Image_H - 1);
-    col = SearchLine_Limit_Int32(col, 0, Search_Image_W - 1);
-
-    gray_sum += mt9v03x_image[row][col];
-    sample_count++;
-
-    if(row > SEARCH_VALID_TOP_ROW)
+    if(mt9v03x_image[row][0] < White_Min_Point)
     {
-        gray_sum += mt9v03x_image[row - 1][col];
-        sample_count++;
+        return 0;
     }
 
-    if(row < SEARCH_VALID_BOTTOM_ROW)
+    for(col = 0; col < Search_Image_W; col++)
     {
-        gray_sum += mt9v03x_image[row + 1][col];
-        sample_count++;
+        if(mt9v03x_image[row][col] < White_Min_Point)
+        {
+            return 1;
+        }
     }
 
-    return (uint8)(gray_sum / sample_count);
+    return 1;
+}
+
+static uint8 SearchLine_Row_Open_To_Right(int16 row)
+{
+    int16 col = 0;
+
+    row = SearchLine_Limit_Int32(row, 0, Search_Image_H - 1);
+    if(mt9v03x_image[row][Search_Image_W - 1] < White_Min_Point)
+    {
+        return 0;
+    }
+
+    for(col = Search_Image_W - 1; col >= 0; col--)
+    {
+        if(mt9v03x_image[row][col] < White_Min_Point)
+        {
+            return 1;
+        }
+    }
+
+    return 1;
 }
 
 void Get_Reference_Point(void)
@@ -143,11 +183,16 @@ void Search_Reference_Col(void)
     for(col = 0; col < Search_Image_W; col++)
     {
         Remote_Distance[col] = SEARCH_VALID_TOP_ROW;
+    }
 
-        for(row = row_bottom; row >= row_top; row--)
+    for(col = 0; col < Search_Image_W; col += SEARCH_COL_STEP)
+    {
+        Remote_Distance[col] = SEARCH_VALID_TOP_ROW;
+
+        for(row = row_bottom; row >= row_top; row -= SEARCH_ROW_STEP)
         {
-            current_gray = SearchLine_Get_Filtered_Gray(row, col);
-            compare_gray = SearchLine_Get_Filtered_Gray(row - STOPROW, col);
+            current_gray = mt9v03x_image[row][col];
+            compare_gray = mt9v03x_image[row - STOPROW][col];
 
             if(current_gray < White_Min_Point)
             {
@@ -173,6 +218,8 @@ void Search_Reference_Col(void)
                 break;
             }
         }
+
+        SearchLine_Fill_Remote_Distance_Block((uint8)col, Remote_Distance[col]);
     }
 
     Reference_Col = SearchLine_Find_Extreme_Value(Remote_Distance, 10, Search_Image_W - 11, 0);
@@ -194,21 +241,28 @@ void Search_line(void)
     int16 temp3 = 0;
     int16 col = 0;
     int16 row = 0;
+    int16 fill_row = 0;
+    int16 fill_min = 0;
     uint8 left_found_this_row = 0;
     uint8 right_found_this_row = 0;
+    uint8 left_lost_to_edge = 0;
+    uint8 right_lost_to_edge = 0;
 
     // 初始化边界线为默认值
     for(row = row_max; row >= row_min; row--)
     {
         Left_Edge_Line[row] = col_min - CONTRASTOFFSET;
         Right_Edge_Line[row] = col_max + CONTRASTOFFSET;
+        Left_Edge_Found[row] = 0;
+        Right_Edge_Found[row] = 0;
     }
 
-    // 从底部向上逐行搜索
-    for(row = row_max; row >= row_min; row--)
+    // 从底部向上逐行搜索，按 3 行抽样一次，再把结果补回中间行
+    for(row = row_max; row >= row_min; row -= SEARCH_ROW_STEP)
     {
         // 左边界搜索
         left_found_this_row = 0;
+        left_lost_to_edge = 1;
 
         if(row < row_max)
         {
@@ -223,25 +277,26 @@ void Search_line(void)
             Left_Edge_Line[row] = col_min;
         }
 
-        for(col = leftstartcol; col >= leftendcol; col--)
+        for(col = leftstartcol; col >= leftendcol; col -= SEARCH_COL_STEP)
         {
-            temp1 = SearchLine_Get_Filtered_Gray(row, col);
+            temp1 = mt9v03x_image[row][col];
 
-            // 当前点已经是黑区，说明这一行搜索起点不在白区内，直接保留上一行结果
             if(temp1 < White_Min_Point)
             {
+                left_lost_to_edge = 0;
                 break;
             }
 
-            temp2 = SearchLine_Get_Filtered_Gray(row, col - CONTRASTOFFSET);
+            temp2 = mt9v03x_image[row][col - CONTRASTOFFSET];
 
-            // 左侧对比点仍然很白，说明还在白区内部，继续往左搜
             if(temp2 > White_Max_Point)
             {
                 continue;
             }
 
-            // 计算白区到左侧暗区的对比度，超过阈值就认为命中左边界
+            /* 左侧已经不再是明显白区，说明不是“整段白到出画面”的丢边界。 */
+            left_lost_to_edge = 0;
+
             if((temp1 + temp2) != 0)
             {
                 temp3 = (temp1 - temp2) * 200 / (temp1 + temp2);
@@ -249,6 +304,7 @@ void Search_line(void)
                 {
                     Left_Edge_Line[row] = (uint8)SearchLine_Limit_Int32(col - CONTRASTOFFSET + 1, col_min, Search_Image_W - 1 - CONTRASTOFFSET);
                     left_found_this_row = 1;
+                    Left_Edge_Found[row] = 1;
                     break;
                 }
             }
@@ -258,9 +314,19 @@ void Search_line(void)
         {
             Left_Edge_Line[row] = col_min;
         }
+        else if(!left_found_this_row && SearchLine_Row_Open_To_Left(row))
+        {
+            /*
+             * 只要这一行左端本身就是白区，就说明左边界已经贴着画面左边，
+             * 即使搜索起点落在黑区，也直接把左边界落到最左侧。
+             */
+            Left_Edge_Line[row] = 0;
+            Left_Edge_Found[row] = 1;
+        }
 
         // 右边界搜索
         right_found_this_row = 0;
+        right_lost_to_edge = 1;
 
         if(row < row_max)
         {
@@ -275,25 +341,26 @@ void Search_line(void)
             Right_Edge_Line[row] = Search_Image_W - 1;
         }
 
-        for(col = rightstartcol; col <= rightendcol; col++)
+        for(col = rightstartcol; col <= rightendcol; col += SEARCH_COL_STEP)
         {
-            temp1 = SearchLine_Get_Filtered_Gray(row, col);
+            temp1 = mt9v03x_image[row][col];
 
-            // 当前点已经是黑区，说明这一行搜索起点不在白区内，直接保留上一行结果
             if(temp1 < White_Min_Point)
             {
+                right_lost_to_edge = 0;
                 break;
             }
 
-            temp2 = SearchLine_Get_Filtered_Gray(row, col + CONTRASTOFFSET);
+            temp2 = mt9v03x_image[row][col + CONTRASTOFFSET];
 
-            // 右侧对比点仍然很白，说明还在白区内部，继续往右搜
             if(temp2 > White_Max_Point)
             {
                 continue;
             }
 
-            // 计算白区到右侧暗区的对比度，超过阈值就认为命中右边界
+            /* 右侧已经不再是明显白区，说明不是“整段白到出画面”的丢边界。 */
+            right_lost_to_edge = 0;
+
             if((temp1 + temp2) != 0)
             {
                 temp3 = (temp1 - temp2) * 200 / (temp1 + temp2);
@@ -301,6 +368,7 @@ void Search_line(void)
                 {
                     Right_Edge_Line[row] = (uint8)SearchLine_Limit_Int32(col + CONTRASTOFFSET - 1, Reference_Col, Search_Image_W - 1);
                     right_found_this_row = 1;
+                    Right_Edge_Found[row] = 1;
                     break;
                 }
             }
@@ -310,8 +378,25 @@ void Search_line(void)
         {
             Right_Edge_Line[row] = Search_Image_W - 1;
         }
+        else if(!right_found_this_row && SearchLine_Row_Open_To_Right(row))
+        {
+            /*
+             * 只要这一行右端本身就是白区，就说明右边界已经贴着画面右边，
+             * 即使搜索起点落在黑区，也直接把右边界落到最右侧。
+             */
+            Right_Edge_Line[row] = Search_Image_W - 1;
+            Right_Edge_Found[row] = 1;
+        }
 
-        // 更新下一行的搜索起始点
+        /* 把这一条抽样行的结果补给中间两行，保持控制层仍然按逐行数组使用。 */
+        if(row > row_min)
+        {
+            fill_min = SearchLine_Limit_Int32((int32)row - SEARCH_ROW_STEP + 1, row_min, row_max);
+            for(fill_row = row - 1; fill_row >= fill_min; fill_row--)
+            {
+                SearchLine_Copy_Row_Result((uint8)row, (uint8)fill_row);
+            }
+        }
     }
 }
 
@@ -322,6 +407,7 @@ void SearchLine_Update_Center(void)
 
     for(row = 0; row < Search_Image_H; row++)
     {
+        Center_Line_Found[row] = 0;
         if(row < SEARCH_VALID_TOP_ROW || row > SEARCH_VALID_BOTTOM_ROW)
         {
             Center_Line[row] = Search_Image_W / 2;
@@ -330,44 +416,52 @@ void SearchLine_Update_Center(void)
         {
             center_value = ((uint16)Left_Edge_Line[row] + (uint16)Right_Edge_Line[row]) / 2;
             Center_Line[row] = (uint8)SearchLine_Limit_Int32(center_value, CONTRASTOFFSET, Search_Image_W - 1 - CONTRASTOFFSET);
+            if(Left_Edge_Found[row] && Right_Edge_Found[row])
+            {
+                Center_Line_Found[row] = 1;
+            }
         }
     }
 }
 
 void SearchLine_Process(void)
 {
+    gpio_set_level(IO_P52,0);
     Get_Reference_Point();
     Search_Reference_Col();
     Search_line();
     SearchLine_Update_Center();
+    gpio_set_level(IO_P52,1);
 }
 
 void SearchLine_DrawOverlay(void)
 {
     uint16 row = 0;
 
+    /* 蓝色竖线表示当前找到的最长白列对应参考列。 */
+    for(row = 0; row < CAMERA_RAW_H; row++)
+    {
+        if(Reference_Col < CAMERA_VALID_W)
+        {
+            ips200_draw_point(Reference_Col, row, RGB565_BLUE);
+        }
+    }
+
     for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
     {
-        if(Left_Edge_Line[row] < CAMERA_VALID_W)
+        if(Left_Edge_Found[row] && Left_Edge_Line[row] < CAMERA_VALID_W)
         {
-            ips200_draw_point(Left_Edge_Line[row], row, RGB565_GREEN);
+            ips200_draw_point(Left_Edge_Line[row], row, RGB565_YELLOW);
         }
 
-        if(Right_Edge_Line[row] < CAMERA_VALID_W)
+        if(Right_Edge_Found[row] && Right_Edge_Line[row] < CAMERA_VALID_W)
         {
-            ips200_draw_point(Right_Edge_Line[row], row, RGB565_GREEN);
+            ips200_draw_point(Right_Edge_Line[row], row, RGB565_CYAN);
         }
 
-        if(Center_Line[row] < CAMERA_VALID_W)
+        if(Center_Line_Found[row] && Center_Line[row] < CAMERA_VALID_W)
         {
             ips200_draw_point(Center_Line[row], row, RGB565_RED);
         }
     }
-
-    ips200_show_string(0, 128, "CTR:");
-    ips200_show_uint8(32, 128, Center_Line[SEARCH_VALID_BOTTOM_ROW]);
-    ips200_show_string(0, 144, "WMIN:");
-    ips200_show_uint8(40, 144, White_Min_Point);
-    ips200_show_string(72, 144, "WMAX:");
-    ips200_show_uint8(112, 144, White_Max_Point);
 }

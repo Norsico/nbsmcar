@@ -12,20 +12,14 @@
 #include "dev_motor.h"
 #include "dev_wheel.h"
 #include "dev_encoder.h" 
-#include "dev_wifi.h"
 #include "dev_imu.h"
 #include "ackerman.h"
+#include "tuning_param.h"
 
 #include "app_key.h"
 #include "app_line.h"
 #include "app_display.h"
 #include "my_delay.h"
-
-/*********** 调试变量 *****************/
-const char ssid[] = "xyh";
-const char password[] = "1261340160xyh";
-const char targetIP[] = "192.168.43.236";
-
 
 void main(void)
 {
@@ -48,7 +42,7 @@ void main(void)
     // ----- 正常启动 ------
 
     key_init(); // 按键
-    other_init(); // 蜂鸣器激光笔
+    other_init(); // 蜂鸣器激光笔拨码开关
     power_adc_init(); // 电池电量ADC
     car_servo_init(); // 舵机初始化并回中
     bldc_motor_init(); // 无刷电机
@@ -58,6 +52,11 @@ void main(void)
     key_event_init(); // 按键事件初始化
     ackerman_init(); // 阿克曼运动学初始化
 
+		
+		// 拨码开关更新，读取状态并所存，后续不再调用
+		switch_update();
+
+			
     if(power_adc_judge()){
         // 低电量报警
         buzzer_on();
@@ -69,15 +68,21 @@ void main(void)
 
     // 调试器件初始化
 #if WIFI_ENABLE
-    if(wifi_init(ssid,password,targetIP)){
-        // 1代表失败
+    if(g_wifi_enable){
+        // 1代表启用
+			tuning_param_boot_init(); // 根据拨码结果决定是否进入WiFi调参模式
+			tuning_param_start_transport();
     }
 #endif
 #if IPS_ENABLE
-    display_init();
+		if(g_ips_enable){
+			display_init();
+			/* UI 模式下也提前拉起摄像头链路，进入第一页即可直接看图像。 */
+      display_menu_init();
+      display_menu_render();
+		}
 #endif
-    line_app_init();
-
+		line_app_init();
     // 陀螺仪初始化并调零
     if(!imu_init_with_retry()){
         // 初始化成功
@@ -91,7 +96,6 @@ void main(void)
         //g_system_state = SYS_RUNNING;
         g_system_state = SYS_PREPARE;
     }
-    car_wheel_set_target(50,0);
 
     while(1)
     {
@@ -110,7 +114,6 @@ void main(void)
                     g_flag_key = 0;
                     key_update(); // 按键
                     key_event_poll();
-										switch_update(); // 拨码开关
                 }
                 if(g_flag_center){
                     // 搜线算法
@@ -121,12 +124,16 @@ void main(void)
                 if(g_flag_display){
                     // 屏幕
                     g_flag_display = 0;
+									if(g_ips_enable){
+										display_menu_render();
+									}
                 }
 #endif
 #if WIFI_ENABLE
                 if(g_flag_wifi){
                     // WiFi
-                    g_flag_wifi = 0;
+                  g_flag_wifi = 0;
+									tuning_param_task();
                 }
 #endif
 

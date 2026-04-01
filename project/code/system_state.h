@@ -37,7 +37,7 @@ typedef enum {
 /*********** 运行设定 ****************/
 // 说明，只有在这里定义使用后，后续才能进行开关和选择
 #define WIFI_ENABLE (0)
-#define IPS_ENABLE (0)
+#define IPS_ENABLE (1)
 /************ 全局变量 ************/
 // 系统状态
 extern volatile system_state_t g_system_state;  // 系统当前状态

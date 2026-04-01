@@ -64,7 +64,7 @@ void key_update(void)
 				{
 					// 根据间隔分长按短按
 					if(keys_info[i].interval>= LONG_PRESS_COUNT) keys_info[i].state = KEY_LONG;
-					else if(keys_info[i].interval>0) keys_info[i].state = KEY_SHORT;
+					else if(keys_info[i].interval>1) keys_info[i].state = KEY_SHORT; // 大于1，20ms判定消抖
 					else; // 间隔为0不作处理 
 				}
 			}

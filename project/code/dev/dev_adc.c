@@ -1,5 +1,6 @@
 #include "dev_adc.h"
 
+static float power_adc_voltage = 0.0f;
 
 // ADC初始化
 void power_adc_init(void){
@@ -17,12 +18,16 @@ static uint16 power_adc_update(void){
 */
 uint8 power_adc_judge(void){
 	uint8 sign = 0;
-	float voltage;
 	uint16 value = power_adc_update(); // 获取
-	voltage = value * 3.3f / ADC_RANGE * 11;
-	if(voltage < 11.1){
+	power_adc_voltage = value * 3.3f / ADC_RANGE * 11;
+	if(power_adc_voltage < 11.1f){
 		// 电压过低
 		sign = 1;
 	}
 	return sign;
+}
+
+// 获取电池电压(伏特)
+float power_adc_get_voltage(void){
+	return power_adc_voltage;
 }

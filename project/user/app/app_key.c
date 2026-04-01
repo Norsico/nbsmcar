@@ -1,6 +1,8 @@
 #include "app_key.h"
 #include "zf_common_headfile.h"
 #include "system_state.h"
+#include "app_display.h"
+#include "dev_other.h"
 
 static key_event_handler_t key_event_table[KEY_MAX];
 
@@ -10,7 +12,7 @@ static void key1_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			gpio_set_level(LED_DEBUG,0);
+			display_menu_move_down();
 			break;
 		case KEY_LONG:
 			if(g_system_state == SYS_PREPARE){
@@ -24,7 +26,7 @@ static void key2_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			gpio_set_level(LED_DEBUG,1);
+			display_menu_back();
 			break;
 		case KEY_LONG:
 			if(g_system_state == SYS_RUNNING){
@@ -38,7 +40,7 @@ static void key3_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			gpio_set_level(LED_DEBUG,0);
+			display_menu_enter();
 			break;
 		case KEY_LONG:
 			break;
@@ -49,6 +51,7 @@ static void key4_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
+			display_menu_move_up();
 			break;
 		case KEY_LONG:
 			gpio_set_level(LED_DEBUG,1);

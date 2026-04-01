@@ -5,6 +5,7 @@
 
 void line_app_init(void);
 uint8 line_app_process_frame(void);
+uint8 line_app_preview_frame(void);
 void line_app_set_pid(float kp, float ki, float kd);
 void line_app_set_pd(float kp, float kd);
 int16 line_app_get_error(void);

@@ -825,19 +825,9 @@
               <FilePath>..\code\SearchLine.c</FilePath>
             </File>
             <File>
-              <FileName>SearchLine.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\SearchLine.h</FilePath>
-            </File>
-            <File>
               <FileName>tuning_param.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\tuning_param.c</FilePath>
-            </File>
-            <File>
-              <FileName>tuning_param.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\code\tuning_param.h</FilePath>
             </File>
             <File>
               <FileName>pid_control.c</FileName>
@@ -858,6 +848,11 @@
               <FileName>ackerman.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\ackerman.c</FilePath>
+            </File>
+            <File>
+              <FileName>wifi_tuning_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\wifi_tuning_config.h</FilePath>
             </File>
           </Files>
         </Group>

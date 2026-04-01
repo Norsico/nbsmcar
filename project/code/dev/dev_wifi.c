@@ -9,6 +9,14 @@
 /************ 静态变量 ************/
 static uint8 wifi_initialized = 0;
 
+
+// 是否初始化
+uint8 wifi_is_initialized(void)
+{
+    return wifi_initialized;
+}
+
+
 /************ 初始化 ************/
 uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* target_ip)
 {
