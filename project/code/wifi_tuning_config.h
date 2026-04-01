@@ -2,7 +2,6 @@
 #define _WIFI_TUNING_CONFIG_H_
 
 #include "zf_driver_gpio.h"
-#include "system_state.h"
 
 /*
  * WiFi 调参总开关。
@@ -27,15 +26,16 @@
 #define WIFI_TUNING_WIFI_SSID                  "xyh"
 #define WIFI_TUNING_WIFI_PASSWORD              "1261340160xyh"
 #define WIFI_TUNING_TARGET_IP                  "192.168.43.236"
+#define WIFI_TUNING_TARGET_PORT                "8086"
+#define WIFI_TUNING_LOCAL_PORT                 "8086"
 
 /*
  * 调参触发钩子。
- * 触发条件：WIFI_TUNING_ENABLE=1 且 g_debug_enable=1 且 g_wifi_enable=1
- * - g_debug_enable: 拨码开关1控制，调试总使能
- * - g_wifi_enable: 拨码开关2控制，WiFi使能（屏幕/WiFi切换）
- * 后台会持续轮询这个条件，满足后自动锁存进入调参模式。
+ * 默认行为：只要 WIFI_TUNING_ENABLE 为 1，就直接进入调参模式。
+ * 同时后台也会持续轮询这个条件，只要后续变为真，也会自动锁存进入调参模式。
  *
- * 如需自定义触发条件，可重定义此宏：
+ * 拨码开关示例：
+ *   #define WIFI_TUNING_TRIGGER_INIT() gpio_init(IO_P33, GPI, GPIO_HIGH, GPI_PULL_UP)
  *   #define WIFI_TUNING_TRIGGER_ACTIVE() (0 == gpio_get_level(IO_P33))
  */
 #ifndef WIFI_TUNING_TRIGGER_INIT
@@ -43,7 +43,7 @@
 #endif
 
 #ifndef WIFI_TUNING_TRIGGER_ACTIVE
-#define WIFI_TUNING_TRIGGER_ACTIVE()           (g_debug_enable && g_wifi_enable)
+#define WIFI_TUNING_TRIGGER_ACTIVE()           (1)
 #endif
 
 #ifdef WIFI_TUNING_PROFILE_IMPLEMENTATION

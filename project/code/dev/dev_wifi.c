@@ -9,23 +9,39 @@
 /************ 静态变量 ************/
 static uint8 wifi_initialized = 0;
 
-/************ 初始化 ************/
-uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* target_ip)
+uint8 wifi_is_initialized(void)
 {
-    const char* WIFI_SSID = (wifi_ssid && wifi_ssid[0]) ? wifi_ssid : DEFAULT_WIFI_SSID;
-		const char* WIFI_PASSWORD = (wifi_password && wifi_password[0]) ? wifi_password : DEFAULT_WIFI_PASSWORD;
-		const char* TARGET_IP = (target_ip && target_ip[0]) ? target_ip : DEFAULT_TARGET_IP; // c语言特性，\0 为假
-		uint8 retry = 0;
-		uint8 ret = 0;
-	
+    return wifi_initialized;
+}
+
+/************ 初始化 ************/
+uint8 wifi_init(const char* wifi_ssid,
+                const char* wifi_password,
+                const char* target_ip,
+                const char* target_port,
+                const char* local_port)
+{
+    const char* WIFI_SSID = (wifi_ssid && wifi_ssid[0]) ? wifi_ssid : "";
+    const char* WIFI_PASSWORD = (wifi_password && wifi_password[0]) ? wifi_password : 0;
+    const char* TARGET_IP = (target_ip && target_ip[0]) ? target_ip : WIFI_SPI_TARGET_IP;
+    const char* TARGET_PORT = (target_port && target_port[0]) ? target_port : WIFI_SPI_TARGET_PORT;
+    const char* LOCAL_PORT = (local_port && local_port[0]) ? local_port : WIFI_SPI_LOCAL_PORT;
+    uint8 retry = 0;
+    uint8 ret = 0;
+
+    if(wifi_initialized)
+    {
+        return 0;
+    }
+
     printf("\r\n[WiFi] ========================================");
     printf("\r\n[WiFi] WiFi Driver Starting...");
     printf("\r\n[WiFi] SSID: %s", WIFI_SSID);
     printf("\r\n[WiFi] AUTO_CONNECT: %d", WIFI_SPI_AUTO_CONNECT);
-    printf("\r\n[WiFi] TARGET_IP: %s", WIFI_SPI_TARGET_IP);
-    printf("\r\n[WiFi] TARGET_PORT: %s", WIFI_SPI_TARGET_PORT);
+    printf("\r\n[WiFi] TARGET_IP: %s", TARGET_IP);
+    printf("\r\n[WiFi] TARGET_PORT: %s", TARGET_PORT);
+    printf("\r\n[WiFi] LOCAL_PORT: %s", LOCAL_PORT);
     printf("\r\n[WiFi] ----------------------------------------");
-
 
     // 循环尝试初始化
     while(retry < 5)
@@ -38,7 +54,7 @@ uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* targ
         printf("\r\n[WiFi] Calling wifi_spi_init()...");
 
         // 调用官方初始化函数
-        ret = wifi_spi_init(WIFI_SSID, WIFI_PASSWORD);
+        ret = wifi_spi_init((char *)WIFI_SSID, (char *)WIFI_PASSWORD);
 
         if(ret == 0)
         {
@@ -50,12 +66,17 @@ uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* targ
             printf("\r\n[WiFi] IP:Port = %s", wifi_spi_ip_addr_port);
             printf("\r\n[WiFi] ========================================\r\n");
 
-						// socket连接
-						while(wifi_spi_socket_connect("TCP",TARGET_IP,"8086","8086")){
-							system_delay_ms(100);
-						};
+            // socket连接
+            if(0 == WIFI_SPI_AUTO_CONNECT)
+            {
+                while(wifi_spi_socket_connect("TCP", (char *)TARGET_IP, (char *)TARGET_PORT, (char *)LOCAL_PORT))
+                {
+                    system_delay_ms(100);
+                }
+            }
+
             // 初始化Seekfree Assistant
-						seekfree_assistant_init();
+            seekfree_assistant_init();
             seekfree_assistant_interface_init(SEEKFREE_ASSISTANT_WIFI_SPI);
             wifi_initialized = 1;
             return 0;
@@ -79,5 +100,3 @@ uint8 wifi_init(const char* wifi_ssid,const char* wifi_password,const char* targ
     } 
     return 1;
 }
-
- 

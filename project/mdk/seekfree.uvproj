@@ -885,6 +885,11 @@
           <GroupName>dev</GroupName>
           <Files>
             <File>
+              <FileName>dev_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_flash.c</FilePath>
+            </File>
+            <File>
               <FileName>dev_imu.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\dev\dev_imu.c</FilePath>

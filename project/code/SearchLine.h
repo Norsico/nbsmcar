@@ -17,6 +17,8 @@
 #define WHITEMINMUL                 (7)
 
 #define REFRENCEROW                 (5)
+#define SEARCH_COL_STEP             (1)
+#define SEARCH_ROW_STEP             (3)
 #define SEARCHRANGE                 (20)
 #define STOPROW                     (3)
 #define CONTRASTOFFSET              (3)
