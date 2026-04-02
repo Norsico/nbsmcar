@@ -13,6 +13,8 @@ void display_menu_init(void);
 void display_menu_render(void);
 void display_menu_move_up(void);
 void display_menu_move_down(void);
+void display_menu_move_up_fast(void);
+void display_menu_move_down_fast(void);
 void display_menu_enter(void);
 void display_menu_back(void);
 uint8 display_menu_in_camera_view(void);

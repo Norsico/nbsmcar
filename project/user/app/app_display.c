@@ -24,6 +24,7 @@
 #define MENU_PARAM_ACCENT_W         (3)
 #define MENU_PARAM_ACCENT_H         (14)
 #define MENU_PARAM_DIVIDER_W        (108)
+#define MENU_PARAM_FAST_STEP_MUL    (10)
 #define MENU_PARAM_LABEL_CLEAR      "            "
 #define MENU_PARAM_VALUE_CLEAR      "      "
 #define MENU_PARAM_INFO_CLEAR       "                       "
@@ -416,6 +417,33 @@ static void display_menu_param_adjust(int16 delta_tenth)
     }
 }
 
+static void display_menu_param_adjust_by_step_mul(int8 direction, uint8 step_mul)
+{
+    int32 delta_tenth = 0;
+
+    if(0 == direction || 0 == step_mul)
+    {
+        return;
+    }
+
+    delta_tenth = (int32)FLASH_PARAM_VALUE_STEP_TENTH * (int32)step_mul;
+    if(direction < 0)
+    {
+        delta_tenth = -delta_tenth;
+    }
+
+    if(delta_tenth > 32767)
+    {
+        delta_tenth = 32767;
+    }
+    else if(delta_tenth < -32768)
+    {
+        delta_tenth = -32768;
+    }
+
+    display_menu_param_adjust((int16)delta_tenth);
+}
+
 static void display_menu_draw_root_item(uint8 index)
 {
     uint16 y = 0;
@@ -508,7 +536,7 @@ void display_menu_move_up(void)
         /* 参数页里，上键要么切行，要么增大当前值。 */
         if(g_param_editing)
         {
-            display_menu_param_adjust(FLASH_PARAM_VALUE_STEP_TENTH);
+            display_menu_param_adjust_by_step_mul(1, 1);
         }
         else
         {
@@ -552,7 +580,7 @@ void display_menu_move_down(void)
         /* 参数页里，下键要么切行，要么减小当前值。 */
         if(g_param_editing)
         {
-            display_menu_param_adjust(-FLASH_PARAM_VALUE_STEP_TENTH);
+            display_menu_param_adjust_by_step_mul(-1, 1);
         }
         else
         {
@@ -582,6 +610,26 @@ void display_menu_move_down(void)
         display_menu_draw_root_item(previous_selected);
         display_menu_draw_root_item(g_menu_selected);
     }
+}
+
+void display_menu_move_up_fast(void)
+{
+    if(DISPLAY_PAGE_PARAM != g_menu_page || !g_param_editing)
+    {
+        return;
+    }
+
+    display_menu_param_adjust_by_step_mul(1, MENU_PARAM_FAST_STEP_MUL);
+}
+
+void display_menu_move_down_fast(void)
+{
+    if(DISPLAY_PAGE_PARAM != g_menu_page || !g_param_editing)
+    {
+        return;
+    }
+
+    display_menu_param_adjust_by_step_mul(-1, MENU_PARAM_FAST_STEP_MUL);
 }
 
 void display_menu_enter(void)
