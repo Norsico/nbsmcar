@@ -9,6 +9,7 @@ CLAUDE.md
 AGENTS.md
 claude/settings.local.json
 .claude/settings.local.json
+.codex
 
 # VS Code
 .vscode/settings.json

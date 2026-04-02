@@ -17,11 +17,13 @@
 #define MENU_PARAM_INFO_LINE_Y      (44)
 #define MENU_PARAM_LIST_Y           (56)
 #define MENU_PARAM_ROW_STEP         (24)
-#define MENU_PARAM_ROW_AREA_Y       (4)
-#define MENU_PARAM_ROW_AREA_H       (28)
-#define MENU_PARAM_LABEL_X          (12)
-#define MENU_PARAM_VALUE_X          (116)
-#define MENU_PARAM_ACCENT_W         (5)
+#define MENU_PARAM_LABEL_X          (18)
+#define MENU_PARAM_VALUE_X          (136)
+#define MENU_PARAM_ACCENT_X         (8)
+#define MENU_PARAM_ACCENT_Y_OFFSET  (2)
+#define MENU_PARAM_ACCENT_W         (3)
+#define MENU_PARAM_ACCENT_H         (14)
+#define MENU_PARAM_DIVIDER_W        (108)
 #define MENU_PARAM_LABEL_CLEAR      "            "
 #define MENU_PARAM_VALUE_CLEAR      "      "
 #define MENU_PARAM_INFO_CLEAR       "                       "
@@ -110,6 +112,24 @@ static void display_menu_draw_rect_frame(uint16 x, uint16 y, uint16 w, uint16 h,
     {
         ips200_draw_point(x, y + row, color);
         ips200_draw_point(x + w - 1, y + row, color);
+    }
+}
+
+static void display_menu_draw_dash_line(uint16 x, uint16 y, uint16 w, uint16 dash_w, uint16 gap_w, uint16 color)
+{
+    uint16 offset = 0;
+    uint16 draw_w = 0;
+
+    while(offset < w)
+    {
+        draw_w = dash_w;
+        if((uint16)(offset + draw_w) > w)
+        {
+            draw_w = (uint16)(w - offset);
+        }
+
+        display_menu_draw_rect((uint16)(x + offset), y, draw_w, 1, color);
+        offset = (uint16)(offset + dash_w + gap_w);
     }
 }
 
@@ -228,22 +248,34 @@ static const char *display_menu_get_param_label(flash_param_slot_t slot)
 static void display_menu_draw_param_row(flash_param_slot_t slot)
 {
     char value_text[5];
+    const char *label_text = 0;
     uint16 row_y = 0;
+    uint16 guide_color = RGB565_GRAY;
     uint16 label_color = RGB565_BLACK;
     uint16 value_color = RGB565_BLACK;
     int16 value_tenth = 0;
 
     row_y = display_menu_get_param_row_y(slot);
+    label_text = display_menu_get_param_label(slot);
     value_tenth = flash_store_get_param_value_tenth(slot);
     display_menu_format_param_value(value_tenth, value_text);
 
-    /* 左侧色条只占很小一块，单独清掉比整行刷白快得多。 */
-    display_menu_draw_rect(0, (uint16)(row_y - MENU_PARAM_ROW_AREA_Y), MENU_PARAM_ACCENT_W, MENU_PARAM_ROW_AREA_H, RGB565_WHITE);
+    display_menu_draw_rect(MENU_PARAM_ACCENT_X,
+                           (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                           MENU_PARAM_ACCENT_W,
+                           MENU_PARAM_ACCENT_H,
+                           RGB565_WHITE);
 
     if(slot == g_param_selected)
     {
-        value_color = g_param_editing ? RGB565_RED : RGB565_BLUE;
-        display_menu_draw_rect(0, (uint16)(row_y - MENU_PARAM_ROW_AREA_Y), MENU_PARAM_ACCENT_W, MENU_PARAM_ROW_AREA_H, value_color);
+        guide_color = g_param_editing ? RGB565_RED : RGB565_BLUE;
+        label_color = guide_color;
+        value_color = guide_color;
+        display_menu_draw_rect(MENU_PARAM_ACCENT_X,
+                               (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                               MENU_PARAM_ACCENT_W,
+                               MENU_PARAM_ACCENT_H,
+                               guide_color);
     }
     else
     {
@@ -252,7 +284,7 @@ static void display_menu_draw_param_row(flash_param_slot_t slot)
 
     ips200_set_color(label_color, RGB565_WHITE);
     ips200_show_string(MENU_PARAM_LABEL_X, row_y, MENU_PARAM_LABEL_CLEAR);
-    ips200_show_string(MENU_PARAM_LABEL_X, row_y, display_menu_get_param_label(slot));
+    ips200_show_string(MENU_PARAM_LABEL_X, row_y, label_text);
 
     ips200_set_color(value_color, RGB565_WHITE);
     ips200_show_string(MENU_PARAM_VALUE_X, row_y, MENU_PARAM_VALUE_CLEAR);
@@ -301,9 +333,7 @@ static void display_menu_draw_param_page_full(void)
     ips200_show_string(0, MENU_TITLE_Y, "Param Config");
     display_menu_draw_battery(1);
 
-    display_menu_draw_rect(0, MENU_PARAM_INFO_LINE_Y, MENU_SCREEN_W, 1, RGB565_GRAY);
-    display_menu_draw_rect(0, (uint16)(display_menu_get_param_row_y(FLASH_PARAM_SLOT_FIRST) + 18), MENU_SCREEN_W, 1, RGB565_GRAY);
-    display_menu_draw_rect(0, (uint16)(display_menu_get_param_row_y(FLASH_PARAM_SLOT_SECOND) + 18), MENU_SCREEN_W, 1, RGB565_GRAY);
+    display_menu_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
     display_menu_draw_param_row(FLASH_PARAM_SLOT_FIRST);
     display_menu_draw_param_row(FLASH_PARAM_SLOT_SECOND);
     display_menu_draw_param_info();
