@@ -24,6 +24,7 @@ uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value);
 void line_app_get_tune_range(line_tune_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value);
 uint16 line_app_get_tune_value(line_tune_slot_t slot);
 uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value);
+uint8 line_app_save_tune_page(void);
 void line_app_set_pid(float kp, float ki, float kd);
 void line_app_set_pd(float kp, float kd);
 int16 line_app_get_error(void);

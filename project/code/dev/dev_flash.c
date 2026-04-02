@@ -6,6 +6,13 @@
 #define FLASH_STORE_ADDR                (0x0000)
 #define FLASH_STORE_MAGIC               (0x4653)
 #define FLASH_STORE_VERSION             (0x0002)
+#define FLASH_STORE_LINE_KP_MAX_TENTH   (100)
+#define FLASH_STORE_LINE_KD_MAX_TENTH   (100)
+#define FLASH_STORE_LINE_NEAR_ROW_MAX   (100)
+#define FLASH_STORE_LINE_FAR_ROW_MIN    (1)
+#define FLASH_STORE_LINE_FAR_ROW_MAX    (101)
+#define FLASH_STORE_LINE_WEIGHT_MIN     (1)
+#define FLASH_STORE_LINE_WEIGHT_MAX     (10)
 /* 先占用用户 EEPROM 的第一个扇区，后面扩参数也从这里接着走。 */
 
 typedef struct
@@ -48,6 +55,57 @@ static uint8 flash_store_start_speed_in_range(uint16 value)
 static uint8 flash_store_start_enable_in_range(uint8 value)
 {
     return (value >= FLASH_START_ENABLE_MIN && value <= FLASH_START_ENABLE_MAX) ? 1 : 0;
+}
+
+/* 这里先把 Line Tune 页做一层基础校验，防止异常页直接带进 UI。 */
+static uint8 flash_store_line_tune_page_is_valid(const flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    if(page->kp_tenth > FLASH_STORE_LINE_KP_MAX_TENTH)
+    {
+        return 0;
+    }
+
+    if(page->kd_tenth > FLASH_STORE_LINE_KD_MAX_TENTH)
+    {
+        return 0;
+    }
+
+    if(page->near_row_offset > FLASH_STORE_LINE_NEAR_ROW_MAX)
+    {
+        return 0;
+    }
+
+    if(page->far_row_offset < FLASH_STORE_LINE_FAR_ROW_MIN || page->far_row_offset > FLASH_STORE_LINE_FAR_ROW_MAX)
+    {
+        return 0;
+    }
+
+    if(page->near_weight < FLASH_STORE_LINE_WEIGHT_MIN || page->near_weight > FLASH_STORE_LINE_WEIGHT_MAX)
+    {
+        return 0;
+    }
+
+    if(page->far_weight < FLASH_STORE_LINE_WEIGHT_MIN || page->far_weight > FLASH_STORE_LINE_WEIGHT_MAX)
+    {
+        return 0;
+    }
+
+    if(page->near_row_offset >= page->far_row_offset)
+    {
+        return 0;
+    }
+
+    if(page->servo_min_angle >= page->servo_max_angle)
+    {
+        return 0;
+    }
+
+    return 1;
 }
 
 /* 简单做个校验和，足够判断这块数据是不是乱了。 */
@@ -463,6 +521,11 @@ uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page)
     }
 
     if(0 == page)
+    {
+        return 0;
+    }
+
+    if(!flash_store_line_tune_page_is_valid(page))
     {
         return 0;
     }

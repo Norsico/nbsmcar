@@ -66,6 +66,9 @@ typedef struct
 
 static uint8 line_camera_ready = 0;
 static line_track_ctrl_t line_track_ctrl = {0};
+static flash_line_tune_page_t g_line_tune_page_cache = {0};
+static uint8 g_line_tune_page_ready = 0;
+static uint8 g_line_tune_page_dirty = 0;
 static uint8 line_app_limit_angle(float angle);
 
 /* 这组 UI 参数都是无符号整数，统一用这个小工具做基础限幅。 */
@@ -219,7 +222,7 @@ static void line_app_normalize_tune_page(flash_line_tune_page_t *page)
     }
 }
 
-/* flash 读出来的整页参数先过一遍合法性，异常时直接回默认配置。 */
+/* 运行时巡线调参页先过一遍合法性，异常时直接回默认配置。 */
 static uint8 line_app_tune_page_is_valid(const flash_line_tune_page_t *page)
 {
     if(0 == page)
@@ -280,6 +283,42 @@ static uint8 line_app_tune_page_is_valid(const flash_line_tune_page_t *page)
     return 1;
 }
 
+/* 巡线调参页在 app 层维护一份运行时缓存，显示、控制和延迟保存都走这一份。 */
+static void line_app_cache_tune_page(const flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    memcpy(&g_line_tune_page_cache, page, sizeof(g_line_tune_page_cache));
+    g_line_tune_page_ready = 1;
+}
+
+static void line_app_load_tune_page(flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    if(g_line_tune_page_ready)
+    {
+        memcpy(page, &g_line_tune_page_cache, sizeof(*page));
+        return;
+    }
+
+    flash_store_get_line_tune_page(page);
+    if(!line_app_tune_page_is_valid(page))
+    {
+        line_app_fill_default_tune_page(page);
+    }
+
+    line_app_normalize_tune_page(page);
+    line_app_cache_tune_page(page);
+    g_line_tune_page_dirty = 0;
+}
+
 /* 把巡线调参页真正下发到运行时控制：PID、预瞄点、权重和舵机限幅都在这里生效。 */
 static uint8 line_app_apply_tune_page(const flash_line_tune_page_t *page)
 {
@@ -309,19 +348,15 @@ static uint8 line_app_apply_tune_page(const flash_line_tune_page_t *page)
     return 1;
 }
 
-/* 上电先从 flash 恢复巡线调参；读坏了就重建默认页并写回。 */
+/* 上电先从 flash 恢复巡线调参，后续调参时只改缓存，离页再统一保存。 */
 static void line_app_apply_tune_page_from_flash(void)
 {
     flash_line_tune_page_t page;
 
-    flash_store_get_line_tune_page(&page);
-    if(!line_app_tune_page_is_valid(&page))
-    {
-        line_app_fill_default_tune_page(&page);
-        flash_store_set_line_tune_page(&page);
-    }
-
+    line_app_load_tune_page(&page);
     line_app_apply_tune_page(&page);
+    line_app_cache_tune_page(&page);
+    g_line_tune_page_dirty = 0;
 }
 
 static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
@@ -709,12 +744,8 @@ uint16 line_app_get_tune_value(line_tune_slot_t slot)
 {
     flash_line_tune_page_t page;
 
-    /* UI 读取时直接以 flash 缓存为准，保证显示值和掉电值一致。 */
-    flash_store_get_line_tune_page(&page);
-    if(!line_app_tune_page_is_valid(&page))
-    {
-        line_app_fill_default_tune_page(&page);
-    }
+    /* UI 读取统一走 app 层缓存，保证显示值和当前运行时配置一致。 */
+    line_app_load_tune_page(&page);
 
     switch(slot)
     {
@@ -739,7 +770,7 @@ uint16 line_app_get_tune_value(line_tune_slot_t slot)
     }
 }
 
-/* 巡线调参统一走“读整页 -> 改一项 -> 归一化 -> 运行时生效 -> flash 落盘”这一条链。 */
+/* 巡线调参统一走“读运行时页 -> 改一项 -> 归一化 -> 运行时生效”这一条链。 */
 uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value)
 {
     flash_line_tune_page_t page;
@@ -749,11 +780,7 @@ uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value)
         return 0;
     }
 
-    flash_store_get_line_tune_page(&page);
-    if(!line_app_tune_page_is_valid(&page))
-    {
-        line_app_fill_default_tune_page(&page);
-    }
+    line_app_load_tune_page(&page);
 
     switch(slot)
     {
@@ -797,7 +824,41 @@ uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value)
         return 0;
     }
 
-    return flash_store_set_line_tune_page(&page);
+    line_app_cache_tune_page(&page);
+    g_line_tune_page_dirty = 1;
+    return 1;
+}
+
+/* Line Tune 在离开子页时再统一落盘，避免长按调参时每一步都擦写 flash。 */
+uint8 line_app_save_tune_page(void)
+{
+    flash_line_tune_page_t page;
+
+    if(!line_camera_ready)
+    {
+        return 0;
+    }
+
+    if(!g_line_tune_page_ready || !g_line_tune_page_dirty)
+    {
+        return 1;
+    }
+
+    memcpy(&page, &g_line_tune_page_cache, sizeof(page));
+    line_app_normalize_tune_page(&page);
+    if(!line_app_tune_page_is_valid(&page))
+    {
+        return 0;
+    }
+
+    if(!flash_store_set_line_tune_page(&page))
+    {
+        return 0;
+    }
+
+    line_app_cache_tune_page(&page);
+    g_line_tune_page_dirty = 0;
+    return 1;
 }
 
 void line_app_set_pd(float kp, float kd)

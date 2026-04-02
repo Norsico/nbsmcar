@@ -444,6 +444,70 @@ static void display_menu_format_line_tune_value(line_tune_slot_t slot, uint16 va
     }
 }
 
+/* near/far row、servo min/max 这类成对参数在显示层先收一遍，避免 UI 先送非法组合。 */
+static void display_menu_get_line_tune_effective_range(line_tune_slot_t slot,
+                                                       uint16 *min_value,
+                                                       uint16 *max_value,
+                                                       uint16 *step_value)
+{
+    uint16 pair_value = 0;
+
+    if(0 == min_value || 0 == max_value || 0 == step_value)
+    {
+        return;
+    }
+
+    line_app_get_tune_range(slot, min_value, max_value, step_value);
+    switch(slot)
+    {
+        case LINE_TUNE_SLOT_NEAR_ROW:
+            pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_FAR_ROW);
+            if(pair_value > 0)
+            {
+                pair_value--;
+                if(pair_value < *max_value)
+                {
+                    *max_value = pair_value;
+                }
+            }
+            break;
+        case LINE_TUNE_SLOT_FAR_ROW:
+            pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_NEAR_ROW);
+            pair_value++;
+            if(pair_value > *min_value)
+            {
+                *min_value = pair_value;
+            }
+            break;
+        case LINE_TUNE_SLOT_SERVO_MIN:
+            pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_SERVO_MAX);
+            if(pair_value > 0)
+            {
+                pair_value--;
+                if(pair_value < *max_value)
+                {
+                    *max_value = pair_value;
+                }
+            }
+            break;
+        case LINE_TUNE_SLOT_SERVO_MAX:
+            pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_SERVO_MIN);
+            pair_value++;
+            if(pair_value > *min_value)
+            {
+                *min_value = pair_value;
+            }
+            break;
+        default:
+            break;
+    }
+
+    if(*min_value > *max_value)
+    {
+        *min_value = *max_value;
+    }
+}
+
 static const char *display_menu_get_case_param_label(flash_param_slot_t slot)
 {
     if(FLASH_PARAM_SLOT_FIRST == slot)
@@ -1338,7 +1402,7 @@ static void display_menu_draw_line_tune_info(line_tune_slot_t selected_slot)
         return;
     }
 
-    line_app_get_tune_range(selected_slot, &min_value, &max_value, &step_value);
+    display_menu_get_line_tune_effective_range(selected_slot, &min_value, &max_value, &step_value);
     display_menu_format_line_tune_value(selected_slot, min_value, min_text);
     display_menu_format_line_tune_value(selected_slot, max_value, max_text);
     display_menu_format_line_tune_value(selected_slot, step_value, step_text);
@@ -1474,7 +1538,7 @@ static void display_menu_line_tune_adjust(line_tune_slot_t slot, int16 delta)
     int32 next_value = 0;
 
     current_value = line_app_get_tune_value(slot);
-    line_app_get_tune_range(slot, &min_value, &max_value, &step_value);
+    display_menu_get_line_tune_effective_range(slot, &min_value, &max_value, &step_value);
     next_value = (int32)current_value + (int32)delta;
     if(next_value < min_value)
     {
@@ -1521,6 +1585,17 @@ static void display_menu_line_tune_adjust_by_step_mul(line_tune_slot_t slot, int
     }
 
     display_menu_line_tune_adjust(slot, (int16)delta);
+}
+
+/* Line Tune 三个子页共用这一条离页保存逻辑，避免调参过程中频繁写 flash。 */
+static void display_menu_commit_line_tune_before_leave(void)
+{
+    if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page ||
+       DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page ||
+       DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
+    {
+        line_app_save_tune_page();
+    }
 }
 
 /* Line Tune 二级子菜单本身只负责列出分类，不直接进入编辑。 */
@@ -1574,6 +1649,7 @@ static void display_menu_prepare_camera_view(void)
 
 static void display_menu_enter_root_page(void)
 {
+    display_menu_commit_line_tune_before_leave();
     g_menu_page = DISPLAY_PAGE_ROOT;
     g_menu_selected = 0;
     g_param_menu_selected = 0;
@@ -2242,6 +2318,7 @@ void display_menu_back(void)
             return;
         }
 
+        display_menu_commit_line_tune_before_leave();
         g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
         display_menu_mark_dirty();
         display_menu_render();
@@ -2259,6 +2336,7 @@ void display_menu_back(void)
             return;
         }
 
+        display_menu_commit_line_tune_before_leave();
         g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
         display_menu_mark_dirty();
         display_menu_render();
@@ -2276,6 +2354,7 @@ void display_menu_back(void)
             return;
         }
 
+        display_menu_commit_line_tune_before_leave();
         g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
         display_menu_mark_dirty();
         display_menu_render();
