@@ -1,7 +1,8 @@
 #include "app_line.h"
 
+#include "pid_control.h"
 #include "SearchLine.h"
-#include "dev_other.h"
+#include "dev_display.h"
 #include "dev_servo.h"
 #include "system_state.h"
 
@@ -15,26 +16,24 @@
 #define LINE_TRACK_DEFAULT_KD       (1.0f)
 #define LINE_TRACK_INTEGRAL_LIMIT   (200.0f)
 #define LINE_TRACK_STEER_SIGN       (-1.0f)
+#define LINE_TRACK_SERVO_MAX_OUT    (40.0f)
+#define LINE_TRACK_SERVO_MIN_OUT    (-40.0f)
 
+/************ 赛道控制结构体 ************/
 typedef struct
 {
-    float kp;
-    float ki;
-    float kd;
-    float integral;
     int16 near_error;
     int16 far_error;
-    int16 error;
-    int16 last_error;
     uint8 near_center;
     uint8 far_center;
     uint8 track_center;
     uint8 servo_angle;
     uint8 control_ready;
-} line_track_ctrl_t;
+} line_track_info_t;
 
 static uint8 line_camera_ready = 0;
-static line_track_ctrl_t line_track_ctrl = {0};
+static pid_control_t line_servo_pid;
+static line_track_info_t line_track_info = {0};
 
 static uint8 line_app_limit_angle(float angle)
 {
@@ -74,28 +73,27 @@ static void line_app_calc_preview_center(void)
     int16 preview_error = 0;
     int16 weight_sum = 0;
 
-    /* ���㿴��ͷ�������ȱ�֤��ǰ��һ��������߽硣 */
     near_row = SEARCH_VALID_BOTTOM_ROW - LINE_TRACK_NEAR_ROW_OFFSET;
-    /* Զ���һ����ǰ�����ö����Ҫ���ǵ�ѹ���߲߱ſ�ʼת�� */
+	
     far_row = SEARCH_VALID_BOTTOM_ROW - LINE_TRACK_FAR_ROW_OFFSET;
 
-    line_track_ctrl.near_center = Center_Line[line_app_limit_row(near_row)];
-    line_track_ctrl.far_center = Center_Line[line_app_limit_row(far_row)];
-    line_track_ctrl.near_error = (int16)line_track_ctrl.near_center - image_center;
-    line_track_ctrl.far_error = (int16)line_track_ctrl.far_center - image_center;
+    line_track_info.near_center = Center_Line[line_app_limit_row(near_row)];
+    line_track_info.far_center = Center_Line[line_app_limit_row(far_row)];
+    line_track_info.near_error = (int16)line_track_info.near_center - image_center;
+    line_track_info.far_error = (int16)line_track_info.far_center - image_center;
 
     weight_sum = LINE_TRACK_NEAR_WEIGHT + LINE_TRACK_FAR_WEIGHT;
     if(weight_sum <= 0)
     {
-        line_track_ctrl.track_center = (uint8)image_center;
-        line_track_ctrl.error = 0;
+        line_track_info.track_center = (uint8)image_center;
+        line_servo_pid.error = 0;
         return;
     }
 
-    preview_error = (int16)((line_track_ctrl.near_error * LINE_TRACK_NEAR_WEIGHT +
-                             line_track_ctrl.far_error * LINE_TRACK_FAR_WEIGHT) / weight_sum);
-    line_track_ctrl.track_center = (uint8)(image_center + preview_error);
-    line_track_ctrl.error = preview_error;
+    preview_error = (int16)((line_track_info.near_error * LINE_TRACK_NEAR_WEIGHT +
+                             line_track_info.far_error * LINE_TRACK_FAR_WEIGHT) / weight_sum);
+    line_track_info.track_center = (uint8)(image_center + preview_error);
+    line_servo_pid.error = (float)preview_error;
 }
 
 static void line_app_update_control(void)
@@ -104,50 +102,37 @@ static void line_app_update_control(void)
 
     line_app_calc_preview_center();
 
-    if(line_track_ctrl.error > -LINE_TRACK_ERROR_DEADBAND && line_track_ctrl.error < LINE_TRACK_ERROR_DEADBAND)
+    if(line_servo_pid.error > -LINE_TRACK_ERROR_DEADBAND && line_servo_pid.error < LINE_TRACK_ERROR_DEADBAND)
     {
-        line_track_ctrl.error = 0;
+        line_servo_pid.error = 0;
     }
 
-    if(!line_track_ctrl.control_ready)
+    if(!line_track_info.control_ready)
     {
-        line_track_ctrl.last_error = line_track_ctrl.error;
-        line_track_ctrl.integral = 0.0f;
-        line_track_ctrl.control_ready = 1;
+        line_servo_pid.prev_error = line_servo_pid.error;
+        line_servo_pid.integral = 0.0f;
+        line_track_info.control_ready = 1;
     }
 
-    line_track_ctrl.integral += (float)line_track_ctrl.error;
-    if(line_track_ctrl.integral > LINE_TRACK_INTEGRAL_LIMIT)
+    line_servo_pid.integral += line_servo_pid.error;
+    if(line_servo_pid.integral > LINE_TRACK_INTEGRAL_LIMIT)
     {
-        line_track_ctrl.integral = LINE_TRACK_INTEGRAL_LIMIT;
+        line_servo_pid.integral = LINE_TRACK_INTEGRAL_LIMIT;
     }
-    else if(line_track_ctrl.integral < -LINE_TRACK_INTEGRAL_LIMIT)
+    else if(line_servo_pid.integral < -LINE_TRACK_INTEGRAL_LIMIT)
     {
-        line_track_ctrl.integral = -LINE_TRACK_INTEGRAL_LIMIT;
+        line_servo_pid.integral = -LINE_TRACK_INTEGRAL_LIMIT;
     }
 
     servo_delta = LINE_TRACK_STEER_SIGN *
-                  (line_track_ctrl.kp * (float)line_track_ctrl.error +
-                   line_track_ctrl.ki * line_track_ctrl.integral +
-                   line_track_ctrl.kd * (float)(line_track_ctrl.error - line_track_ctrl.last_error));
+                  (line_servo_pid.param.kp * line_servo_pid.error +
+                   line_servo_pid.param.ki * line_servo_pid.integral +
+                   line_servo_pid.param.kd * (line_servo_pid.error - line_servo_pid.prev_error));
 
-    line_track_ctrl.servo_angle = line_app_limit_angle((float)CAR_SERVO_CENTER_ANGLE + servo_delta);
-    car_servo_set_angle(line_track_ctrl.servo_angle);
-    line_track_ctrl.last_error = line_track_ctrl.error;
+    line_track_info.servo_angle = line_app_limit_angle((float)CAR_SERVO_CENTER_ANGLE + servo_delta);
+    car_servo_set_angle(line_track_info.servo_angle);
+    line_servo_pid.prev_error = line_servo_pid.error;
 }
-
-#if IPS_ENABLE
-static void line_app_draw_result(void)
-{
-    if(!g_ips_enable)
-    {
-        return;
-    }
-
-    ips200_show_gray_image(0, 0, mt9v03x_image[0], CAMERA_RAW_W, CAMERA_RAW_H, CAMERA_VALID_W, CAMERA_RAW_H, 0);
-    SearchLine_DrawOverlay();
-}
-#endif
 
 static uint8 line_app_handle_frame(uint8 update_control)
 {
@@ -167,58 +152,48 @@ static uint8 line_app_handle_frame(uint8 update_control)
         line_app_update_control();
     }
 
-#if IPS_ENABLE
-    line_app_draw_result();
-#endif
-
     mt9v03x_finish_flag = 0;
     return 1;
 }
 
-void line_app_init(void)
-{
-    line_track_ctrl.kp = LINE_TRACK_DEFAULT_KP;
-    line_track_ctrl.ki = LINE_TRACK_DEFAULT_KI;
-    line_track_ctrl.kd = LINE_TRACK_DEFAULT_KD;
-    line_track_ctrl.integral = 0.0f;
-    line_track_ctrl.near_error = 0;
-    line_track_ctrl.far_error = 0;
-    line_track_ctrl.track_center = (uint8)(Search_Image_W / 2);
-    line_track_ctrl.near_center = (uint8)(Search_Image_W / 2);
-    line_track_ctrl.far_center = (uint8)(Search_Image_W / 2);
-    line_track_ctrl.servo_angle = CAR_SERVO_CENTER_ANGLE;
-    line_track_ctrl.error = 0;
-    line_track_ctrl.last_error = 0;
-    line_track_ctrl.control_ready = 0;
-    car_servo_set_center();
-
 #if IPS_ENABLE
-    if(g_ips_enable)
+void line_app_render_frame(void)
+{
+    if(!g_ips_enable)
     {
-        ips200_clear(RGB565_WHITE);
-        ips200_show_string(0, 0, "mt9v03x init.");
+        return;
     }
+
+    ips200_show_gray_image(0, 0, mt9v03x_image[0], CAMERA_RAW_W, CAMERA_RAW_H, CAMERA_VALID_W, CAMERA_RAW_H, 0);
+    SearchLine_DrawOverlay();
+}
 #endif
 
+void line_app_ctrl_init(void)
+{
+    pid_param_init(&line_servo_pid, LINE_TRACK_DEFAULT_KP, LINE_TRACK_DEFAULT_KI, LINE_TRACK_DEFAULT_KD,
+                   LINE_TRACK_SERVO_MAX_OUT, LINE_TRACK_SERVO_MIN_OUT);
+    pid_init(&line_servo_pid);
+
+    line_track_info.near_error = 0;
+    line_track_info.far_error = 0;
+    line_track_info.track_center = (uint8)(Search_Image_W / 2);
+    line_track_info.near_center = (uint8)(Search_Image_W / 2);
+    line_track_info.far_center = (uint8)(Search_Image_W / 2);
+    line_track_info.servo_angle = CAR_SERVO_CENTER_ANGLE;
+    line_track_info.control_ready = 0;
+    car_servo_set_center();
+}
+
+uint8 line_app_camera_init(void)
+{
     while(mt9v03x_init())
     {
-#if IPS_ENABLE
-        if(g_ips_enable)
-        {
-            ips200_show_string(0, 16, "mt9v03x reinit.");
-        }
-#endif
         system_delay_ms(100);
     }
 
     line_camera_ready = 1;
-
-#if IPS_ENABLE
-    if(g_ips_enable)
-    {
-        ips200_show_string(0, 16, "init success.");
-    }
-#endif
+    return 1;
 }
 
 uint8 line_app_process_frame(void)
@@ -233,31 +208,31 @@ uint8 line_app_preview_frame(void)
 
 void line_app_set_pd(float kp, float kd)
 {
-    line_track_ctrl.kp = kp;
-    line_track_ctrl.ki = 0.0f;
-    line_track_ctrl.kd = kd;
-    line_track_ctrl.integral = 0.0f;
+    line_servo_pid.param.kp = kp;
+    line_servo_pid.param.ki = 0.0f;
+    line_servo_pid.param.kd = kd;
+    line_servo_pid.integral = 0.0f;
 }
 
 void line_app_set_pid(float kp, float ki, float kd)
 {
-    line_track_ctrl.kp = kp;
-    line_track_ctrl.ki = ki;
-    line_track_ctrl.kd = kd;
-    line_track_ctrl.integral = 0.0f;
+    line_servo_pid.param.kp = kp;
+    line_servo_pid.param.ki = ki;
+    line_servo_pid.param.kd = kd;
+    line_servo_pid.integral = 0.0f;
 }
 
 int16 line_app_get_error(void)
 {
-    return line_track_ctrl.error;
+    return (int16)line_servo_pid.error;
 }
 
 uint8 line_app_get_servo_angle(void)
 {
-    return line_track_ctrl.servo_angle;
+    return line_track_info.servo_angle;
 }
 
 uint8 line_app_get_track_center(void)
 {
-    return line_track_ctrl.track_center;
+    return line_track_info.track_center;
 }

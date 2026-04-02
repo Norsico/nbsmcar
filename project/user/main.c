@@ -51,7 +51,8 @@ void main(void)
     encoder_init(); // 编码器初始化
     key_event_init(); // 按键事件初始化
     ackerman_init(); // 阿克曼运动学初始化
-
+		line_app_ctrl_init(); // 搜线控制器初始化
+		line_app_camera_init(); // 总钻风摄像头初始化
 		
 		// 拨码开关更新，读取状态并所存，后续不再调用
 		switch_update();
@@ -82,7 +83,7 @@ void main(void)
       display_menu_render();
 		}
 #endif
-		line_app_init();
+
     // 陀螺仪初始化并调零
     if(!imu_init_with_retry()){
         // 初始化成功
@@ -125,7 +126,11 @@ void main(void)
                     // 屏幕
                     g_flag_display = 0;
 									if(g_ips_enable){
-										display_menu_render();
+										if(display_menu_in_camera_view()){
+											line_app_render_frame();
+										}else{
+											display_menu_render();
+										}
 									}
                 }
 #endif
