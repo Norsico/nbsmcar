@@ -55,13 +55,13 @@ static void key_hold_repeat_process(void)
 			continue;
 		}
 
-		if(KEY1 == i)
+		if(KEY3 == i)
 		{
-			display_menu_move_down_fast();
+			display_menu_move_up_fast();
 		}
 		else if(KEY4 == i)
 		{
-			display_menu_move_up_fast();
+			display_menu_move_down_fast();
 		}
 	}
 }
@@ -72,11 +72,11 @@ static void key1_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_move_down();
+			display_menu_enter();
 			break;
 		case KEY_LONG:
 			break;
-	}
+		}
 }
 static void key2_handler(key_state_t state){
 	if(!switch_ui_enabled()) return;
@@ -96,11 +96,11 @@ static void key3_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_enter();
+			display_menu_move_up();
 			break;
 		case KEY_LONG:
 			break;
-	}
+		}
 }
 static void key4_handler(key_state_t state){
 	if(!switch_ui_enabled()) return;
@@ -108,11 +108,11 @@ static void key4_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_move_up();
+			display_menu_move_down();
 			break;
 		case KEY_LONG:
 			break;
-	}
+		}
 }
 static void key_event_register(uint8 key_num,key_event_handler_t handler){
 	if(key_num<KEY_MAX) key_event_table[key_num] = handler;

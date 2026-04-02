@@ -1,10 +1,11 @@
 #include "dev_flash.h"
 
+#include "zf_device_mt9v03x.h"
 #include "zf_driver_eeprom.h"
 
 #define FLASH_STORE_ADDR                (0x0000)
 #define FLASH_STORE_MAGIC               (0x4653)
-#define FLASH_STORE_VERSION             (0x0001)
+#define FLASH_STORE_VERSION             (0x0002)
 /* 先占用用户 EEPROM 的第一个扇区，后面扩参数也从这里接着走。 */
 
 typedef struct
@@ -22,6 +23,21 @@ static uint8 g_flash_store_ready = 0;
 static uint8 flash_store_value_in_range(int16 value_tenth)
 {
     return (value_tenth >= FLASH_PARAM_VALUE_MIN_TENTH && value_tenth <= FLASH_PARAM_VALUE_MAX_TENTH) ? 1 : 0;
+}
+
+static uint8 flash_store_camera_value_in_range(flash_camera_slot_t slot, uint16 value)
+{
+    switch(slot)
+    {
+        case FLASH_CAMERA_SLOT_AUTO_EXP:
+            return (value >= FLASH_CAMERA_AUTO_EXP_MIN && value <= FLASH_CAMERA_AUTO_EXP_MAX) ? 1 : 0;
+        case FLASH_CAMERA_SLOT_EXP_TIME:
+            return (value >= FLASH_CAMERA_EXP_TIME_MIN && value <= FLASH_CAMERA_EXP_TIME_MAX) ? 1 : 0;
+        case FLASH_CAMERA_SLOT_GAIN:
+            return (value >= FLASH_CAMERA_GAIN_MIN && value <= FLASH_CAMERA_GAIN_MAX) ? 1 : 0;
+        default:
+            return 0;
+    }
 }
 
 /* 简单做个校验和，足够判断这块数据是不是乱了。 */
@@ -46,6 +62,9 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     memset(store_ptr, 0, sizeof(*store_ptr));
     store_ptr->param_page.first_value_tenth = 0;
     store_ptr->param_page.second_value_tenth = 0;
+    store_ptr->camera_page.auto_exp = MT9V03X_AUTO_EXP_DEF;
+    store_ptr->camera_page.exp_time = MT9V03X_EXP_TIME_DEF;
+    store_ptr->camera_page.gain = MT9V03X_GAIN_DEF;
 }
 
 /* 默认镜像长什么样，也统一收在这里。 */
@@ -67,6 +86,21 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
     }
 
     if(!flash_store_value_in_range(store_ptr->param_page.second_value_tenth))
+    {
+        return 0;
+    }
+
+    if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_AUTO_EXP, store_ptr->camera_page.auto_exp))
+    {
+        return 0;
+    }
+
+    if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_EXP_TIME, store_ptr->camera_page.exp_time))
+    {
+        return 0;
+    }
+
+    if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_GAIN, store_ptr->camera_page.gain))
     {
         return 0;
     }
@@ -255,6 +289,123 @@ uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_ten
     *target_value = value_tenth;
     flash_store_save_cache();
     return 1;
+}
+
+void flash_store_get_camera_page(flash_camera_page_t *page)
+{
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(0 == page)
+    {
+        return;
+    }
+
+    memcpy(page, &g_flash_store_cache.store_data.camera_page, sizeof(*page));
+}
+
+uint8 flash_store_set_camera_page(const flash_camera_page_t *page)
+{
+    flash_store_data_t new_store_data;
+
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_AUTO_EXP, page->auto_exp))
+    {
+        return 0;
+    }
+
+    if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_EXP_TIME, page->exp_time))
+    {
+        return 0;
+    }
+
+    if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_GAIN, page->gain))
+    {
+        return 0;
+    }
+
+    memcpy(&new_store_data, &g_flash_store_cache.store_data, sizeof(new_store_data));
+    memcpy(&new_store_data.camera_page, page, sizeof(*page));
+    memcpy(&g_flash_store_cache.store_data, &new_store_data, sizeof(g_flash_store_cache.store_data));
+    flash_store_save_cache();
+    return 1;
+}
+
+uint16 flash_store_get_camera_value(flash_camera_slot_t slot)
+{
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    switch(slot)
+    {
+        case FLASH_CAMERA_SLOT_AUTO_EXP:
+            return g_flash_store_cache.store_data.camera_page.auto_exp;
+        case FLASH_CAMERA_SLOT_EXP_TIME:
+            return g_flash_store_cache.store_data.camera_page.exp_time;
+        case FLASH_CAMERA_SLOT_GAIN:
+            return g_flash_store_cache.store_data.camera_page.gain;
+        default:
+            return 0;
+    }
+}
+
+uint8 flash_store_set_camera_value(flash_camera_slot_t slot, uint16 value)
+{
+    flash_camera_page_t page;
+
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(!flash_store_camera_value_in_range(slot, value))
+    {
+        return 0;
+    }
+
+    memcpy(&page, &g_flash_store_cache.store_data.camera_page, sizeof(page));
+
+    switch(slot)
+    {
+        case FLASH_CAMERA_SLOT_AUTO_EXP:
+            if(value == page.auto_exp)
+            {
+                return 1;
+            }
+            page.auto_exp = (uint8)value;
+            break;
+        case FLASH_CAMERA_SLOT_EXP_TIME:
+            if(value == page.exp_time)
+            {
+                return 1;
+            }
+            page.exp_time = value;
+            break;
+        case FLASH_CAMERA_SLOT_GAIN:
+            if(value == page.gain)
+            {
+                return 1;
+            }
+            page.gain = (uint8)value;
+            break;
+        default:
+            return 0;
+    }
+
+    return flash_store_set_camera_page(&page);
 }
 
 void flash_store_reset_data(void)
