@@ -60,7 +60,7 @@ extern vuint32 g_wifi_ticks;             // WiFi任务计时器
 // 任务标志位
 extern vuint8 g_flag_key;                         // 按键扫描标志
 extern vuint8 g_flag_imu;                          // IMU读取标志
-extern vuint8 g_flag_encoder;                     // 编码器采样标志
+extern vuint8 g_flag_encoder;                     // 编码器待处理周期数
 extern vuint8 g_flag_center;											// 搜索中心标志
 #if IPS_ENABLE
 extern vuint8 g_flag_display;                      // 显示刷新标志

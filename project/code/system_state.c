@@ -18,7 +18,7 @@ vuint32 g_wifi_ticks = 0;                             // WiFi任务计时器
 
 vuint8 g_flag_key = 0;                                // 按键扫描标志：1表示需要执行按键扫描
 vuint8 g_flag_imu = 0;                               // IMU读取标志：1表示需要读取IMU数据
-vuint8 g_flag_encoder = 0;														// 编码器采样标志
+vuint8 g_flag_encoder = 0;														// 编码器待处理周期数
 vuint8 g_flag_center = 0;
 #if IPS_ENABLE
 vuint8 g_flag_display = 0;                            // 显示刷新标志：1表示需要刷新显示
@@ -47,7 +47,10 @@ void system_tick_handler(void)
     // 编码器采样 10ms
     if(g_system_ticks - g_encoder_ticks >= ENCODER_PERIOD){
         g_encoder_ticks = g_system_ticks;
-        g_flag_encoder = 1;
+        if(g_flag_encoder < 250)
+        {
+            g_flag_encoder++;
+        }
     }
 		// 搜线算法
 		if(g_system_ticks - g_center_ticks >=  CENTER_PERIOD){

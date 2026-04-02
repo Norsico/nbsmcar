@@ -46,5 +46,7 @@ void Search_line(void);
 void SearchLine_Update_Center(void);
 void SearchLine_Process(void);
 void SearchLine_DrawOverlay(void);
+uint8 SearchLine_IsCenterFound(uint8 row);
+uint8 SearchLine_GetCenterFoundRowCount(void);
 
 #endif

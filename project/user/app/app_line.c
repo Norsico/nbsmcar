@@ -16,6 +16,7 @@
 #define LINE_TRACK_DEFAULT_KD       (1.0f)
 #define LINE_TRACK_INTEGRAL_LIMIT   (200.0f)
 #define LINE_TRACK_STEER_SIGN       (-1.0f)
+#define LINE_TRACK_LOST_MIN_FOUND_ROWS  (12)   /* 工程侧推定阈值：有效中心行太少时，这一帧不参与转向更新。 */
 #define LINE_TUNE_KP_MIN_TENTH          (0)    /* 工程侧推定范围：当前默认 1.2，屏幕上先开放到 0.0-10.0。 */
 #define LINE_TUNE_KP_MAX_TENTH          (100)
 #define LINE_TUNE_KP_STEP_TENTH         (1)
@@ -60,6 +61,7 @@ typedef struct
     uint8 near_weight;
     uint8 far_weight;
     uint8 control_ready;
+    uint8 lost_frame_count;
 } line_track_ctrl_t;
 
 static uint8 line_camera_ready = 0;
@@ -392,6 +394,35 @@ static uint8 line_app_limit_row(int16 row)
     return (uint8)row;
 }
 
+/* near/far 参考行都没找到，或者整帧可用中心线太少时，认为这帧不可靠。 */
+static uint8 line_app_frame_track_is_valid(void)
+{
+    uint8 near_row = 0;
+    uint8 far_row = 0;
+    uint8 found_count = 0;
+
+    near_row = line_app_limit_row((int16)SEARCH_VALID_BOTTOM_ROW - line_track_ctrl.near_row_offset);
+    far_row = line_app_limit_row((int16)SEARCH_VALID_BOTTOM_ROW - line_track_ctrl.far_row_offset);
+    found_count = SearchLine_GetCenterFoundRowCount();
+
+    if(found_count < LINE_TRACK_LOST_MIN_FOUND_ROWS)
+    {
+        return 0;
+    }
+
+    if(!SearchLine_IsCenterFound(near_row))
+    {
+        return 0;
+    }
+
+    if(!SearchLine_IsCenterFound(far_row))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 static void line_app_calc_preview_center(void)
 {
     int16 image_center = (int16)(Search_Image_W / 2);
@@ -427,7 +458,24 @@ static void line_app_calc_preview_center(void)
 static void line_app_update_control(void)
 {
     float servo_delta = 0.0f;
+    uint8 frame_valid = 0;
 
+    frame_valid = line_app_frame_track_is_valid();
+    if(!frame_valid)
+    {
+        if(line_track_ctrl.lost_frame_count < 255)
+        {
+            line_track_ctrl.lost_frame_count++;
+        }
+
+        /* 丢线期间沿用上一拍舵角继续走，只在重新找回线时再恢复闭环更新。 */
+        line_track_ctrl.control_ready = 0;
+        line_track_ctrl.integral = 0.0f;
+        car_servo_set_angle(line_track_ctrl.servo_angle);
+        return;
+    }
+
+    line_track_ctrl.lost_frame_count = 0;
     line_app_calc_preview_center();
 
     if(line_track_ctrl.error > -LINE_TRACK_ERROR_DEADBAND && line_track_ctrl.error < LINE_TRACK_ERROR_DEADBAND)
@@ -574,6 +622,7 @@ void line_app_init(void)
     line_track_ctrl.error = 0;
     line_track_ctrl.last_error = 0;
     line_track_ctrl.control_ready = 0;
+    line_track_ctrl.lost_frame_count = 0;
     car_servo_set_center();
 
 #if IPS_ENABLE

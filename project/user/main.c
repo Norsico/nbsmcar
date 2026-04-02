@@ -21,6 +21,7 @@ void main(void)
 {
     uint8 ui_mode_enable = 0;
     uint8 wifi_mode_enable = 0;
+    uint8 encoder_pending = 0;
 
     // 系统初始化
     clock_init(SYSTEM_CLOCK_96M);
@@ -144,6 +145,11 @@ void main(void)
                     key_update();
                     key_event_poll();
                 }
+                if(g_flag_encoder){
+                    /* 准备态不跑后轮闭环，直接丢掉累计采样，避免待处理周期在后台越堆越多。 */
+                    g_flag_encoder = 0;
+                    encoder_clear();
+                }
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
@@ -179,6 +185,15 @@ void main(void)
 
                 break;
             case SYS_RUNNING: // 运行状态
+                if(g_flag_encoder){
+                    // 编码器
+                    encoder_pending = g_flag_encoder;
+                    g_flag_encoder = 0;
+                    encoder_update(encoder_pending);
+                    // 更新后调用PID控制电机速度
+                    car_wheel_update();
+                    //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
+                }
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
@@ -196,14 +211,6 @@ void main(void)
                             line_app_process_frame();
                         }
                     }
-                }
-                if(g_flag_encoder){
-                    // 编码器
-                    g_flag_encoder = 0;
-                    encoder_update();
-                    // 更新后调用PID控制电机速度
-                    car_wheel_update();
-                    //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
                 }
                 if(g_flag_imu){
                     // IMU

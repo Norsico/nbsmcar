@@ -465,3 +465,32 @@ void SearchLine_DrawOverlay(void)
         }
     }
 }
+
+uint8 SearchLine_IsCenterFound(uint8 row)
+{
+    if(row >= Search_Image_H)
+    {
+        return 0;
+    }
+
+    return Center_Line_Found[row];
+}
+
+uint8 SearchLine_GetCenterFoundRowCount(void)
+{
+    uint16 row = 0;
+    uint8 found_count = 0;
+
+    for(row = SEARCH_VALID_TOP_ROW; row <= SEARCH_VALID_BOTTOM_ROW; row++)
+    {
+        if(Center_Line_Found[row])
+        {
+            if(found_count < 255)
+            {
+                found_count++;
+            }
+        }
+    }
+
+    return found_count;
+}

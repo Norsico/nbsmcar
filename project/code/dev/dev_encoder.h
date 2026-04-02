@@ -14,7 +14,7 @@ extern encoder_data_t encoder_data;
 
 // 函数声明
 void encoder_init(void);                    // 编码器初始化
-void encoder_update(void);                  // 更新编码器数据（在定时器中断中调用）
+void encoder_update(uint8 sample_count);    // 更新编码器数据，sample_count 表示累计了多少个采样周期
 int16 encoder_get_left(void);               // 获取左轮编码器数据
 int16 encoder_get_right(void);              // 获取右轮编码器数据
 void encoder_clear(void);                   // 清空编码器计数
