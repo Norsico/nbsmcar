@@ -67,7 +67,7 @@ static display_page_t g_menu_page = DISPLAY_PAGE_ROOT;
 static uint8 g_menu_dirty = 1;
 static uint8 g_menu_last_battery_percent = 0xFF;
 static flash_param_slot_t g_case_param_selected = FLASH_PARAM_SLOT_FIRST;
-static flash_camera_slot_t g_camera_param_selected = FLASH_CAMERA_SLOT_AUTO_EXP;
+static flash_camera_slot_t g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
 static uint8 g_param_editing = 0;
 
 static void display_menu_show_percent(uint16 x, uint16 y, uint8 percent)
@@ -340,14 +340,25 @@ static const char *display_menu_get_camera_param_label(flash_camera_slot_t slot)
 {
     switch(slot)
     {
-        case FLASH_CAMERA_SLOT_AUTO_EXP:
-            return "auto exp";
         case FLASH_CAMERA_SLOT_EXP_TIME:
             return "exp time";
         case FLASH_CAMERA_SLOT_GAIN:
             return "gain";
         default:
             return "";
+    }
+}
+
+static uint8 display_menu_get_camera_param_row_index(flash_camera_slot_t slot)
+{
+    switch(slot)
+    {
+        case FLASH_CAMERA_SLOT_EXP_TIME:
+            return 0;
+        case FLASH_CAMERA_SLOT_GAIN:
+            return 1;
+        default:
+            return 0;
     }
 }
 
@@ -584,7 +595,7 @@ static void display_menu_draw_camera_param_row(flash_camera_slot_t slot)
     uint16 value_color = RGB565_BLACK;
     uint16 value = 0;
 
-    row_y = display_menu_get_row_y((uint8)slot);
+    row_y = display_menu_get_row_y(display_menu_get_camera_param_row_index(slot));
     label_text = display_menu_get_camera_param_label(slot);
     value = flash_store_get_camera_value(slot);
     display_menu_format_uint16(value, value_text);
@@ -663,7 +674,6 @@ static void display_menu_draw_camera_param_page_full(void)
     display_menu_draw_title("Camera Params");
     display_menu_draw_battery(1);
     display_menu_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
-    display_menu_draw_camera_param_row(FLASH_CAMERA_SLOT_AUTO_EXP);
     display_menu_draw_camera_param_row(FLASH_CAMERA_SLOT_EXP_TIME);
     display_menu_draw_camera_param_row(FLASH_CAMERA_SLOT_GAIN);
     display_menu_draw_camera_param_info();
@@ -691,13 +701,13 @@ static void display_menu_camera_param_select_up(void)
 {
     flash_camera_slot_t previous_slot = g_camera_param_selected;
 
-    if(FLASH_CAMERA_SLOT_AUTO_EXP == g_camera_param_selected)
+    if(FLASH_CAMERA_SLOT_EXP_TIME == g_camera_param_selected)
     {
         g_camera_param_selected = FLASH_CAMERA_SLOT_GAIN;
     }
     else
     {
-        g_camera_param_selected = (flash_camera_slot_t)(g_camera_param_selected - 1);
+        g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
     }
 
     display_menu_refresh_camera_selection(previous_slot);
@@ -707,10 +717,13 @@ static void display_menu_camera_param_select_down(void)
 {
     flash_camera_slot_t previous_slot = g_camera_param_selected;
 
-    g_camera_param_selected = (flash_camera_slot_t)(g_camera_param_selected + 1);
-    if(g_camera_param_selected >= FLASH_CAMERA_SLOT_COUNT)
+    if(FLASH_CAMERA_SLOT_GAIN == g_camera_param_selected)
     {
-        g_camera_param_selected = FLASH_CAMERA_SLOT_AUTO_EXP;
+        g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
+    }
+    else
+    {
+        g_camera_param_selected = FLASH_CAMERA_SLOT_GAIN;
     }
 
     display_menu_refresh_camera_selection(previous_slot);
@@ -782,6 +795,8 @@ static void display_menu_draw_root(void)
     uint8 i = 0;
 
     ips200_clear(RGB565_WHITE);
+    ips200_set_color(RGB565_RED, RGB565_WHITE);
+    ips200_show_string(0, MENU_TITLE_Y, "Home");
     display_menu_draw_battery(1);
 
     for(i = 0; i < MENU_ROOT_ITEM_COUNT; i++)
@@ -809,6 +824,17 @@ static void display_menu_prepare_camera_view(void)
     ips200_clear(RGB565_BLACK);
 }
 
+static void display_menu_enter_root_page(void)
+{
+    g_menu_page = DISPLAY_PAGE_ROOT;
+    g_menu_selected = 0;
+    g_param_menu_selected = 0;
+    g_param_editing = 0;
+    display_menu_mark_dirty();
+    car_servo_set_center();
+    display_menu_render();
+}
+
 void display_menu_init(void)
 {
     g_menu_selected = 0;
@@ -817,7 +843,7 @@ void display_menu_init(void)
     g_menu_dirty = 1;
     g_menu_last_battery_percent = 0xFF;
     g_case_param_selected = FLASH_PARAM_SLOT_FIRST;
-    g_camera_param_selected = FLASH_CAMERA_SLOT_AUTO_EXP;
+    g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
     g_param_editing = 0;
 }
 
@@ -1056,7 +1082,7 @@ void display_menu_enter(void)
         g_param_editing = 0;
         if(0 == g_param_menu_selected)
         {
-            g_camera_param_selected = FLASH_CAMERA_SLOT_AUTO_EXP;
+            g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
             g_menu_page = DISPLAY_PAGE_PARAM_CAMERA;
         }
         else
@@ -1129,17 +1155,24 @@ void display_menu_back(void)
 
     if(DISPLAY_PAGE_PARAM_MENU == g_menu_page)
     {
-        g_menu_page = DISPLAY_PAGE_ROOT;
-        display_menu_mark_dirty();
-        car_servo_set_center();
-        display_menu_render();
+        display_menu_enter_root_page();
         return;
     }
 
-    g_menu_page = DISPLAY_PAGE_ROOT;
-    display_menu_mark_dirty();
-    car_servo_set_center();
-    display_menu_render();
+    display_menu_enter_root_page();
+}
+
+void display_menu_go_root(void)
+{
+    if(DISPLAY_PAGE_ROOT == g_menu_page)
+    {
+        if(0 == g_menu_selected)
+        {
+            return;
+        }
+    }
+
+    display_menu_enter_root_page();
 }
 
 uint8 display_menu_in_camera_view(void)

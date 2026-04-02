@@ -9,12 +9,14 @@
 
 static key_event_handler_t key_event_table[KEY_MAX];
 static uint16 key_hold_count[KEY_MAX];
+static uint8 key_hold_triggered[KEY_MAX];
 
 static void key_hold_repeat_reset(uint8 key_num)
 {
 	if(key_num < KEY_MAX)
 	{
 		key_hold_count[key_num] = 0;
+		key_hold_triggered[key_num] = 0;
 	}
 }
 
@@ -36,6 +38,7 @@ static void key_hold_repeat_process(void)
 		if(0 != keys_info[i].level)
 		{
 			key_hold_count[i] = 0;
+			key_hold_triggered[i] = 0;
 			continue;
 		}
 
@@ -46,6 +49,16 @@ static void key_hold_repeat_process(void)
 
 		if(key_hold_count[i] < KEY_HOLD_REPEAT_START_COUNT)
 		{
+			continue;
+		}
+
+		if(KEY2 == i)
+		{
+			if(!key_hold_triggered[i])
+			{
+				key_hold_triggered[i] = 1;
+				display_menu_go_root();
+			}
 			continue;
 		}
 
@@ -127,6 +140,7 @@ void key_event_init(void){
 	for(i = 0; i < KEY_MAX; i++)
 	{
 		key_hold_count[i] = 0;
+		key_hold_triggered[i] = 0;
 	}
 }
 void key_event_poll(void){

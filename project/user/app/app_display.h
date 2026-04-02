@@ -17,6 +17,7 @@ void display_menu_move_up_fast(void);
 void display_menu_move_down_fast(void);
 void display_menu_enter(void);
 void display_menu_back(void);
+void display_menu_go_root(void);
 uint8 display_menu_in_camera_view(void);
 
 #endif /* __APP_DISPLAY_H__ */
