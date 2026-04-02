@@ -3,9 +3,6 @@
 
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
-#define WHEEL_BLOCK_SPEED_THRESHOLD   (1)      /* 编码器每 10ms 计数绝对值小于等于 1，视为基本没动。 */
-#define WHEEL_BLOCK_OUTPUT_THRESHOLD  (1200.0f)/* 输出已经推到这一级还不动，基本可以判定堵转或被强行捂住。 */
-#define WHEEL_BLOCK_COUNT_LIMIT       (12)     /* 连续约 120ms 不动就清掉累计输出，避免松手瞬间猛冲。 */
 
 /**************电机控制PWM*******************/
 // 电机速度限幅函数，-100~100
@@ -84,8 +81,6 @@ void car_wheel_init(void)
 
 pid_control_t wheel_pid_left;
 pid_control_t wheel_pid_right;
-static uint8 g_wheel_block_count_left = 0;
-static uint8 g_wheel_block_count_right = 0;
 
 static void wheel_pid_init(pid_control_t* pid){
 	// 参数结构体设置
@@ -133,15 +128,8 @@ void car_wheel_control_reset(void)
     wheel_pid_right.target = 0.0f;
     car_wheel_pid_reset_single(&wheel_pid_left);
     car_wheel_pid_reset_single(&wheel_pid_right);
-    g_wheel_block_count_left = 0;
-    g_wheel_block_count_right = 0;
     encoder_clear();
     car_wheel_stop_all();
-}
-
-static int16 car_wheel_abs_int16(int16 value)
-{
-    return (value >= 0) ? value : (int16)(-value);
 }
 
 static void car_wheel_limit_output_to_target_direction(pid_control_t *pid)
@@ -163,38 +151,6 @@ static void car_wheel_limit_output_to_target_direction(pid_control_t *pid)
     else
     {
         pid->output = 0.0f;
-    }
-}
-
-/* 堵转时不要继续往 PID 输出里累加，避免一松手就把当前缓存的最大输出直接打出去。 */
-static void car_wheel_handle_blocked(pid_control_t *pid, int16 current_speed, uint8 *block_count)
-{
-    if(0 == pid || 0 == block_count)
-    {
-        return;
-    }
-
-    if((0.0f == pid->target) || (car_wheel_abs_int16(current_speed) > WHEEL_BLOCK_SPEED_THRESHOLD))
-    {
-        *block_count = 0;
-        return;
-    }
-
-    if(pid->output < WHEEL_BLOCK_OUTPUT_THRESHOLD && pid->output > -WHEEL_BLOCK_OUTPUT_THRESHOLD)
-    {
-        *block_count = 0;
-        return;
-    }
-
-    if(*block_count < 255)
-    {
-        (*block_count)++;
-    }
-
-    if(*block_count >= WHEEL_BLOCK_COUNT_LIMIT)
-    {
-        car_wheel_pid_reset_single(pid);
-        *block_count = 0;
     }
 }
 // 将PID计算的PWM写入电机-左轮
@@ -248,8 +204,6 @@ void car_wheel_update(void)
 	// 增量式pid计算
 	pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
 	pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);
-    car_wheel_handle_blocked(&wheel_pid_left, current_left, &g_wheel_block_count_left);
-    car_wheel_handle_blocked(&wheel_pid_right, current_right, &g_wheel_block_count_right);
     /* 前进目标下不允许直接打反转，先把瞬时反向输出钳掉。 */
     car_wheel_limit_output_to_target_direction(&wheel_pid_left);
     car_wheel_limit_output_to_target_direction(&wheel_pid_right);
