@@ -70,6 +70,7 @@ void main(void)
     car_wheel_stop_all();
     car_wheel_set_target(0, 0);
     car_servo_set_center();
+    display_menu_init(); // 无论是否开屏，都先恢复 Start 配置
 
     if(power_adc_judge()){
         // 低电量报警
@@ -94,7 +95,6 @@ void main(void)
     {
         /* UI 模式下也提前拉起摄像头链路，进入第一页即可直接看图像。 */
         line_app_init();
-        display_menu_init();
         display_menu_render();
     }
     else
@@ -124,7 +124,7 @@ void main(void)
     // 检查是否为初始化状态（无错误）
     if(g_system_state == SYS_INIT)
     {
-        g_system_state = ui_mode_enable ? SYS_PREPARE : SYS_RUNNING;
+        g_system_state = display_menu_start_is_enabled() ? SYS_RUNNING : SYS_PREPARE;
         //g_system_state = SYS_PREPARE;
     }
     while(1)
@@ -151,7 +151,8 @@ void main(void)
                     {
                         if(display_menu_in_camera_view())
                         {
-                            line_app_preview_frame();
+                            /* UI 相机页也更新舵机控制，避免只有图像预览没有转向输出。 */
+                            line_app_process_frame();
                         }
                     }
                     else
@@ -185,7 +186,8 @@ void main(void)
                     {
                         if(display_menu_in_camera_view())
                         {
-                            line_app_preview_frame();
+                            /* UI 相机页也更新舵机控制，避免只有图像预览没有转向输出。 */
+                            line_app_process_frame();
                         }
                     }
                     else

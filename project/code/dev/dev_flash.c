@@ -40,6 +40,16 @@ static uint8 flash_store_camera_value_in_range(flash_camera_slot_t slot, uint16 
     }
 }
 
+static uint8 flash_store_start_speed_in_range(uint16 value)
+{
+    return (value >= FLASH_START_SPEED_MIN && value <= FLASH_START_SPEED_MAX) ? 1 : 0;
+}
+
+static uint8 flash_store_start_enable_in_range(uint8 value)
+{
+    return (value >= FLASH_START_ENABLE_MIN && value <= FLASH_START_ENABLE_MAX) ? 1 : 0;
+}
+
 /* 简单做个校验和，足够判断这块数据是不是乱了。 */
 static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
 {
@@ -65,6 +75,17 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     store_ptr->camera_page.auto_exp = MT9V03X_AUTO_EXP_DEF;
     store_ptr->camera_page.exp_time = MT9V03X_EXP_TIME_DEF;
     store_ptr->camera_page.gain = MT9V03X_GAIN_DEF;
+    store_ptr->line_tune_page.kp_tenth = FLASH_LINE_KP_DEFAULT_TENTH;
+    store_ptr->line_tune_page.kd_tenth = FLASH_LINE_KD_DEFAULT_TENTH;
+    store_ptr->line_tune_page.near_row_offset = FLASH_LINE_NEAR_ROW_DEFAULT;
+    store_ptr->line_tune_page.far_row_offset = FLASH_LINE_FAR_ROW_DEFAULT;
+    store_ptr->line_tune_page.near_weight = FLASH_LINE_NEAR_WEIGHT_DEFAULT;
+    store_ptr->line_tune_page.far_weight = FLASH_LINE_FAR_WEIGHT_DEFAULT;
+    store_ptr->line_tune_page.servo_min_angle = FLASH_LINE_SERVO_MIN_DEFAULT;
+    store_ptr->line_tune_page.servo_max_angle = FLASH_LINE_SERVO_MAX_DEFAULT;
+    store_ptr->start_page.target_speed = FLASH_START_SPEED_DEFAULT;
+    store_ptr->start_page.enable = FLASH_START_ENABLE_DEFAULT;
+    store_ptr->start_page.reserved = 0;
 }
 
 /* 默认镜像长什么样，也统一收在这里。 */
@@ -101,6 +122,16 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
     }
 
     if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_GAIN, store_ptr->camera_page.gain))
+    {
+        return 0;
+    }
+
+    if(!flash_store_start_speed_in_range(store_ptr->start_page.target_speed))
+    {
+        return 0;
+    }
+
+    if(!flash_store_start_enable_in_range(store_ptr->start_page.enable))
     {
         return 0;
     }
@@ -406,6 +437,81 @@ uint8 flash_store_set_camera_value(flash_camera_slot_t slot, uint16 value)
     }
 
     return flash_store_set_camera_page(&page);
+}
+
+void flash_store_get_line_tune_page(flash_line_tune_page_t *page)
+{
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(0 == page)
+    {
+        return;
+    }
+
+    memcpy(page, &g_flash_store_cache.store_data.line_tune_page, sizeof(*page));
+}
+
+/* 巡线调参这一页整体覆盖，保持和 Camera 页一样的“改完立即落盘”语义。 */
+uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page)
+{
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    memcpy(&g_flash_store_cache.store_data.line_tune_page, page, sizeof(*page));
+    flash_store_save_cache();
+    return 1;
+}
+
+void flash_store_get_start_page(flash_start_page_t *page)
+{
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(0 == page)
+    {
+        return;
+    }
+
+    memcpy(page, &g_flash_store_cache.store_data.start_page, sizeof(*page));
+}
+
+uint8 flash_store_set_start_page(const flash_start_page_t *page)
+{
+    if(0 == g_flash_store_ready)
+    {
+        flash_store_init();
+    }
+
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    if(!flash_store_start_speed_in_range(page->target_speed))
+    {
+        return 0;
+    }
+
+    if(!flash_store_start_enable_in_range(page->enable))
+    {
+        return 0;
+    }
+
+    memcpy(&g_flash_store_cache.store_data.start_page, page, sizeof(*page));
+    flash_store_save_cache();
+    return 1;
 }
 
 void flash_store_reset_data(void)

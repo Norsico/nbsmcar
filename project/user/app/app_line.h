@@ -4,10 +4,26 @@
 #include "dev_flash.h"
 #include "zf_common_typedef.h"
 
+typedef enum
+{
+    LINE_TUNE_SLOT_KP = 0,
+    LINE_TUNE_SLOT_KD,
+    LINE_TUNE_SLOT_NEAR_ROW,
+    LINE_TUNE_SLOT_FAR_ROW,
+    LINE_TUNE_SLOT_NEAR_WEIGHT,
+    LINE_TUNE_SLOT_FAR_WEIGHT,
+    LINE_TUNE_SLOT_SERVO_MIN,
+    LINE_TUNE_SLOT_SERVO_MAX,
+    LINE_TUNE_SLOT_COUNT
+} line_tune_slot_t;
+
 void line_app_init(void);
 uint8 line_app_process_frame(void);
 uint8 line_app_preview_frame(void);
 uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value);
+void line_app_get_tune_range(line_tune_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value);
+uint16 line_app_get_tune_value(line_tune_slot_t slot);
+uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value);
 void line_app_set_pid(float kp, float ki, float kd);
 void line_app_set_pd(float kp, float kd);
 int16 line_app_get_error(void);
