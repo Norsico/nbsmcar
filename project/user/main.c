@@ -197,16 +197,18 @@ void main(void)
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
+                    // 屏幕打开
                     if(ui_mode_enable)
                     {
+                        // 打开预览
                         if(display_menu_in_camera_view())
                         {
-                            /* UI 相机页也更新舵机控制，避免只有图像预览没有转向输出。 */
                             line_app_process_frame();
                         }
+                        // 不开预览UI界面舵机不动
                     }
                     else
-                    {
+                    {   // 关闭屏幕，关闭WIFI调参，赛道直接跑
                         if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
                             line_app_process_frame();
                         }
