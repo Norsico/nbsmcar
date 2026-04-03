@@ -13,6 +13,7 @@ static void key1_handler(key_state_t state){
 			break;
 		case KEY_SHORT:
 			display_menu_back();
+			
 			break;
 		case KEY_LONG:
 			if(g_system_state == SYS_PREPARE){
