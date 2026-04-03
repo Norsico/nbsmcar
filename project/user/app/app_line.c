@@ -487,8 +487,13 @@ static void line_app_draw_tuning_overlay(void)
     line_app_draw_preview_cross(g_line_track_info.far_center, far_row, RGB565_MAGENTA);
 }
 
-static void line_app_draw_result(void)
+void line_app_render_frame(void)
 {
+    if(!line_camera_ready)
+    {
+        return;
+    }
+
     if(!switch_ui_enabled())
     {
         return;
@@ -514,10 +519,6 @@ static uint8 line_app_handle_frame(void)
 
     SearchLine_Process();
     line_app_update_control();
-
-#if IPS_ENABLE
-    line_app_draw_result();
-#endif
 
     mt9v03x_finish_flag = 0;
     return 1;

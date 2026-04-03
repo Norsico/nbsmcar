@@ -172,7 +172,14 @@ void main(void)
                 if(ui_mode_enable && g_flag_display){
                     // 屏幕
                     g_flag_display = 0;
-                    display_menu_render();
+                    if(display_menu_in_camera_view())
+                    {
+                        line_app_render_frame();
+                    }
+                    else
+                    {
+                        display_menu_render();
+                    }
                 }
 #endif
 #if WIFI_ENABLE
@@ -227,7 +234,14 @@ void main(void)
 #if IPS_ENABLE
                 if(ui_mode_enable && g_flag_display){
                     g_flag_display = 0;
-                    display_menu_render();
+                    if(display_menu_in_camera_view())
+                    {
+                        line_app_render_frame();
+                    }
+                    else
+                    {
+                        display_menu_render();
+                    }
                 }
 #endif
 #if WIFI_ENABLE
