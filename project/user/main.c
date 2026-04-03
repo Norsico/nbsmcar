@@ -153,7 +153,7 @@ void main(void)
                 if(g_flag_encoder){
                     // 编码器
                     g_flag_encoder = 0;
-                    encoder_update();
+                    encoder_update(1);
                     // 更新后调用PID控制电机速度
                     car_wheel_update();
                     //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());

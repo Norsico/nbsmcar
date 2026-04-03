@@ -1,21 +1,33 @@
 #ifndef _APP_LINE_H_
 #define _APP_LINE_H_
 
+#include "dev_flash.h"
 #include "zf_common_typedef.h"
 #include "system_state.h"
-#include "pid_control.h"
+
+typedef enum
+{
+    LINE_TUNE_SLOT_KP = 0,
+    LINE_TUNE_SLOT_KD,
+    LINE_TUNE_SLOT_NEAR_ROW,
+    LINE_TUNE_SLOT_FAR_ROW,
+    LINE_TUNE_SLOT_NEAR_WEIGHT,
+    LINE_TUNE_SLOT_FAR_WEIGHT,
+    LINE_TUNE_SLOT_SERVO_MIN,
+    LINE_TUNE_SLOT_SERVO_MAX,
+    LINE_TUNE_SLOT_COUNT
+} line_tune_slot_t;
 
 void line_app_ctrl_init(void);
-uint8 line_app_camera_init(void);
+void line_app_camera_init(void);
 uint8 line_app_process_frame(void);
-uint8 line_app_preview_frame(void);
+uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value);
+void line_app_get_tune_range(line_tune_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value);
+uint16 line_app_get_tune_value(line_tune_slot_t slot);
+uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value);
+uint8 line_app_save_tune_page(void);
 #if IPS_ENABLE
 void line_app_render_frame(void);
 #endif
-void line_app_set_pid(float kp, float ki, float kd);
-void line_app_set_pd(float kp, float kd);
-int16 line_app_get_error(void);
-uint8 line_app_get_servo_angle(void);
-uint8 line_app_get_track_center(void);
 
 #endif

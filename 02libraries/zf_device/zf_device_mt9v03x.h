@@ -118,6 +118,7 @@ extern uint8  mt9v03x_image[MT9V03X_H][MT9V03X_W];
 void    mt9v03x_vsync_handler(void);
 void    mt9v03x_dma_handler(void);
 
+uint8   mt9v03x_set_config         (const int16 config[MT9V03X_CONFIG_FINISH][2]);
 uint8   mt9v03x_set_exposure_time  (uint16 light);
 uint8   mt9v03x_set_reg            (uint8 addr, uint16 dat);
 uint8   mt9v03x_init               (void);

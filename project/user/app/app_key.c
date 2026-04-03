@@ -12,7 +12,8 @@ static void key1_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_move_down();
+			display_menu_back();
+			
 			break;
 		case KEY_LONG:
 			if(g_system_state == SYS_PREPARE){
@@ -26,7 +27,7 @@ static void key2_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_back();
+			display_menu_move_up();
 			break;
 		case KEY_LONG:
 			if(g_system_state == SYS_RUNNING){
@@ -40,7 +41,7 @@ static void key3_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_enter();
+			display_menu_move_down();
 			break;
 		case KEY_LONG:
 			break;
@@ -51,7 +52,7 @@ static void key4_handler(key_state_t state){
 		case KEY_IDLE:
 			break;
 		case KEY_SHORT:
-			display_menu_move_up();
+			display_menu_enter();
 			break;
 		case KEY_LONG:
 			gpio_set_level(LED_DEBUG,1);

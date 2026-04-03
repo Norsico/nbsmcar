@@ -30,12 +30,23 @@ void encoder_init(void)
 // 函数简介     更新编码器数据（在定时器中断中调用）
 // 参数说明     void
 // 返回参数     void
-// 使用示例     encoder_update();
+// 使用示例     encoder_update(1);
 //-------------------------------------------------------------------------------------------------------------------
-void encoder_update(void)
+void encoder_update(uint8 sample_count)
 {
-    encoder_data.left = encoder_get_count(ENCODER_LEFT);                     // 获取左轮编码器计数 (原encoder_data_dir_2，正走时为正数)
-    encoder_data.right = -encoder_get_count(ENCODER_RIGHT);                  // 获取右轮编码器计数 (原encoder_data_dir_1，取反使正走时为正数)
+    int16 left_raw = 0;
+    int16 right_raw = 0;
+
+    if(0 == sample_count)
+    {
+        sample_count = 1;
+    }
+
+    left_raw = encoder_get_count(ENCODER_LEFT);
+    right_raw = -encoder_get_count(ENCODER_RIGHT);
+    /* 主循环如果被屏幕/相机拖慢，这里按累计周期数折算回“每 10ms”平均速度。 */
+    encoder_data.left = (int16)(left_raw / (int16)sample_count);            // 获取左轮编码器计数 (原encoder_data_dir_2，正走时为正数)
+    encoder_data.right = (int16)(right_raw / (int16)sample_count);          // 获取右轮编码器计数 (原encoder_data_dir_1，取反使正走时为正数)
 
     encoder_clear_count(ENCODER_LEFT);                                       // 清空左轮编码器计数
     encoder_clear_count(ENCODER_RIGHT);                                      // 清空右轮编码器计数

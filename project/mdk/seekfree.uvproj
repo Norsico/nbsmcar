@@ -929,6 +929,11 @@
               <FileType>1</FileType>
               <FilePath>..\code\dev\dev_display.c</FilePath>
             </File>
+            <File>
+              <FileName>dev_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_flash.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

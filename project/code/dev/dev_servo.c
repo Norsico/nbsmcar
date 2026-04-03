@@ -6,23 +6,58 @@
 
 #include "dev_servo.h"
 
-// 前轮舵机默认只允许在 80-100 度之间
+// 前轮舵机默认工作在 80-110 度之间
 #define CAR_SERVO_DUTY(angle)     ((float)PWM_DUTY_MAX / (1000.0 / (float)CAR_SERVO_FREQ) * (0.5 + (float)(angle) / 90.0))
 #if ((CAR_SERVO_FREQ < 50) || (CAR_SERVO_FREQ > 300))
     #error "CAR_SERVO_FREQ ERROR!"
 #endif
 
+static uint8 g_car_servo_min_angle = CAR_SERVO_MIN_ANGLE;
+static uint8 g_car_servo_max_angle = CAR_SERVO_MAX_ANGLE;
+
+/* 屏幕调参时，左限幅只允许落在中心值左侧，避免把最小角调到中心右边。 */
+static uint8 car_servo_limit_tune_min(uint8 angle)
+{
+    if(angle < CAR_SERVO_TUNE_MIN_ANGLE)
+    {
+        return CAR_SERVO_TUNE_MIN_ANGLE;
+    }
+
+    if(angle >= CAR_SERVO_CENTER_ANGLE)
+    {
+        return (uint8)(CAR_SERVO_CENTER_ANGLE - 1);
+    }
+
+    return angle;
+}
+
+/* 屏幕调参时，右限幅只允许落在中心值右侧，避免把最大角调到中心左边。 */
+static uint8 car_servo_limit_tune_max(uint8 angle)
+{
+    if(angle > CAR_SERVO_TUNE_MAX_ANGLE)
+    {
+        return CAR_SERVO_TUNE_MAX_ANGLE;
+    }
+
+    if(angle <= CAR_SERVO_CENTER_ANGLE)
+    {
+        return (uint8)(CAR_SERVO_CENTER_ANGLE + 1);
+    }
+
+    return angle;
+}
+
 // 舵机角度限幅函数
 static uint8 car_servo_limit_angle(uint8 angle)
 {
-    if(angle < CAR_SERVO_MIN_ANGLE)
+    if(angle < g_car_servo_min_angle)
     {
-        return CAR_SERVO_MIN_ANGLE;
+        return g_car_servo_min_angle;
     }
 
-    if(angle > CAR_SERVO_MAX_ANGLE)
+    if(angle > g_car_servo_max_angle)
     {
-        return CAR_SERVO_MAX_ANGLE;
+        return g_car_servo_max_angle;
     }
 
     return angle;
@@ -40,10 +75,44 @@ void car_servo_set_center(void)
 {
     car_servo_set_angle(CAR_SERVO_CENTER_ANGLE);
 }
+
+void car_servo_set_limit(uint8 min_angle, uint8 max_angle)
+{
+    uint8 safe_min = 0;
+    uint8 safe_max = 0;
+
+    /* 先把用户输入收口到允许调节的安全范围内。 */
+    safe_min = car_servo_limit_tune_min(min_angle);
+    safe_max = car_servo_limit_tune_max(max_angle);
+    if(safe_min >= safe_max)
+    {
+        /* 如果左右限幅交叉了，就退回工程默认值，避免舵机直接卡死。 */
+        safe_min = CAR_SERVO_MIN_ANGLE;
+        safe_max = CAR_SERVO_MAX_ANGLE;
+    }
+
+    g_car_servo_min_angle = safe_min;
+    g_car_servo_max_angle = safe_max;
+}
+
+uint8 car_servo_get_min_angle(void)
+{
+    return g_car_servo_min_angle;
+}
+
+uint8 car_servo_get_max_angle(void)
+{
+    /* 当前巡线输出限幅都走运行时缓存，外部直接读这个值即可。 */
+    return g_car_servo_max_angle;
+}
+
 // 舵机PWM初始化
 void car_servo_init(void)
 {
-		// pwm初始化，直接回中
+    /* 上电先回到编译期默认限幅，后面如果 flash 里有调参值再覆盖。 */
+    g_car_servo_min_angle = CAR_SERVO_MIN_ANGLE;
+    g_car_servo_max_angle = CAR_SERVO_MAX_ANGLE;
+    // pwm初始化，直接回中
     pwm_init(CAR_SERVO_PWM_PIN, CAR_SERVO_FREQ, CAR_SERVO_DUTY(CAR_SERVO_CENTER_ANGLE));
 }
 

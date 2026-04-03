@@ -4,10 +4,10 @@
 #include "zf_driver_gpio.h"
 
 /* 按键引脚定义 */
-#define KEY1_PIN (IO_P32)
-#define KEY2_PIN (IO_PB2)
-#define KEY3_PIN (IO_PB3)
-#define KEY4_PIN (IO_PB4)
+#define KEY1_PIN (IO_PB2)
+#define KEY2_PIN (IO_PB3)
+#define KEY3_PIN (IO_PB4)
+#define KEY4_PIN (IO_P32)
 
 /* 按键序号 */
 enum {
