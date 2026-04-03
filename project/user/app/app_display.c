@@ -102,6 +102,52 @@ typedef enum
     START_SLOT_ENABLE
 } start_slot_t;
 
+static const char *g_root_menu_titles[MENU_ROOT_ITEM_COUNT] =
+{
+    "Camera View",
+    "Param Config",
+    "Start"
+};
+
+static const char *g_param_menu_titles[MENU_PARAM_MENU_ITEM_COUNT] =
+{
+    "Camera",
+    "Line Tune"
+};
+
+static const char *g_line_menu_titles[MENU_LINE_MENU_ITEM_COUNT] =
+{
+    "Line PID",
+    "Preview",
+    "Servo Limit"
+};
+
+static const line_tune_slot_t g_line_pid_slots[2] =
+{
+    LINE_TUNE_SLOT_KP,
+    LINE_TUNE_SLOT_KD
+};
+
+static const line_tune_slot_t g_line_preview_slots[4] =
+{
+    LINE_TUNE_SLOT_NEAR_ROW,
+    LINE_TUNE_SLOT_FAR_ROW,
+    LINE_TUNE_SLOT_NEAR_WEIGHT,
+    LINE_TUNE_SLOT_FAR_WEIGHT
+};
+
+static const line_tune_slot_t g_line_servo_slots[2] =
+{
+    LINE_TUNE_SLOT_SERVO_MIN,
+    LINE_TUNE_SLOT_SERVO_MAX
+};
+
+typedef enum
+{
+    START_SLOT_SPEED = 0,
+    START_SLOT_ENABLE
+} start_slot_t;
+
 typedef struct
 {
     display_page_t page;
@@ -216,6 +262,11 @@ static void display_menu_draw_battery(uint8 force)
     uint16 battery = 0;
     uint16 fill_w = 0;
     uint8 percent = 0;
+
+    if(!power_adc_is_ready())
+    {
+        return;
+    }
 
     battery = (uint16)(power_adc_get_voltage() * 10.0f + 0.5f);
     if(battery <= BATTERY_EMPTY_DECI)
@@ -1452,8 +1503,74 @@ static void display_menu_refresh_line_page_value(const display_line_page_t *line
 {
     if(0 == line_page)
     {
-        return;
+        value_tenth = 0;
     }
+
+    integer_part = (uint16)(value_tenth / 10);
+    decimal_part = (uint8)(value_tenth % 10);
+
+    if(integer_part >= 100)
+    {
+        integer_part = 99;
+        decimal_part = 9;
+    }
+
+    if(integer_part >= 10)
+    {
+        text[0] = (char)('0' + (integer_part / 10));
+        text[1] = (char)('0' + (integer_part % 10));
+        text[2] = '.';
+        text[3] = (char)('0' + decimal_part);
+        text[4] = '\0';
+    }
+    else
+    {
+        text[0] = (char)('0' + integer_part);
+        text[1] = '.';
+        text[2] = (char)('0' + decimal_part);
+        text[3] = '\0';
+    }
+}
+
+static void display_menu_format_uint16(uint16 value, char *text)
+{
+    if(value >= 10000)
+    {
+        value = 9999;
+    }
+
+    if(value >= 1000)
+    {
+        text[0] = (char)('0' + (value / 1000U));
+        text[1] = (char)('0' + ((value / 100U) % 10U));
+        text[2] = (char)('0' + ((value / 10U) % 10U));
+        text[3] = (char)('0' + (value % 10U));
+        text[4] = '\0';
+    }
+    else if(value >= 100)
+    {
+        text[0] = (char)('0' + (value / 100U));
+        text[1] = (char)('0' + ((value / 10U) % 10U));
+        text[2] = (char)('0' + (value % 10U));
+        text[3] = '\0';
+    }
+    else if(value >= 10)
+    {
+        text[0] = (char)('0' + (value / 10U));
+        text[1] = (char)('0' + (value % 10U));
+        text[2] = '\0';
+    }
+    else
+    {
+        text[0] = (char)('0' + value);
+        text[1] = '\0';
+    }
+}
+
+static uint16 display_menu_get_row_y(uint8 index)
+{
+    return (uint16)(MENU_PARAM_LIST_Y + (uint16)index * MENU_PARAM_ROW_STEP);
+}
 
     display_menu_refresh_line_tune_value(line_page->slot_list,
                                          line_page->slot_count,
@@ -1632,7 +1749,18 @@ static void display_menu_move_root_selection(int8 direction)
     {
         display_menu_render();
     }
-    else
+
+    if(*min_value > *max_value)
+    {
+        *min_value = *max_value;
+    }
+}
+
+static int16 display_menu_build_step_delta(uint16 step_value, int8 direction, uint8 step_mul)
+{
+    int32 delta = 0;
+
+    if(0 == direction || 0 == step_mul || 0 == step_value)
     {
         display_menu_draw_root_item(previous_selected);
         display_menu_draw_root_item(g_menu_selected);
@@ -1714,6 +1842,7 @@ void display_menu_render(void)
         display_menu_draw_battery(0);
         return;
     }
+}
 
     line_page = display_menu_get_line_page(g_menu_page);
     if(0 != line_page)
@@ -1808,7 +1937,7 @@ void display_menu_move_up(void)
     display_menu_move_root_selection(1);
 }
 
-void display_menu_move_down(void)
+static void display_menu_draw_camera_param_info(void)
 {
     if(DISPLAY_PAGE_START == g_menu_page)
     {
@@ -1892,6 +2021,8 @@ void display_menu_move_up_fast(void)
     {
         display_menu_handle_line_page_fast(1);
     }
+
+    display_menu_refresh_camera_selection(previous_slot);
 }
 
 void display_menu_move_down_fast(void)

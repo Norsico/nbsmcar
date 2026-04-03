@@ -295,7 +295,9 @@ uint8 tuning_param_start_transport(void)
 
     return wifi_init(WIFI_TUNING_WIFI_SSID,
                      WIFI_TUNING_WIFI_PASSWORD,
-                     WIFI_TUNING_TARGET_IP);
+                     WIFI_TUNING_TARGET_IP,
+                     WIFI_TUNING_TARGET_PORT,
+                     WIFI_TUNING_LOCAL_PORT);
 }
 
 void tuning_param_task(void)

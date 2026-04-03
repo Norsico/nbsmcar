@@ -825,9 +825,19 @@
               <FilePath>..\code\SearchLine.c</FilePath>
             </File>
             <File>
+              <FileName>SearchLine.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\SearchLine.h</FilePath>
+            </File>
+            <File>
               <FileName>tuning_param.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\tuning_param.c</FilePath>
+            </File>
+            <File>
+              <FileName>tuning_param.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\tuning_param.h</FilePath>
             </File>
             <File>
               <FileName>pid_control.c</FileName>
@@ -879,6 +889,11 @@
         <Group>
           <GroupName>dev</GroupName>
           <Files>
+            <File>
+              <FileName>dev_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\dev\dev_flash.c</FilePath>
+            </File>
             <File>
               <FileName>dev_imu.c</FileName>
               <FileType>1</FileType>

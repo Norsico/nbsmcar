@@ -37,6 +37,9 @@
 #include "zf_driver_eeprom.h"
 #include "zf_driver_delay.h"
 
+/* C251 栈很紧，扇区缓存不能放局部数组里，否则参数落盘时很容易把别的内存踩坏。 */
+static uint8 g_iap_sector_buffer[512] = {0};
+
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     EEPROM触发操作，
@@ -235,17 +238,16 @@ void iap_erase_page(uint32 addr)
 //-------------------------------------------------------------------------------------------------------------------
 void extern_iap_write_buff(uint16 addr, uint8 *buf, uint16 len)
 {
-    uint8 temp[512] = {0};
     uint16 i;
     
-    for(i = 0; i < 512 ; i++)	temp[i] = 0;						//清0
+    for(i = 0; i < 512 ; i++)	g_iap_sector_buffer[i] = 0;						//清0
     
-    iap_read_buff(addr & 0xFE00, temp, 512);						//读取
+    iap_read_buff(addr & 0xFE00, g_iap_sector_buffer, 512);						//读取
     
-    for(i = 0; i < len; i++)	temp[(addr & 0x1FF) + i] = buf[i];	//改
+    for(i = 0; i < len; i++)	g_iap_sector_buffer[(addr & 0x1FF) + i] = buf[i];	//改
     
     iap_erase_page(addr);											//擦除
-    iap_write_buff(addr & 0xFE00, temp, 512);					//写入
+    iap_write_buff(addr & 0xFE00, g_iap_sector_buffer, 512);					//写入
 }
 
 

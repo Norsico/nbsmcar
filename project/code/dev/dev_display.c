@@ -3,10 +3,9 @@
 // 显示模块初始化
 void display_init(void)
 {
-	
-    // 设置显示方向为竖屏
+    // UI 与摄像头页统一按竖屏显示。
     ips200_set_dir(IPS200_PORTAIT);
-	
+
     // 初始化 IPS200 屏幕
     ips200_init();
 

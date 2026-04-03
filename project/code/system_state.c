@@ -4,11 +4,6 @@
 volatile system_state_t g_system_state = SYS_INIT;  // 系统状态：INIT/PREPARE/RUNNING/STOPED/EMERGENCY
 uint8 system_error = 0;                               // 系统错误标志：非0表示发生错误，进入紧急状态
 
-// 功能使能标志
-uint8 g_ips_enable = IPS_ENABLE;                     // 屏幕使能标志：1启用，0禁用
-uint8 g_wifi_enable = WIFI_ENABLE;                    // WiFi使能标志：1启用，0禁用
-uint8 g_debug_enable = 1;                             // 屏幕/WiFi调试使能标志：1启用，0禁用
-
 vuint32 g_system_ticks = 0;                           // 系统Tick计数器，每1ms加1
 vuint32 g_key_ticks = 0;                              // 按键扫描计时器
 vuint32 g_imu_ticks = 0;                              // IMU读取计时器
@@ -23,7 +18,7 @@ vuint32 g_wifi_ticks = 0;                             // WiFi任务计时器
 
 vuint8 g_flag_key = 0;                                // 按键扫描标志：1表示需要执行按键扫描
 vuint8 g_flag_imu = 0;                               // IMU读取标志：1表示需要读取IMU数据
-vuint8 g_flag_encoder = 0;														// 编码器采样标志
+vuint8 g_flag_encoder = 0;														// 编码器待处理周期数
 vuint8 g_flag_center = 0;
 #if IPS_ENABLE
 vuint8 g_flag_display = 0;                            // 显示刷新标志：1表示需要刷新显示
@@ -52,7 +47,10 @@ void system_tick_handler(void)
     // 编码器采样 10ms
     if(g_system_ticks - g_encoder_ticks >= ENCODER_PERIOD){
         g_encoder_ticks = g_system_ticks;
-        g_flag_encoder = 1;
+        if(g_flag_encoder < 250)
+        {
+            g_flag_encoder++;
+        }
     }
 		// 搜线算法
 		if(g_system_ticks - g_center_ticks >=  CENTER_PERIOD){

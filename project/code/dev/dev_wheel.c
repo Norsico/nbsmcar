@@ -59,34 +59,11 @@ void car_wheel_set_dual(int8 right_wheel_speed_percent, int8 left_wheel_speed_pe
     car_wheel_set_speed(LEFT_MOTOR, left_wheel_speed_percent);
 }
 
-
-// 全部停止
+// 停止全部
 void car_wheel_stop_all(void)
 {
-    pwm_set_duty(RIGHT_MOTOR_PWM_PIN, 0);
-    pwm_set_duty(LEFT_MOTOR_PWM_PIN, 0);
+    car_wheel_set_dual(0, 0);
 }
-
-static void car_wheel_pid_reset_single(pid_control_t *pid)
-{
-	  pid->current = 0.0f;
-    pid->error = 0.0f;
-    pid->prev_error = 0.0f;
-    pid->integral = 0.0f;
-    pid->output = 0.0f;
-}
-
-/* 启停切换时把编码器和 PID 状态一起清掉，避免旧输出残留导致瞬时抽动。 */
-void car_wheel_control_reset(void)
-{
-	  wheel_pid_left.target = 0.0f;
-    wheel_pid_right.target = 0.0f;
-    car_wheel_pid_reset_single(&wheel_pid_left);
-    car_wheel_pid_reset_single(&wheel_pid_right);
-    encoder_clear();
-		car_wheel_stop_all();
-}
-
 
 // 初始化函数
 void car_wheel_init(void)
@@ -133,6 +110,68 @@ void car_wheel_set_target(float left_speed, float right_speed)
 {
 	wheel_pid_left.target = left_speed;
 	wheel_pid_right.target = right_speed;
+}
+
+
+// 全部停止
+void car_wheel_stop_all(void)
+{
+    pwm_set_duty(RIGHT_MOTOR_PWM_PIN, 0);
+    pwm_set_duty(LEFT_MOTOR_PWM_PIN, 0);
+}
+
+static void car_wheel_pid_reset_single(pid_control_t *pid)
+{
+	  pid->current = 0.0f;
+    pid->error = 0.0f;
+    pid->prev_error = 0.0f;
+    pid->integral = 0.0f;
+    pid->output = 0.0f;
+}
+
+/* 启停切换时把编码器和 PID 状态一起清掉，避免旧输出残留导致瞬时抽动。 */
+void car_wheel_control_reset(void)
+{
+	  wheel_pid_left.target = 0.0f;
+    wheel_pid_right.target = 0.0f;
+    car_wheel_pid_reset_single(&wheel_pid_left);
+    car_wheel_pid_reset_single(&wheel_pid_right);
+    encoder_clear();
+		car_wheel_stop_all();
+}
+
+
+// 初始化函数
+void car_wheel_init(void)
+{
+    wheel_pid_left.target = 0.0f;
+    wheel_pid_right.target = 0.0f;
+    car_wheel_pid_reset_single(&wheel_pid_left);
+    car_wheel_pid_reset_single(&wheel_pid_right);
+    encoder_clear();
+    car_wheel_stop_all();
+}
+
+static void car_wheel_limit_output_to_target_direction(pid_control_t *pid)
+{
+    if(pid->target > 0.0f)
+    {
+        if(pid->output < 0.0f)
+        {
+            pid->output = 0.0f;
+        }
+    }
+    else if(pid->target < 0.0f)
+    {
+        if(pid->output > 0.0f)
+        {
+            pid->output = 0.0f;
+        }
+    }
+    else
+    {
+        pid->output = 0.0f;
+    }
 }
 // 将PID计算的PWM写入电机-左轮
 static void car_wheel_update_left(void)

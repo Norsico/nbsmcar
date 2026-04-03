@@ -294,6 +294,188 @@ static void line_app_apply_camera_page_from_flash(void)
     line_app_apply_camera_page(&page);
 }
 
+    if(value > max_value)
+    {
+        return max_value;
+    }
+
+    return value;
+}
+
+/* 给 UI 提供每个巡线调参项的 min/max/step，避免显示层再重复维护一份。 */
+void line_app_get_tune_range(line_tune_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value)
+{
+    if(angle < car_servo_get_min_angle())
+    {
+        return car_servo_get_min_angle();
+    }
+
+    if(angle > car_servo_get_max_angle())
+    {
+        return car_servo_get_max_angle();
+    }
+
+    if(0 != max_value)
+    {
+        *max_value = max_value_local;
+    }
+
+    if(0 != step_value)
+    {
+        *step_value = step_value_local;
+    }
+}
+
+/* 用户改某一项后，统一把成对约束修正回来，避免近远点或舵机限幅互相打架。 */
+static void line_app_normalize_tune_page(flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    page->kp_tenth = (uint8)line_app_limit_uint16(page->kp_tenth, LINE_TUNE_KP_MIN_TENTH, LINE_TUNE_KP_MAX_TENTH);
+    page->kd_tenth = (uint8)line_app_limit_uint16(page->kd_tenth, LINE_TUNE_KD_MIN_TENTH, LINE_TUNE_KD_MAX_TENTH);
+    page->near_row_offset = (uint8)line_app_limit_uint16(page->near_row_offset, LINE_TUNE_NEAR_ROW_MIN, LINE_TUNE_NEAR_ROW_MAX);
+    page->far_row_offset = (uint8)line_app_limit_uint16(page->far_row_offset, LINE_TUNE_FAR_ROW_MIN, LINE_TUNE_FAR_ROW_MAX);
+    page->near_weight = (uint8)line_app_limit_uint16(page->near_weight, LINE_TUNE_NEAR_WEIGHT_MIN, LINE_TUNE_NEAR_WEIGHT_MAX);
+    page->far_weight = (uint8)line_app_limit_uint16(page->far_weight, LINE_TUNE_FAR_WEIGHT_MIN, LINE_TUNE_FAR_WEIGHT_MAX);
+    page->servo_min_angle = (uint8)line_app_limit_uint16(page->servo_min_angle, LINE_TUNE_SERVO_MIN_MIN, LINE_TUNE_SERVO_MIN_MAX);
+    page->servo_max_angle = (uint8)line_app_limit_uint16(page->servo_max_angle, LINE_TUNE_SERVO_MAX_MIN, LINE_TUNE_SERVO_MAX_MAX);
+
+    if(page->near_row_offset >= page->far_row_offset)
+    {
+        if(page->far_row_offset < LINE_TUNE_FAR_ROW_MAX)
+        {
+            page->far_row_offset = (uint8)(page->near_row_offset + 1);
+        }
+        else if(page->near_row_offset > LINE_TUNE_NEAR_ROW_MIN)
+        {
+            page->near_row_offset = (uint8)(page->far_row_offset - 1);
+        }
+    }
+
+    if(page->servo_min_angle >= page->servo_max_angle)
+    {
+        if(page->servo_max_angle > LINE_TUNE_SERVO_MAX_MIN)
+        {
+            page->servo_min_angle = (uint8)(page->servo_max_angle - 1);
+        }
+        else
+        {
+            page->servo_min_angle = FLASH_LINE_SERVO_MIN_DEFAULT;
+            page->servo_max_angle = FLASH_LINE_SERVO_MAX_DEFAULT;
+        }
+    }
+}
+
+/* 巡线调参页在 app 层维护一份运行时缓存，显示、控制和延迟保存都走这一份。 */
+static void line_app_cache_tune_page(const flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    memcpy(&g_line_tune_page_cache, page, sizeof(g_line_tune_page_cache));
+    g_line_tune_page_ready = 1;
+}
+
+static void line_app_load_tune_page(flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    if(g_line_tune_page_ready)
+    {
+        memcpy(page, &g_line_tune_page_cache, sizeof(*page));
+        return;
+    }
+
+    flash_store_get_line_tune_page(page);
+    line_app_normalize_tune_page(page);
+    line_app_cache_tune_page(page);
+    g_line_tune_page_dirty = 0;
+}
+
+/* 把巡线调参真正下发到运行时控制：PID 参数和舵机限幅在这里更新。 */
+static uint8 line_app_apply_tune_page(const flash_line_tune_page_t *page)
+{
+    uint8 current_angle = 0;
+
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    g_line_servo_pid.param.kp = (float)page->kp_tenth / 10.0f;
+    g_line_servo_pid.param.ki = LINE_TRACK_DEFAULT_KI;
+    g_line_servo_pid.param.kd = (float)page->kd_tenth / 10.0f;
+    car_servo_set_limit(page->servo_min_angle, page->servo_max_angle);
+    current_angle = g_line_track_info.servo_angle;
+    if(0 == current_angle)
+    {
+        current_angle = CAR_SERVO_CENTER_ANGLE;
+    }
+
+    g_line_track_info.servo_angle = line_app_limit_angle(current_angle);
+    car_servo_set_angle(g_line_track_info.servo_angle);
+    return 1;
+}
+
+/* 上电先从 flash 恢复巡线调参，后续调参时只改缓存，离页再统一保存。 */
+static void line_app_apply_tune_page_from_flash(void)
+{
+    flash_line_tune_page_t page;
+
+    line_app_load_tune_page(&page);
+    line_app_apply_tune_page(&page);
+    line_app_cache_tune_page(&page);
+    g_line_tune_page_dirty = 0;
+}
+
+static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
+{
+    int16 config[MT9V03X_CONFIG_FINISH][2];
+
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    memset(config, 0, sizeof(config));
+    config[0][0] = MT9V03X_INIT;
+    config[0][1] = 0;
+    config[1][0] = MT9V03X_AUTO_EXP;
+    config[1][1] = page->auto_exp;
+    config[2][0] = MT9V03X_EXP_TIME;
+    config[2][1] = page->exp_time;
+    config[3][0] = MT9V03X_FPS;
+    config[3][1] = MT9V03X_FPS_DEF;
+    config[4][0] = MT9V03X_SET_COL;
+    config[4][1] = MT9V03X_W;
+    config[5][0] = MT9V03X_SET_ROW;
+    config[5][1] = MT9V03X_H;
+    config[6][0] = MT9V03X_LR_OFFSET;
+    config[6][1] = MT9V03X_LR_OFFSET_DEF;
+    config[7][0] = MT9V03X_UD_OFFSET;
+    config[7][1] = MT9V03X_UD_OFFSET_DEF;
+    config[8][0] = MT9V03X_GAIN;
+    config[8][1] = page->gain;
+
+    return (0 == mt9v03x_set_config(config)) ? 1 : 0;
+}
+
+static void line_app_apply_camera_page_from_flash(void)
+{
+    flash_camera_page_t page;
+
+    flash_store_get_camera_page(&page);
+    line_app_apply_camera_page(&page);
+}
+
 static uint8 line_app_limit_angle(float angle)
 {
     if(angle < car_servo_get_min_angle())
