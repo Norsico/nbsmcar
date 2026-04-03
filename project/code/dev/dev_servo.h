@@ -145,5 +145,6 @@ extern void car_servo_set_center(void);
 extern void car_servo_set_limit(uint8 min_angle, uint8 max_angle);
 extern uint8 car_servo_get_min_angle(void);
 extern uint8 car_servo_get_max_angle(void);
+extern uint8 car_servo_get_current_angle(void);
 
 #endif /* __DEV_SERVO_H__ */

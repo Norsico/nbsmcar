@@ -45,12 +45,8 @@ void ackerman_calc_wheel_speeds(float speed, float steer_angle)
     float v_dif;
     float tan_delta;
 
-    // 限制速度范围
-    if (speed > 100.0f) {
-        speed = 100.0f;
-    } else if (speed < 0.0f) {
-        speed = 0.0f;
-    }
+    ackerman_set_steer_angle(steer_angle);
+    steer_angle = ackerman_kinematic.steer_angle;
 
     // 保存当前速度
     ackerman_kinematic.speed = speed;
@@ -60,10 +56,11 @@ void ackerman_calc_wheel_speeds(float speed, float steer_angle)
     v_dif = (CAR_TREAD_WIDTH / CAR_WHEELBASE) * tan_delta;
 
     // 左右轮速度计算
-    // v_left  = speed * (1 - v_dif/2)
-    // v_right = speed * (1 + v_dif/2)
-    ackerman_kinematic.left_wheel_speed = speed * (1.0f - v_dif / 2.0f);
-    ackerman_kinematic.right_wheel_speed = speed * (1.0f + v_dif / 2.0f);
+    // δ > 0 表示右转，此时左后轮应略快、右后轮应略慢
+    // v_left  = speed * (1 + v_dif/2)
+    // v_right = speed * (1 - v_dif/2)
+    ackerman_kinematic.left_wheel_speed = speed * (1.0f + v_dif / 2.0f);
+    ackerman_kinematic.right_wheel_speed = speed * (1.0f - v_dif / 2.0f);
 }
 
 /**

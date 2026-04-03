@@ -922,7 +922,7 @@ static void display_menu_apply_start_page(const flash_start_page_t *page)
         }
 
         /* 当前已知开屏时屏幕刷新会影响后轮闭环，实车用 Start 建议先关屏再跑。 */
-        car_wheel_set_target((float)g_start_page.target_speed, (float)g_start_page.target_speed);
+        car_wheel_set_target((float)g_start_page.target_speed);
         if(DISPLAY_PAGE_CAMERA != g_menu_page)
         {
             car_servo_set_center();

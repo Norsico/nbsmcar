@@ -14,6 +14,7 @@
 
 static uint8 g_car_servo_min_angle = CAR_SERVO_MIN_ANGLE;
 static uint8 g_car_servo_max_angle = CAR_SERVO_MAX_ANGLE;
+static uint8 g_car_servo_current_angle = CAR_SERVO_CENTER_ANGLE;
 
 /* 屏幕调参时，左限幅只允许落在中心值左侧，避免把最小角调到中心右边。 */
 static uint8 car_servo_limit_tune_min(uint8 angle)
@@ -68,6 +69,7 @@ void car_servo_set_angle(uint8 angle)
     uint8 safe_angle = 0;
 
     safe_angle = car_servo_limit_angle(angle);
+    g_car_servo_current_angle = safe_angle;
     pwm_set_duty(CAR_SERVO_PWM_PIN, CAR_SERVO_DUTY(safe_angle));
 }
 // 回中函数
@@ -106,12 +108,18 @@ uint8 car_servo_get_max_angle(void)
     return g_car_servo_max_angle;
 }
 
+uint8 car_servo_get_current_angle(void)
+{
+    return g_car_servo_current_angle;
+}
+
 // 舵机PWM初始化
 void car_servo_init(void)
 {
     /* 上电先回到编译期默认限幅，后面如果 flash 里有调参值再覆盖。 */
     g_car_servo_min_angle = CAR_SERVO_MIN_ANGLE;
     g_car_servo_max_angle = CAR_SERVO_MAX_ANGLE;
+    g_car_servo_current_angle = CAR_SERVO_CENTER_ANGLE;
     // pwm初始化，直接回中
     pwm_init(CAR_SERVO_PWM_PIN, CAR_SERVO_FREQ, CAR_SERVO_DUTY(CAR_SERVO_CENTER_ANGLE));
 }

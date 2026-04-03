@@ -69,7 +69,7 @@ void main(void)
 #endif
     bldc_motor_stop();
     car_wheel_stop_all();
-    car_wheel_set_target(0, 0);
+    car_wheel_set_target(0.0f);
     car_servo_set_center();
     display_menu_init(); // 无论是否开屏，都先恢复 Start 配置
 

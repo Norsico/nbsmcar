@@ -1,8 +1,11 @@
 #include "dev_wheel.h"
+#include "ackerman.h"
 #include "dev_encoder.h"
+#include "dev_servo.h"
 
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
+static float g_car_wheel_speed_target = 0.0f;
 
 /**************电机控制PWM*******************/
 // 电机速度限幅函数，-100~100
@@ -106,10 +109,15 @@ void car_wheel_pid_init(void){
 	wheel_pid_init(&wheel_pid_right);
 }
 
-void car_wheel_set_target(float left_speed, float right_speed)
+static void car_wheel_apply_target(float left_speed, float right_speed)
 {
-	wheel_pid_left.target = left_speed;
-	wheel_pid_right.target = right_speed;
+    wheel_pid_left.target = left_speed;
+    wheel_pid_right.target = right_speed;
+}
+
+void car_wheel_set_target(float speed)
+{
+    g_car_wheel_speed_target = speed;
 }
 
 static void car_wheel_pid_reset_single(pid_control_t *pid)
@@ -124,12 +132,25 @@ static void car_wheel_pid_reset_single(pid_control_t *pid)
 /* 启停切换时把编码器和 PID 状态一起清掉，避免旧输出残留导致瞬时抽动。 */
 void car_wheel_control_reset(void)
 {
-    wheel_pid_left.target = 0.0f;
-    wheel_pid_right.target = 0.0f;
+    g_car_wheel_speed_target = 0.0f;
+    car_wheel_apply_target(0.0f, 0.0f);
     car_wheel_pid_reset_single(&wheel_pid_left);
     car_wheel_pid_reset_single(&wheel_pid_right);
     encoder_clear();
     car_wheel_stop_all();
+}
+
+/* 运行时直接读当前舵机命令角，按中心值换算成阿克曼用的带符号转角。 */
+static void car_wheel_update_target_from_vehicle(void)
+{
+    float steer_angle = 0.0f;
+
+	// 输入舵机角度
+    steer_angle = (float)car_servo_get_current_angle() - (float)CAR_SERVO_CENTER_ANGLE;
+    // 阿克曼计算
+	ackerman_calc_wheel_speeds(g_car_wheel_speed_target, steer_angle);
+    // 应用阿克曼结果（后面是PI控制）
+	car_wheel_apply_target(ackerman_get_left_speed(), ackerman_get_right_speed());
 }
 
 static void car_wheel_limit_output_to_target_direction(pid_control_t *pid)
@@ -201,6 +222,9 @@ void car_wheel_update(void)
 	// 获取当前编码器速度（编码器未移植）
 	int16 current_left = encoder_get_left();
 	int16 current_right = encoder_get_right();
+
+    car_wheel_update_target_from_vehicle();
+
 	// 增量式pid计算
 	pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
 	pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);

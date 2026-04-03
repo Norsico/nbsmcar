@@ -21,9 +21,9 @@
 typedef struct
 {
     float steer_angle;        // 当前转向角 (度)
-    float speed;              // 当前车速 (百分比 0-100)
-    float left_wheel_speed;   // 左轮速度 (百分比)
-    float right_wheel_speed;  // 右轮速度 (百分比)
+    float speed;              // 当前基础车速（与后轮闭环目标值同量纲）
+    float left_wheel_speed;   // 左轮速度（与输入 speed 同量纲）
+    float right_wheel_speed;  // 右轮速度（与输入 speed 同量纲）
 } ackerman_kinematic_t;
 
 /************ 接口函数 ************/
@@ -35,25 +35,25 @@ extern void ackerman_init(void);
 
 /**
  * @brief 计算左右轮速度
- * @param speed 车速 (百分比 0-100)
+ * @param speed 基础车速（与后轮闭环目标值同量纲）
  * @param steer_angle 转向角 (度, 左负右正)
  *
  * 阿克曼核心公式:
  *   v_dif = (tread_width / wheelbase) * tan(δ * π/180)
- *   v_left  = speed * (1 - v_dif/2)
- *   v_right = speed * (1 + v_dif/2)
+ *   v_left  = speed * (1 + v_dif/2)
+ *   v_right = speed * (1 - v_dif/2)
  */
 extern void ackerman_calc_wheel_speeds(float speed, float steer_angle);
 
 /**
  * @brief 获取左轮速度
- * @return 左轮速度 (百分比)
+ * @return 左轮速度（与输入 speed 同量纲）
  */
 extern float ackerman_get_left_speed(void);
 
 /**
  * @brief 获取右轮速度
- * @return 右轮速度 (百分比)
+ * @return 右轮速度（与输入 speed 同量纲）
  */
 extern float ackerman_get_right_speed(void);
 
@@ -71,7 +71,7 @@ extern float ackerman_get_steer_angle(void);
 
 /**
  * @brief 获取当前车速
- * @return 车速 (百分比)
+ * @return 当前基础车速（与后轮闭环目标值同量纲）
  */
 extern float ackerman_get_speed(void);
 
