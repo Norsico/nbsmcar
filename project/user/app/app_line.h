@@ -3,6 +3,7 @@
 
 #include "dev_flash.h"
 #include "zf_common_typedef.h"
+#include "system_state.h"
 
 typedef enum
 {
@@ -24,7 +25,7 @@ void line_app_get_tune_range(line_tune_slot_t slot, uint16 *min_value, uint16 *m
 uint16 line_app_get_tune_value(line_tune_slot_t slot);
 uint8 line_app_set_tune_value(line_tune_slot_t slot, uint16 value);
 uint8 line_app_save_tune_page(void);
-#if defined(IPS_ENABLE) && IPS_ENABLE
+#if IPS_ENABLE
 void line_app_render_frame(void);
 #endif
 
