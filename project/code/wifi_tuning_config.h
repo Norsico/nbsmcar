@@ -39,7 +39,7 @@
  *   #define WIFI_TUNING_TRIGGER_ACTIVE() (0 == gpio_get_level(IO_P33))
  */
 #ifndef WIFI_TUNING_TRIGGER_INIT
-#define WIFI_TUNING_TRIGGER_INIT()             ((void)0)
+#define WIFI_TUNING_TRIGGER_INIT()             do { } while(0)
 #endif
 
 #ifndef WIFI_TUNING_TRIGGER_ACTIVE

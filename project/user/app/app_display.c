@@ -1,5 +1,5 @@
 /*
- * app_display.c - simple two-level menu demo for IPS200
+ * app_display.c - IPS200 菜单与调参页面
  */
 
 #include "app_display.h"
@@ -15,10 +15,10 @@
 #define MENU_ROOT_ITEM_COUNT        (3)
 #define MENU_PARAM_MENU_ITEM_COUNT  (2)
 #define MENU_LINE_MENU_ITEM_COUNT   (3)
+#define MENU_ARRAY_COUNT(array)     ((uint8)(sizeof(array) / sizeof((array)[0])))
 #define MENU_TITLE_Y                (0)
 #define MENU_ROOT_LIST_Y            (16)
 #define MENU_SUBMENU_LIST_Y         (24)
-#define MENU_SCREEN_W               (188)
 #define MENU_PARAM_INFO_Y           (24)
 #define MENU_PARAM_INFO_LINE_Y      (44)
 #define MENU_PARAM_LIST_Y           (56)
@@ -53,8 +53,7 @@ typedef enum
     DISPLAY_PAGE_PARAM_LINE_MENU,
     DISPLAY_PAGE_PARAM_LINE_PID,
     DISPLAY_PAGE_PARAM_PREVIEW,
-    DISPLAY_PAGE_PARAM_SERVO_LIMIT,
-    DISPLAY_PAGE_PARAM_CASE
+    DISPLAY_PAGE_PARAM_SERVO_LIMIT
 } display_page_t;
 
 static const char *g_root_menu_titles[MENU_ROOT_ITEM_COUNT] =
@@ -100,16 +99,25 @@ static const line_tune_slot_t g_line_servo_slots[2] =
 typedef enum
 {
     START_SLOT_SPEED = 0,
-    START_SLOT_ENABLE,
-    START_SLOT_COUNT
+    START_SLOT_ENABLE
 } start_slot_t;
+
+typedef struct
+{
+    display_page_t page;
+    const char *title;
+    const line_tune_slot_t *slot_list;
+    uint8 slot_count;
+    line_tune_slot_t *selected_slot;
+} display_line_page_t;
+
+typedef void (*display_menu_draw_item_t)(uint8 index);
 
 static uint8 g_menu_selected = 0;
 static uint8 g_param_menu_selected = 0;
 static display_page_t g_menu_page = DISPLAY_PAGE_ROOT;
 static uint8 g_menu_dirty = 1;
 static uint8 g_menu_last_battery_percent = 0xFF;
-static flash_param_slot_t g_case_param_selected = FLASH_PARAM_SLOT_FIRST;
 static flash_camera_slot_t g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
 static uint8 g_line_menu_selected = 0;
 static line_tune_slot_t g_line_pid_selected = LINE_TUNE_SLOT_KP;
@@ -118,6 +126,13 @@ static line_tune_slot_t g_line_servo_selected = LINE_TUNE_SLOT_SERVO_MIN;
 static start_slot_t g_start_selected = START_SLOT_SPEED;
 static flash_start_page_t g_start_page = {FLASH_START_SPEED_DEFAULT, FLASH_START_ENABLE_DEFAULT, 0};
 static uint8 g_param_editing = 0;
+
+static const display_line_page_t g_line_pages[MENU_LINE_MENU_ITEM_COUNT] =
+{
+    {DISPLAY_PAGE_PARAM_LINE_PID, "Line PID", g_line_pid_slots, MENU_ARRAY_COUNT(g_line_pid_slots), &g_line_pid_selected},
+    {DISPLAY_PAGE_PARAM_PREVIEW, "Preview", g_line_preview_slots, MENU_ARRAY_COUNT(g_line_preview_slots), &g_line_preview_selected},
+    {DISPLAY_PAGE_PARAM_SERVO_LIMIT, "Servo Limit", g_line_servo_slots, MENU_ARRAY_COUNT(g_line_servo_slots), &g_line_servo_selected}
+};
 
 static void display_menu_show_percent(uint16 x, uint16 y, uint8 percent)
 {
@@ -385,6 +400,58 @@ static void display_menu_draw_line_menu_item(uint8 index)
                                 (index == g_line_menu_selected) ? 1 : 0);
 }
 
+static const display_line_page_t *display_menu_get_line_page(display_page_t page)
+{
+    uint8 i = 0;
+
+    for(i = 0; i < MENU_ARRAY_COUNT(g_line_pages); i++)
+    {
+        if(g_line_pages[i].page == page)
+        {
+            return &g_line_pages[i];
+        }
+    }
+
+    return 0;
+}
+
+static void display_menu_cycle_list_selection(uint8 *selected,
+                                              uint8 item_count,
+                                              int8 direction,
+                                              display_menu_draw_item_t draw_item)
+{
+    uint8 previous_selected = 0;
+
+    if(0 == selected || 0 == draw_item || 0 == item_count || 0 == direction)
+    {
+        return;
+    }
+
+    previous_selected = *selected;
+    if(direction > 0)
+    {
+        if(0 == *selected)
+        {
+            *selected = item_count - 1;
+        }
+        else
+        {
+            (*selected)--;
+        }
+    }
+    else
+    {
+        (*selected)++;
+        if(*selected >= item_count)
+        {
+            *selected = 0;
+        }
+    }
+
+    draw_item(previous_selected);
+    draw_item(*selected);
+}
+
 /* 把当前选中的巡线参数映射成行号，方便不同子页共用同一套绘制逻辑。 */
 static uint8 display_menu_find_line_tune_slot_index(const line_tune_slot_t *slot_list,
                                                     uint8 slot_count,
@@ -462,13 +529,10 @@ static void display_menu_get_line_tune_effective_range(line_tune_slot_t slot,
     {
         case LINE_TUNE_SLOT_NEAR_ROW:
             pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_FAR_ROW);
-            if(pair_value > 0)
+            pair_value--;
+            if(pair_value < *max_value)
             {
-                pair_value--;
-                if(pair_value < *max_value)
-                {
-                    *max_value = pair_value;
-                }
+                *max_value = pair_value;
             }
             break;
         case LINE_TUNE_SLOT_FAR_ROW:
@@ -481,13 +545,10 @@ static void display_menu_get_line_tune_effective_range(line_tune_slot_t slot,
             break;
         case LINE_TUNE_SLOT_SERVO_MIN:
             pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_SERVO_MAX);
-            if(pair_value > 0)
+            pair_value--;
+            if(pair_value < *max_value)
             {
-                pair_value--;
-                if(pair_value < *max_value)
-                {
-                    *max_value = pair_value;
-                }
+                *max_value = pair_value;
             }
             break;
         case LINE_TUNE_SLOT_SERVO_MAX:
@@ -508,16 +569,31 @@ static void display_menu_get_line_tune_effective_range(line_tune_slot_t slot,
     }
 }
 
-static const char *display_menu_get_case_param_label(flash_param_slot_t slot)
+static int16 display_menu_build_step_delta(uint16 step_value, int8 direction, uint8 step_mul)
 {
-    if(FLASH_PARAM_SLOT_FIRST == slot)
+    int32 delta = 0;
+
+    if(0 == direction || 0 == step_mul || 0 == step_value)
     {
-        return "first";
+        return 0;
     }
-    else
+
+    delta = (int32)step_value * (int32)step_mul;
+    if(direction < 0)
     {
-        return "second";
+        delta = -delta;
     }
+
+    if(delta > 32767)
+    {
+        delta = 32767;
+    }
+    else if(delta < -32768)
+    {
+        delta = -32768;
+    }
+
+    return (int16)delta;
 }
 
 static const char *display_menu_get_camera_param_label(flash_camera_slot_t slot)
@@ -551,222 +627,40 @@ static void display_menu_get_camera_param_range(flash_camera_slot_t slot,
                                                 uint16 *max_value,
                                                 uint16 *step_value)
 {
-    if(0 == min_value || 0 == max_value || 0 == step_value)
-    {
-        return;
-    }
+    uint16 min_value_local = 0;
+    uint16 max_value_local = 0;
+    uint16 step_value_local = 0;
 
     switch(slot)
     {
-        case FLASH_CAMERA_SLOT_AUTO_EXP:
-            *min_value = FLASH_CAMERA_AUTO_EXP_MIN;
-            *max_value = FLASH_CAMERA_AUTO_EXP_MAX;
-            *step_value = FLASH_CAMERA_AUTO_EXP_STEP;
-            break;
         case FLASH_CAMERA_SLOT_EXP_TIME:
-            *min_value = FLASH_CAMERA_EXP_TIME_MIN;
-            *max_value = FLASH_CAMERA_EXP_TIME_MAX;
-            *step_value = FLASH_CAMERA_EXP_TIME_STEP;
+            min_value_local = FLASH_CAMERA_EXP_TIME_MIN;
+            max_value_local = FLASH_CAMERA_EXP_TIME_MAX;
+            step_value_local = FLASH_CAMERA_EXP_TIME_STEP;
             break;
         case FLASH_CAMERA_SLOT_GAIN:
-            *min_value = FLASH_CAMERA_GAIN_MIN;
-            *max_value = FLASH_CAMERA_GAIN_MAX;
-            *step_value = FLASH_CAMERA_GAIN_STEP;
+            min_value_local = FLASH_CAMERA_GAIN_MIN;
+            max_value_local = FLASH_CAMERA_GAIN_MAX;
+            step_value_local = FLASH_CAMERA_GAIN_STEP;
             break;
         default:
-            *min_value = 0;
-            *max_value = 0;
-            *step_value = 0;
             break;
     }
-}
 
-static void display_menu_draw_case_param_row(flash_param_slot_t slot)
-{
-    char value_text[5];
-    const char *label_text = 0;
-    uint16 row_y = 0;
-    uint16 guide_color = RGB565_GRAY;
-    uint16 label_color = RGB565_BLACK;
-    uint16 value_color = RGB565_BLACK;
-    int16 value_tenth = 0;
-
-    row_y = display_menu_get_row_y((uint8)slot);
-    label_text = display_menu_get_case_param_label(slot);
-    value_tenth = flash_store_get_param_value_tenth(slot);
-    display_menu_format_param_value(value_tenth, value_text);
-
-    display_menu_draw_rect(MENU_PARAM_ACCENT_X,
-                           (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
-                           MENU_PARAM_ACCENT_W,
-                           MENU_PARAM_ACCENT_H,
-                           RGB565_WHITE);
-
-    if(slot == g_case_param_selected)
+    if(0 != min_value)
     {
-        guide_color = g_param_editing ? RGB565_RED : RGB565_BLUE;
-        label_color = guide_color;
-        value_color = guide_color;
-        display_menu_draw_rect(MENU_PARAM_ACCENT_X,
-                               (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
-                               MENU_PARAM_ACCENT_W,
-                               MENU_PARAM_ACCENT_H,
-                               guide_color);
-    }
-    else
-    {
-        label_color = RGB565_GRAY;
+        *min_value = min_value_local;
     }
 
-    ips200_set_color(label_color, RGB565_WHITE);
-    ips200_show_string(MENU_PARAM_LABEL_X, row_y, MENU_PARAM_LABEL_CLEAR);
-    ips200_show_string(MENU_PARAM_LABEL_X, row_y, label_text);
-
-    ips200_set_color(value_color, RGB565_WHITE);
-    ips200_show_string(MENU_PARAM_VALUE_X, row_y, MENU_PARAM_VALUE_CLEAR);
-    ips200_show_string(MENU_PARAM_VALUE_X, row_y, value_text);
-}
-
-static void display_menu_draw_case_param_info(void)
-{
-    char min_text[5];
-    char max_text[5];
-    char step_text[5];
-
-    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
-    ips200_show_string(0, MENU_PARAM_INFO_Y, MENU_PARAM_INFO_CLEAR);
-    if(!g_param_editing)
+    if(0 != max_value)
     {
-        return;
+        *max_value = max_value_local;
     }
 
-    display_menu_format_param_value(FLASH_PARAM_VALUE_MIN_TENTH, min_text);
-    display_menu_format_param_value(FLASH_PARAM_VALUE_MAX_TENTH, max_text);
-    display_menu_format_param_value(FLASH_PARAM_VALUE_STEP_TENTH, step_text);
-
-    ips200_set_color(RGB565_GRAY, RGB565_WHITE);
-    ips200_show_string(0, MENU_PARAM_INFO_Y, "min");
-    ips200_show_string(64, MENU_PARAM_INFO_Y, "max");
-    ips200_show_string(136, MENU_PARAM_INFO_Y, "sp");
-
-    ips200_set_color(RGB565_GREEN, RGB565_WHITE);
-    ips200_show_string(24, MENU_PARAM_INFO_Y, min_text);
-
-    ips200_set_color(RGB565_RED, RGB565_WHITE);
-    ips200_show_string(88, MENU_PARAM_INFO_Y, max_text);
-
-    ips200_set_color(RGB565_BLUE, RGB565_WHITE);
-    ips200_show_string(152, MENU_PARAM_INFO_Y, step_text);
-}
-
-static void display_menu_draw_case_param_page_full(void)
-{
-    ips200_clear(RGB565_WHITE);
-
-    display_menu_draw_title("Current Test");
-    display_menu_draw_battery(1);
-    display_menu_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
-    display_menu_draw_case_param_row(FLASH_PARAM_SLOT_FIRST);
-    display_menu_draw_case_param_row(FLASH_PARAM_SLOT_SECOND);
-    display_menu_draw_case_param_info();
-}
-
-static void display_menu_refresh_case_selection(flash_param_slot_t previous_slot)
-{
-    display_menu_draw_case_param_row(previous_slot);
-    display_menu_draw_case_param_row(g_case_param_selected);
-}
-
-static void display_menu_refresh_case_mode(void)
-{
-    display_menu_draw_case_param_row(g_case_param_selected);
-    display_menu_draw_case_param_info();
-}
-
-static void display_menu_refresh_case_value(void)
-{
-    display_menu_draw_case_param_row(g_case_param_selected);
-    display_menu_draw_case_param_info();
-}
-
-static void display_menu_case_param_select_up(void)
-{
-    flash_param_slot_t previous_slot = g_case_param_selected;
-
-    if(FLASH_PARAM_SLOT_FIRST == g_case_param_selected)
+    if(0 != step_value)
     {
-        g_case_param_selected = FLASH_PARAM_SLOT_SECOND;
+        *step_value = step_value_local;
     }
-    else
-    {
-        g_case_param_selected = (flash_param_slot_t)(g_case_param_selected - 1);
-    }
-
-    display_menu_refresh_case_selection(previous_slot);
-}
-
-static void display_menu_case_param_select_down(void)
-{
-    flash_param_slot_t previous_slot = g_case_param_selected;
-
-    g_case_param_selected = (flash_param_slot_t)(g_case_param_selected + 1);
-    if(g_case_param_selected >= FLASH_PARAM_SLOT_COUNT)
-    {
-        g_case_param_selected = FLASH_PARAM_SLOT_FIRST;
-    }
-
-    display_menu_refresh_case_selection(previous_slot);
-}
-
-static void display_menu_case_param_adjust(int16 delta_tenth)
-{
-    int16 current_value = 0;
-    int16 next_value = 0;
-
-    current_value = flash_store_get_param_value_tenth(g_case_param_selected);
-    next_value = (int16)(current_value + delta_tenth);
-
-    if(next_value < FLASH_PARAM_VALUE_MIN_TENTH)
-    {
-        next_value = FLASH_PARAM_VALUE_MIN_TENTH;
-    }
-    else if(next_value > FLASH_PARAM_VALUE_MAX_TENTH)
-    {
-        next_value = FLASH_PARAM_VALUE_MAX_TENTH;
-    }
-
-    if(next_value != current_value)
-    {
-        flash_store_set_param_value_tenth(g_case_param_selected, next_value);
-        display_menu_refresh_case_value();
-    }
-}
-
-static void display_menu_case_param_adjust_by_step_mul(int8 direction, uint8 step_mul)
-{
-    int32 delta_tenth = 0;
-
-    if(0 == direction || 0 == step_mul)
-    {
-        return;
-    }
-
-    delta_tenth = (int32)FLASH_PARAM_VALUE_STEP_TENTH * (int32)step_mul;
-    if(direction < 0)
-    {
-        delta_tenth = -delta_tenth;
-    }
-
-    if(delta_tenth > 32767)
-    {
-        delta_tenth = 32767;
-    }
-    else if(delta_tenth < -32768)
-    {
-        delta_tenth = -32768;
-    }
-
-    display_menu_case_param_adjust((int16)delta_tenth);
 }
 
 static void display_menu_draw_camera_param_row(flash_camera_slot_t slot)
@@ -869,13 +763,7 @@ static void display_menu_refresh_camera_selection(flash_camera_slot_t previous_s
     display_menu_draw_camera_param_row(g_camera_param_selected);
 }
 
-static void display_menu_refresh_camera_mode(void)
-{
-    display_menu_draw_camera_param_row(g_camera_param_selected);
-    display_menu_draw_camera_param_info();
-}
-
-static void display_menu_refresh_camera_value(void)
+static void display_menu_refresh_camera_current(void)
 {
     display_menu_draw_camera_param_row(g_camera_param_selected);
     display_menu_draw_camera_param_info();
@@ -918,11 +806,10 @@ static void display_menu_camera_param_adjust(int16 delta)
     uint16 current_value = 0;
     uint16 min_value = 0;
     uint16 max_value = 0;
-    uint16 step_value = 0;
     int32 next_value = 0;
 
     current_value = flash_store_get_camera_value(g_camera_param_selected);
-    display_menu_get_camera_param_range(g_camera_param_selected, &min_value, &max_value, &step_value);
+    display_menu_get_camera_param_range(g_camera_param_selected, &min_value, &max_value, 0);
     next_value = (int32)current_value + (int32)delta;
 
     if(next_value < min_value)
@@ -938,40 +825,24 @@ static void display_menu_camera_param_adjust(int16 delta)
     {
         if(line_app_set_camera_param_value(g_camera_param_selected, (uint16)next_value))
         {
-            display_menu_refresh_camera_value();
+            display_menu_refresh_camera_current();
         }
     }
 }
 
 static void display_menu_camera_param_adjust_by_step_mul(int8 direction, uint8 step_mul)
 {
-    uint16 min_value = 0;
-    uint16 max_value = 0;
     uint16 step_value = 0;
-    int32 delta = 0;
+    int16 delta = 0;
 
-    if(0 == direction || 0 == step_mul)
+    display_menu_get_camera_param_range(g_camera_param_selected, 0, 0, &step_value);
+    delta = display_menu_build_step_delta(step_value, direction, step_mul);
+    if(0 == delta)
     {
         return;
     }
 
-    display_menu_get_camera_param_range(g_camera_param_selected, &min_value, &max_value, &step_value);
-    delta = (int32)step_value * (int32)step_mul;
-    if(direction < 0)
-    {
-        delta = -delta;
-    }
-
-    if(delta > 32767)
-    {
-        delta = 32767;
-    }
-    else if(delta < -32768)
-    {
-        delta = -32768;
-    }
-
-    display_menu_camera_param_adjust((int16)delta);
+    display_menu_camera_param_adjust(delta);
 }
 
 static void display_menu_fill_default_start_page(flash_start_page_t *page)
@@ -1291,29 +1162,15 @@ static void display_menu_start_adjust_speed(int16 delta)
 
 static void display_menu_start_adjust_speed_by_step_mul(int8 direction, uint8 step_mul)
 {
-    int32 delta = 0;
+    int16 delta = 0;
 
-    if(0 == direction || 0 == step_mul)
+    delta = display_menu_build_step_delta(FLASH_START_SPEED_STEP, direction, step_mul);
+    if(0 == delta)
     {
         return;
     }
 
-    delta = (int32)FLASH_START_SPEED_STEP * (int32)step_mul;
-    if(direction < 0)
-    {
-        delta = -delta;
-    }
-
-    if(delta > 32767)
-    {
-        delta = 32767;
-    }
-    else if(delta < -32768)
-    {
-        delta = -32768;
-    }
-
-    display_menu_start_adjust_speed((int16)delta);
+    display_menu_start_adjust_speed(delta);
 }
 
 static void display_menu_start_toggle_enable(void)
@@ -1558,41 +1415,150 @@ static void display_menu_line_tune_adjust(line_tune_slot_t slot, int16 delta)
 /* 长按加速时按 step 的倍数改，保持和 Camera 页一致的手感。 */
 static void display_menu_line_tune_adjust_by_step_mul(line_tune_slot_t slot, int8 direction, uint8 step_mul)
 {
-    uint16 min_value = 0;
-    uint16 max_value = 0;
     uint16 step_value = 0;
-    int32 delta = 0;
+    int16 delta = 0;
 
-    if(0 == direction || 0 == step_mul)
+    line_app_get_tune_range(slot, 0, 0, &step_value);
+    delta = display_menu_build_step_delta(step_value, direction, step_mul);
+    if(0 == delta)
     {
         return;
     }
 
-    line_app_get_tune_range(slot, &min_value, &max_value, &step_value);
-    delta = (int32)step_value * (int32)step_mul;
-    if(direction < 0)
+    display_menu_line_tune_adjust(slot, delta);
+}
+
+static void display_menu_draw_line_page(const display_line_page_t *line_page)
+{
+    if(0 == line_page)
     {
-        delta = -delta;
+        return;
     }
 
-    if(delta > 32767)
+    display_menu_draw_line_tune_page_full(line_page->title,
+                                          line_page->slot_list,
+                                          line_page->slot_count,
+                                          *line_page->selected_slot);
+}
+
+static void display_menu_refresh_line_page_mode(const display_line_page_t *line_page)
+{
+    if(0 == line_page)
     {
-        delta = 32767;
-    }
-    else if(delta < -32768)
-    {
-        delta = -32768;
+        return;
     }
 
-    display_menu_line_tune_adjust(slot, (int16)delta);
+    display_menu_refresh_line_tune_mode(line_page->slot_list,
+                                        line_page->slot_count,
+                                        *line_page->selected_slot);
+}
+
+static void display_menu_refresh_line_page_value(const display_line_page_t *line_page)
+{
+    if(0 == line_page)
+    {
+        return;
+    }
+
+    display_menu_refresh_line_tune_value(line_page->slot_list,
+                                         line_page->slot_count,
+                                         *line_page->selected_slot);
+}
+
+static uint8 display_menu_handle_line_page_move(int8 direction)
+{
+    const display_line_page_t *line_page = 0;
+
+    line_page = display_menu_get_line_page(g_menu_page);
+    if(0 == line_page)
+    {
+        return 0;
+    }
+
+    if(g_param_editing)
+    {
+        display_menu_line_tune_adjust_by_step_mul(*line_page->selected_slot, direction, 1);
+        display_menu_refresh_line_page_value(line_page);
+    }
+    else if(direction > 0)
+    {
+        display_menu_line_tune_select_up(line_page->slot_list,
+                                         line_page->slot_count,
+                                         line_page->selected_slot);
+    }
+    else
+    {
+        display_menu_line_tune_select_down(line_page->slot_list,
+                                           line_page->slot_count,
+                                           line_page->selected_slot);
+    }
+
+    return 1;
+}
+
+static uint8 display_menu_handle_line_page_fast(int8 direction)
+{
+    const display_line_page_t *line_page = 0;
+
+    if(!g_param_editing)
+    {
+        return 0;
+    }
+
+    line_page = display_menu_get_line_page(g_menu_page);
+    if(0 == line_page)
+    {
+        return 0;
+    }
+
+    display_menu_line_tune_adjust_by_step_mul(*line_page->selected_slot, direction, MENU_PARAM_FAST_STEP_MUL);
+    display_menu_refresh_line_page_value(line_page);
+    return 1;
+}
+
+static uint8 display_menu_handle_line_page_enter(void)
+{
+    const display_line_page_t *line_page = 0;
+
+    line_page = display_menu_get_line_page(g_menu_page);
+    if(0 == line_page)
+    {
+        return 0;
+    }
+
+    g_param_editing = (uint8)!g_param_editing;
+    display_menu_refresh_line_page_mode(line_page);
+    return 1;
+}
+
+static uint8 display_menu_handle_line_page_back(void)
+{
+    const display_line_page_t *line_page = 0;
+
+    line_page = display_menu_get_line_page(g_menu_page);
+    if(0 == line_page)
+    {
+        return 0;
+    }
+
+    if(g_param_editing)
+    {
+        g_param_editing = 0;
+        display_menu_refresh_line_page_mode(line_page);
+        return 1;
+    }
+
+    line_app_save_tune_page();
+    g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
+    display_menu_mark_dirty();
+    display_menu_render();
+    return 1;
 }
 
 /* Line Tune 三个子页共用这一条离页保存逻辑，避免调参过程中频繁写 flash。 */
 static void display_menu_commit_line_tune_before_leave(void)
 {
-    if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page ||
-       DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page ||
-       DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
+    if(0 != display_menu_get_line_page(g_menu_page))
     {
         line_app_save_tune_page();
     }
@@ -1642,6 +1608,59 @@ static void display_menu_draw_param_menu(void)
     }
 }
 
+static void display_menu_move_root_selection(int8 direction)
+{
+    uint8 previous_selected = 0;
+
+    previous_selected = g_menu_selected;
+    if(direction > 0)
+    {
+        if(0 == g_menu_selected)
+        {
+            g_menu_selected = MENU_ROOT_ITEM_COUNT - 1;
+        }
+        else
+        {
+            g_menu_selected--;
+        }
+    }
+    else
+    {
+        g_menu_selected++;
+        if(g_menu_selected >= MENU_ROOT_ITEM_COUNT)
+        {
+            g_menu_selected = 0;
+        }
+    }
+
+    if(g_menu_dirty)
+    {
+        display_menu_render();
+    }
+    else
+    {
+        display_menu_draw_root_item(previous_selected);
+        display_menu_draw_root_item(g_menu_selected);
+    }
+}
+
+static void display_menu_open_selected_line_page(void)
+{
+    const display_line_page_t *line_page = 0;
+
+    if(g_line_menu_selected >= MENU_ARRAY_COUNT(g_line_pages))
+    {
+        return;
+    }
+
+    line_page = &g_line_pages[g_line_menu_selected];
+    g_param_editing = 0;
+    *line_page->selected_slot = line_page->slot_list[0];
+    g_menu_page = line_page->page;
+    display_menu_mark_dirty();
+    display_menu_render();
+}
+
 static void display_menu_prepare_camera_view(void)
 {
     ips200_clear(RGB565_BLACK);
@@ -1671,7 +1690,6 @@ void display_menu_init(void)
     g_menu_page = DISPLAY_PAGE_ROOT;
     g_menu_dirty = 1;
     g_menu_last_battery_percent = 0xFF;
-    g_case_param_selected = FLASH_PARAM_SLOT_FIRST;
     g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
     g_line_menu_selected = 0;
     g_line_pid_selected = LINE_TUNE_SLOT_KP;
@@ -1684,6 +1702,8 @@ void display_menu_init(void)
 
 void display_menu_render(void)
 {
+    const display_line_page_t *line_page = 0;
+
     if(DISPLAY_PAGE_CAMERA == g_menu_page)
     {
         if(g_menu_dirty)
@@ -1697,6 +1717,14 @@ void display_menu_render(void)
     if(!g_menu_dirty)
     {
         display_menu_draw_battery(0);
+        return;
+    }
+
+    line_page = display_menu_get_line_page(g_menu_page);
+    if(0 != line_page)
+    {
+        display_menu_draw_line_page(line_page);
+        g_menu_dirty = 0;
         return;
     }
 
@@ -1717,27 +1745,6 @@ void display_menu_render(void)
         case DISPLAY_PAGE_PARAM_LINE_MENU:
             display_menu_draw_line_menu();
             break;
-        case DISPLAY_PAGE_PARAM_LINE_PID:
-            display_menu_draw_line_tune_page_full("Line PID",
-                                                  g_line_pid_slots,
-                                                  (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                                  g_line_pid_selected);
-            break;
-        case DISPLAY_PAGE_PARAM_PREVIEW:
-            display_menu_draw_line_tune_page_full("Preview",
-                                                  g_line_preview_slots,
-                                                  (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                                  g_line_preview_selected);
-            break;
-        case DISPLAY_PAGE_PARAM_SERVO_LIMIT:
-            display_menu_draw_line_tune_page_full("Servo Limit",
-                                                  g_line_servo_slots,
-                                                  (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                                  g_line_servo_selected);
-            break;
-        case DISPLAY_PAGE_PARAM_CASE:
-            display_menu_draw_case_param_page_full();
-            break;
         default:
             display_menu_draw_root();
             break;
@@ -1748,8 +1755,6 @@ void display_menu_render(void)
 
 void display_menu_move_up(void)
 {
-    uint8 previous_selected = 0;
-
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing && (START_SLOT_SPEED == g_start_selected))
@@ -1777,104 +1782,26 @@ void display_menu_move_up(void)
         return;
     }
 
-    if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page)
+    if(display_menu_handle_line_page_move(1))
     {
-        if(g_param_editing)
-        {
-            display_menu_line_tune_adjust_by_step_mul(g_line_pid_selected, 1, 1);
-            display_menu_refresh_line_tune_value(g_line_pid_slots,
-                                                 (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                                 g_line_pid_selected);
-        }
-        else
-        {
-            display_menu_line_tune_select_up(g_line_pid_slots,
-                                             (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                             &g_line_pid_selected);
-        }
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            display_menu_line_tune_adjust_by_step_mul(g_line_preview_selected, 1, 1);
-            display_menu_refresh_line_tune_value(g_line_preview_slots,
-                                                 (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                                 g_line_preview_selected);
-        }
-        else
-        {
-            display_menu_line_tune_select_up(g_line_preview_slots,
-                                             (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                             &g_line_preview_selected);
-        }
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            display_menu_line_tune_adjust_by_step_mul(g_line_servo_selected, 1, 1);
-            display_menu_refresh_line_tune_value(g_line_servo_slots,
-                                                 (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                                 g_line_servo_selected);
-        }
-        else
-        {
-            display_menu_line_tune_select_up(g_line_servo_slots,
-                                             (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                             &g_line_servo_selected);
-        }
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_CASE == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            display_menu_case_param_adjust_by_step_mul(1, 1);
-        }
-        else
-        {
-            display_menu_case_param_select_up();
-        }
         return;
     }
 
     if(DISPLAY_PAGE_PARAM_MENU == g_menu_page)
     {
-        previous_selected = g_param_menu_selected;
-        if(0 == g_param_menu_selected)
-        {
-            g_param_menu_selected = MENU_PARAM_MENU_ITEM_COUNT - 1;
-        }
-        else
-        {
-            g_param_menu_selected--;
-        }
-
-        display_menu_draw_param_menu_item(previous_selected);
-        display_menu_draw_param_menu_item(g_param_menu_selected);
+        display_menu_cycle_list_selection(&g_param_menu_selected,
+                                          MENU_PARAM_MENU_ITEM_COUNT,
+                                          1,
+                                          display_menu_draw_param_menu_item);
         return;
     }
 
     if(DISPLAY_PAGE_PARAM_LINE_MENU == g_menu_page)
     {
-        previous_selected = g_line_menu_selected;
-        if(0 == g_line_menu_selected)
-        {
-            g_line_menu_selected = MENU_LINE_MENU_ITEM_COUNT - 1;
-        }
-        else
-        {
-            g_line_menu_selected--;
-        }
-
-        display_menu_draw_line_menu_item(previous_selected);
-        display_menu_draw_line_menu_item(g_line_menu_selected);
+        display_menu_cycle_list_selection(&g_line_menu_selected,
+                                          MENU_LINE_MENU_ITEM_COUNT,
+                                          1,
+                                          display_menu_draw_line_menu_item);
         return;
     }
 
@@ -1883,31 +1810,11 @@ void display_menu_move_up(void)
         return;
     }
 
-    previous_selected = g_menu_selected;
-    if(0 == g_menu_selected)
-    {
-        g_menu_selected = MENU_ROOT_ITEM_COUNT - 1;
-    }
-    else
-    {
-        g_menu_selected--;
-    }
-
-    if(g_menu_dirty)
-    {
-        display_menu_render();
-    }
-    else
-    {
-        display_menu_draw_root_item(previous_selected);
-        display_menu_draw_root_item(g_menu_selected);
-    }
+    display_menu_move_root_selection(1);
 }
 
 void display_menu_move_down(void)
 {
-    uint8 previous_selected = 0;
-
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing && (START_SLOT_SPEED == g_start_selected))
@@ -1935,98 +1842,26 @@ void display_menu_move_down(void)
         return;
     }
 
-    if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page)
+    if(display_menu_handle_line_page_move(-1))
     {
-        if(g_param_editing)
-        {
-            display_menu_line_tune_adjust_by_step_mul(g_line_pid_selected, -1, 1);
-            display_menu_refresh_line_tune_value(g_line_pid_slots,
-                                                 (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                                 g_line_pid_selected);
-        }
-        else
-        {
-            display_menu_line_tune_select_down(g_line_pid_slots,
-                                               (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                               &g_line_pid_selected);
-        }
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            display_menu_line_tune_adjust_by_step_mul(g_line_preview_selected, -1, 1);
-            display_menu_refresh_line_tune_value(g_line_preview_slots,
-                                                 (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                                 g_line_preview_selected);
-        }
-        else
-        {
-            display_menu_line_tune_select_down(g_line_preview_slots,
-                                               (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                               &g_line_preview_selected);
-        }
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            display_menu_line_tune_adjust_by_step_mul(g_line_servo_selected, -1, 1);
-            display_menu_refresh_line_tune_value(g_line_servo_slots,
-                                                 (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                                 g_line_servo_selected);
-        }
-        else
-        {
-            display_menu_line_tune_select_down(g_line_servo_slots,
-                                               (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                               &g_line_servo_selected);
-        }
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_CASE == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            display_menu_case_param_adjust_by_step_mul(-1, 1);
-        }
-        else
-        {
-            display_menu_case_param_select_down();
-        }
         return;
     }
 
     if(DISPLAY_PAGE_PARAM_MENU == g_menu_page)
     {
-        previous_selected = g_param_menu_selected;
-        g_param_menu_selected++;
-        if(g_param_menu_selected >= MENU_PARAM_MENU_ITEM_COUNT)
-        {
-            g_param_menu_selected = 0;
-        }
-
-        display_menu_draw_param_menu_item(previous_selected);
-        display_menu_draw_param_menu_item(g_param_menu_selected);
+        display_menu_cycle_list_selection(&g_param_menu_selected,
+                                          MENU_PARAM_MENU_ITEM_COUNT,
+                                          -1,
+                                          display_menu_draw_param_menu_item);
         return;
     }
 
     if(DISPLAY_PAGE_PARAM_LINE_MENU == g_menu_page)
     {
-        previous_selected = g_line_menu_selected;
-        g_line_menu_selected++;
-        if(g_line_menu_selected >= MENU_LINE_MENU_ITEM_COUNT)
-        {
-            g_line_menu_selected = 0;
-        }
-
-        display_menu_draw_line_menu_item(previous_selected);
-        display_menu_draw_line_menu_item(g_line_menu_selected);
+        display_menu_cycle_list_selection(&g_line_menu_selected,
+                                          MENU_LINE_MENU_ITEM_COUNT,
+                                          -1,
+                                          display_menu_draw_line_menu_item);
         return;
     }
 
@@ -2035,22 +1870,7 @@ void display_menu_move_down(void)
         return;
     }
 
-    previous_selected = g_menu_selected;
-    g_menu_selected++;
-    if(g_menu_selected >= MENU_ROOT_ITEM_COUNT)
-    {
-        g_menu_selected = 0;
-    }
-
-    if(g_menu_dirty)
-    {
-        display_menu_render();
-    }
-    else
-    {
-        display_menu_draw_root_item(previous_selected);
-        display_menu_draw_root_item(g_menu_selected);
-    }
+    display_menu_move_root_selection(-1);
 }
 
 void display_menu_move_up_fast(void)
@@ -2071,32 +1891,11 @@ void display_menu_move_up_fast(void)
     else if(DISPLAY_PAGE_PARAM_CAMERA == g_menu_page)
     {
         display_menu_camera_param_adjust_by_step_mul(1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_camera_value();
+        display_menu_refresh_camera_current();
     }
-    else if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page)
+    else
     {
-        display_menu_line_tune_adjust_by_step_mul(g_line_pid_selected, 1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_line_tune_value(g_line_pid_slots,
-                                             (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                             g_line_pid_selected);
-    }
-    else if(DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page)
-    {
-        display_menu_line_tune_adjust_by_step_mul(g_line_preview_selected, 1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_line_tune_value(g_line_preview_slots,
-                                             (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                             g_line_preview_selected);
-    }
-    else if(DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
-    {
-        display_menu_line_tune_adjust_by_step_mul(g_line_servo_selected, 1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_line_tune_value(g_line_servo_slots,
-                                             (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                             g_line_servo_selected);
-    }
-    else if(DISPLAY_PAGE_PARAM_CASE == g_menu_page)
-    {
-        display_menu_case_param_adjust_by_step_mul(1, MENU_PARAM_FAST_STEP_MUL);
+        display_menu_handle_line_page_fast(1);
     }
 }
 
@@ -2118,32 +1917,11 @@ void display_menu_move_down_fast(void)
     else if(DISPLAY_PAGE_PARAM_CAMERA == g_menu_page)
     {
         display_menu_camera_param_adjust_by_step_mul(-1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_camera_value();
+        display_menu_refresh_camera_current();
     }
-    else if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page)
+    else
     {
-        display_menu_line_tune_adjust_by_step_mul(g_line_pid_selected, -1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_line_tune_value(g_line_pid_slots,
-                                             (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                             g_line_pid_selected);
-    }
-    else if(DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page)
-    {
-        display_menu_line_tune_adjust_by_step_mul(g_line_preview_selected, -1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_line_tune_value(g_line_preview_slots,
-                                             (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                             g_line_preview_selected);
-    }
-    else if(DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
-    {
-        display_menu_line_tune_adjust_by_step_mul(g_line_servo_selected, -1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_line_tune_value(g_line_servo_slots,
-                                             (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                             g_line_servo_selected);
-    }
-    else if(DISPLAY_PAGE_PARAM_CASE == g_menu_page)
-    {
-        display_menu_case_param_adjust_by_step_mul(-1, MENU_PARAM_FAST_STEP_MUL);
+        display_menu_handle_line_page_fast(-1);
     }
 }
 
@@ -2167,41 +1945,12 @@ void display_menu_enter(void)
     if(DISPLAY_PAGE_PARAM_CAMERA == g_menu_page)
     {
         g_param_editing = (uint8)!g_param_editing;
-        display_menu_refresh_camera_mode();
+        display_menu_refresh_camera_current();
         return;
     }
 
-    if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page)
+    if(display_menu_handle_line_page_enter())
     {
-        g_param_editing = (uint8)!g_param_editing;
-        display_menu_refresh_line_tune_mode(g_line_pid_slots,
-                                            (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                            g_line_pid_selected);
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page)
-    {
-        g_param_editing = (uint8)!g_param_editing;
-        display_menu_refresh_line_tune_mode(g_line_preview_slots,
-                                            (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                            g_line_preview_selected);
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
-    {
-        g_param_editing = (uint8)!g_param_editing;
-        display_menu_refresh_line_tune_mode(g_line_servo_slots,
-                                            (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                            g_line_servo_selected);
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_CASE == g_menu_page)
-    {
-        g_param_editing = (uint8)!g_param_editing;
-        display_menu_refresh_case_mode();
         return;
     }
 
@@ -2225,24 +1974,7 @@ void display_menu_enter(void)
 
     if(DISPLAY_PAGE_PARAM_LINE_MENU == g_menu_page)
     {
-        g_param_editing = 0;
-        if(0 == g_line_menu_selected)
-        {
-            g_line_pid_selected = LINE_TUNE_SLOT_KP;
-            g_menu_page = DISPLAY_PAGE_PARAM_LINE_PID;
-        }
-        else if(1 == g_line_menu_selected)
-        {
-            g_line_preview_selected = LINE_TUNE_SLOT_NEAR_ROW;
-            g_menu_page = DISPLAY_PAGE_PARAM_PREVIEW;
-        }
-        else
-        {
-            g_line_servo_selected = LINE_TUNE_SLOT_SERVO_MIN;
-            g_menu_page = DISPLAY_PAGE_PARAM_SERVO_LIMIT;
-        }
-        display_menu_mark_dirty();
-        display_menu_render();
+        display_menu_open_selected_line_page();
         return;
     }
 
@@ -2297,7 +2029,7 @@ void display_menu_back(void)
         if(g_param_editing)
         {
             g_param_editing = 0;
-            display_menu_refresh_camera_mode();
+            display_menu_refresh_camera_current();
             return;
         }
 
@@ -2307,72 +2039,8 @@ void display_menu_back(void)
         return;
     }
 
-    if(DISPLAY_PAGE_PARAM_LINE_PID == g_menu_page)
+    if(display_menu_handle_line_page_back())
     {
-        if(g_param_editing)
-        {
-            g_param_editing = 0;
-            display_menu_refresh_line_tune_mode(g_line_pid_slots,
-                                                (uint8)(sizeof(g_line_pid_slots) / sizeof(g_line_pid_slots[0])),
-                                                g_line_pid_selected);
-            return;
-        }
-
-        display_menu_commit_line_tune_before_leave();
-        g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
-        display_menu_mark_dirty();
-        display_menu_render();
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_PREVIEW == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            g_param_editing = 0;
-            display_menu_refresh_line_tune_mode(g_line_preview_slots,
-                                                (uint8)(sizeof(g_line_preview_slots) / sizeof(g_line_preview_slots[0])),
-                                                g_line_preview_selected);
-            return;
-        }
-
-        display_menu_commit_line_tune_before_leave();
-        g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
-        display_menu_mark_dirty();
-        display_menu_render();
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_SERVO_LIMIT == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            g_param_editing = 0;
-            display_menu_refresh_line_tune_mode(g_line_servo_slots,
-                                                (uint8)(sizeof(g_line_servo_slots) / sizeof(g_line_servo_slots[0])),
-                                                g_line_servo_selected);
-            return;
-        }
-
-        display_menu_commit_line_tune_before_leave();
-        g_menu_page = DISPLAY_PAGE_PARAM_LINE_MENU;
-        display_menu_mark_dirty();
-        display_menu_render();
-        return;
-    }
-
-    if(DISPLAY_PAGE_PARAM_CASE == g_menu_page)
-    {
-        if(g_param_editing)
-        {
-            g_param_editing = 0;
-            display_menu_refresh_case_mode();
-            return;
-        }
-
-        g_menu_page = DISPLAY_PAGE_PARAM_MENU;
-        display_menu_mark_dirty();
-        display_menu_render();
         return;
     }
 
