@@ -14,7 +14,7 @@
 #define MENU_LINE_HEIGHT            (16)
 #define MENU_ROOT_ITEM_COUNT        (3)
 #define MENU_PARAM_MENU_ITEM_COUNT  (2)
-#define MENU_LINE_MENU_ITEM_COUNT   (3)
+#define MENU_LINE_MENU_ITEM_COUNT   (2)
 #define MENU_ARRAY_COUNT(array)     ((uint8)(sizeof(array) / sizeof((array)[0])))
 #define MENU_TITLE_Y                (0)
 #define MENU_ROOT_LIST_Y            (16)
@@ -52,7 +52,6 @@ typedef enum
     DISPLAY_PAGE_PARAM_CAMERA,
     DISPLAY_PAGE_PARAM_LINE_MENU,
     DISPLAY_PAGE_PARAM_LINE_PID,
-    DISPLAY_PAGE_PARAM_PREVIEW,
     DISPLAY_PAGE_PARAM_SERVO_LIMIT
 } display_page_t;
 
@@ -72,7 +71,6 @@ static const char *g_param_menu_titles[MENU_PARAM_MENU_ITEM_COUNT] =
 static const char *g_line_menu_titles[MENU_LINE_MENU_ITEM_COUNT] =
 {
     "Line PID",
-    "Preview",
     "Servo Limit"
 };
 
@@ -80,14 +78,6 @@ static const line_tune_slot_t g_line_pid_slots[2] =
 {
     LINE_TUNE_SLOT_KP,
     LINE_TUNE_SLOT_KD
-};
-
-static const line_tune_slot_t g_line_preview_slots[4] =
-{
-    LINE_TUNE_SLOT_NEAR_ROW,
-    LINE_TUNE_SLOT_FAR_ROW,
-    LINE_TUNE_SLOT_NEAR_WEIGHT,
-    LINE_TUNE_SLOT_FAR_WEIGHT
 };
 
 static const line_tune_slot_t g_line_servo_slots[2] =
@@ -121,7 +111,6 @@ static uint8 g_menu_last_battery_percent = 0xFF;
 static flash_camera_slot_t g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
 static uint8 g_line_menu_selected = 0;
 static line_tune_slot_t g_line_pid_selected = LINE_TUNE_SLOT_KP;
-static line_tune_slot_t g_line_preview_selected = LINE_TUNE_SLOT_NEAR_ROW;
 static line_tune_slot_t g_line_servo_selected = LINE_TUNE_SLOT_SERVO_MIN;
 static start_slot_t g_start_selected = START_SLOT_SPEED;
 static flash_start_page_t g_start_page = {FLASH_START_SPEED_DEFAULT, FLASH_START_ENABLE_DEFAULT, 0};
@@ -130,7 +119,6 @@ static uint8 g_param_editing = 0;
 static const display_line_page_t g_line_pages[MENU_LINE_MENU_ITEM_COUNT] =
 {
     {DISPLAY_PAGE_PARAM_LINE_PID, "Line PID", g_line_pid_slots, MENU_ARRAY_COUNT(g_line_pid_slots), &g_line_pid_selected},
-    {DISPLAY_PAGE_PARAM_PREVIEW, "Preview", g_line_preview_slots, MENU_ARRAY_COUNT(g_line_preview_slots), &g_line_preview_selected},
     {DISPLAY_PAGE_PARAM_SERVO_LIMIT, "Servo Limit", g_line_servo_slots, MENU_ARRAY_COUNT(g_line_servo_slots), &g_line_servo_selected}
 };
 
@@ -479,14 +467,6 @@ static const char *display_menu_get_line_tune_label(line_tune_slot_t slot)
             return "kp";
         case LINE_TUNE_SLOT_KD:
             return "kd";
-        case LINE_TUNE_SLOT_NEAR_ROW:
-            return "near row";
-        case LINE_TUNE_SLOT_FAR_ROW:
-            return "far row";
-        case LINE_TUNE_SLOT_NEAR_WEIGHT:
-            return "near wt";
-        case LINE_TUNE_SLOT_FAR_WEIGHT:
-            return "far wt";
         case LINE_TUNE_SLOT_SERVO_MIN:
             return "servo min";
         case LINE_TUNE_SLOT_SERVO_MAX:
@@ -511,7 +491,7 @@ static void display_menu_format_line_tune_value(line_tune_slot_t slot, uint16 va
     }
 }
 
-/* near/far row、servo min/max 这类成对参数在显示层先收一遍，避免 UI 先送非法组合。 */
+/* servo min/max 这类成对参数在显示层先收一遍，避免 UI 先送非法组合。 */
 static void display_menu_get_line_tune_effective_range(line_tune_slot_t slot,
                                                        uint16 *min_value,
                                                        uint16 *max_value,
@@ -527,22 +507,6 @@ static void display_menu_get_line_tune_effective_range(line_tune_slot_t slot,
     line_app_get_tune_range(slot, min_value, max_value, step_value);
     switch(slot)
     {
-        case LINE_TUNE_SLOT_NEAR_ROW:
-            pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_FAR_ROW);
-            pair_value--;
-            if(pair_value < *max_value)
-            {
-                *max_value = pair_value;
-            }
-            break;
-        case LINE_TUNE_SLOT_FAR_ROW:
-            pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_NEAR_ROW);
-            pair_value++;
-            if(pair_value > *min_value)
-            {
-                *min_value = pair_value;
-            }
-            break;
         case LINE_TUNE_SLOT_SERVO_MIN:
             pair_value = line_app_get_tune_value(LINE_TUNE_SLOT_SERVO_MAX);
             pair_value--;
@@ -1279,7 +1243,7 @@ static void display_menu_draw_line_tune_info(line_tune_slot_t selected_slot)
     ips200_show_string(152, MENU_PARAM_INFO_Y, step_text);
 }
 
-/* Line PID / Preview / Servo Limit 三页都复用这一套通用渲染函数。 */
+/* Line PID / Servo Limit 两页都复用这一套通用渲染函数。 */
 static void display_menu_draw_line_tune_page_full(const char *title,
                                                   const line_tune_slot_t *slot_list,
                                                   uint8 slot_count,
@@ -1555,7 +1519,7 @@ static uint8 display_menu_handle_line_page_back(void)
     return 1;
 }
 
-/* Line Tune 三个子页共用这一条离页保存逻辑，避免调参过程中频繁写 flash。 */
+/* Line Tune 两个子页共用这一条离页保存逻辑，避免调参过程中频繁写 flash。 */
 static void display_menu_commit_line_tune_before_leave(void)
 {
     if(0 != display_menu_get_line_page(g_menu_page))
@@ -1674,7 +1638,6 @@ static void display_menu_enter_root_page(void)
     g_param_menu_selected = 0;
     g_line_menu_selected = 0;
     g_line_pid_selected = LINE_TUNE_SLOT_KP;
-    g_line_preview_selected = LINE_TUNE_SLOT_NEAR_ROW;
     g_line_servo_selected = LINE_TUNE_SLOT_SERVO_MIN;
     g_start_selected = START_SLOT_SPEED;
     g_param_editing = 0;
@@ -1693,7 +1656,6 @@ void display_menu_init(void)
     g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
     g_line_menu_selected = 0;
     g_line_pid_selected = LINE_TUNE_SLOT_KP;
-    g_line_preview_selected = LINE_TUNE_SLOT_NEAR_ROW;
     g_line_servo_selected = LINE_TUNE_SLOT_SERVO_MIN;
     g_start_selected = START_SLOT_SPEED;
     display_menu_load_start_page_from_flash();

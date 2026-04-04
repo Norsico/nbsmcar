@@ -5,14 +5,9 @@
 
 #define FLASH_STORE_ADDR                (0x0000)
 #define FLASH_STORE_MAGIC               (0x4653)
-#define FLASH_STORE_VERSION             (0x0002)
+#define FLASH_STORE_VERSION             (0x0003)
 #define FLASH_STORE_LINE_KP_MAX_TENTH   (100)
 #define FLASH_STORE_LINE_KD_MAX_TENTH   (100)
-#define FLASH_STORE_LINE_NEAR_ROW_MAX   (100)
-#define FLASH_STORE_LINE_FAR_ROW_MIN    (1)
-#define FLASH_STORE_LINE_FAR_ROW_MAX    (101)
-#define FLASH_STORE_LINE_WEIGHT_MIN     (1)
-#define FLASH_STORE_LINE_WEIGHT_MAX     (10)
 /* 先占用用户 EEPROM 的第一个扇区，后面扩参数也从这里接着走。 */
 
 typedef struct
@@ -75,31 +70,6 @@ static uint8 flash_store_line_tune_page_is_valid(const flash_line_tune_page_t *p
         return 0;
     }
 
-    if(page->near_row_offset > FLASH_STORE_LINE_NEAR_ROW_MAX)
-    {
-        return 0;
-    }
-
-    if(page->far_row_offset < FLASH_STORE_LINE_FAR_ROW_MIN || page->far_row_offset > FLASH_STORE_LINE_FAR_ROW_MAX)
-    {
-        return 0;
-    }
-
-    if(page->near_weight < FLASH_STORE_LINE_WEIGHT_MIN || page->near_weight > FLASH_STORE_LINE_WEIGHT_MAX)
-    {
-        return 0;
-    }
-
-    if(page->far_weight < FLASH_STORE_LINE_WEIGHT_MIN || page->far_weight > FLASH_STORE_LINE_WEIGHT_MAX)
-    {
-        return 0;
-    }
-
-    if(page->near_row_offset >= page->far_row_offset)
-    {
-        return 0;
-    }
-
     if(page->servo_min_angle >= page->servo_max_angle)
     {
         return 0;
@@ -135,10 +105,6 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     store_ptr->camera_page.gain = MT9V03X_GAIN_DEF;
     store_ptr->line_tune_page.kp_tenth = FLASH_LINE_KP_DEFAULT_TENTH;
     store_ptr->line_tune_page.kd_tenth = FLASH_LINE_KD_DEFAULT_TENTH;
-    store_ptr->line_tune_page.near_row_offset = FLASH_LINE_NEAR_ROW_DEFAULT;
-    store_ptr->line_tune_page.far_row_offset = FLASH_LINE_FAR_ROW_DEFAULT;
-    store_ptr->line_tune_page.near_weight = FLASH_LINE_NEAR_WEIGHT_DEFAULT;
-    store_ptr->line_tune_page.far_weight = FLASH_LINE_FAR_WEIGHT_DEFAULT;
     store_ptr->line_tune_page.servo_min_angle = FLASH_LINE_SERVO_MIN_DEFAULT;
     store_ptr->line_tune_page.servo_max_angle = FLASH_LINE_SERVO_MAX_DEFAULT;
     store_ptr->start_page.target_speed = FLASH_START_SPEED_DEFAULT;
@@ -180,6 +146,11 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
     }
 
     if(!flash_store_camera_value_in_range(FLASH_CAMERA_SLOT_GAIN, store_ptr->camera_page.gain))
+    {
+        return 0;
+    }
+
+    if(!flash_store_line_tune_page_is_valid(&store_ptr->line_tune_page))
     {
         return 0;
     }

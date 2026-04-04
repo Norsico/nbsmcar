@@ -20,10 +20,6 @@
 #define FLASH_CAMERA_GAIN_STEP          (1)     /* 图像增益步进：屏幕上每次调整加减 1。 */
 #define FLASH_LINE_KP_DEFAULT_TENTH     (12)    /* 巡线 KP 默认值 1.2，单位统一按 0.1 保存。 */
 #define FLASH_LINE_KD_DEFAULT_TENTH     (10)    /* 巡线 KD 默认值 1.0，单位统一按 0.1 保存。 */
-#define FLASH_LINE_NEAR_ROW_DEFAULT     (3)     /* 近点默认看车头附近第 3 行偏移。 */
-#define FLASH_LINE_FAR_ROW_DEFAULT      (15)    /* 远点默认比近点再往上提前 15 行。 */
-#define FLASH_LINE_NEAR_WEIGHT_DEFAULT  (3)     /* 近点默认权重 3，优先稳住车头。 */
-#define FLASH_LINE_FAR_WEIGHT_DEFAULT   (2)     /* 远点默认权重 2，给一点提前量。 */
 #define FLASH_LINE_SERVO_MIN_DEFAULT    (80)    /* 舵机默认左限幅。 */
 #define FLASH_LINE_SERVO_MAX_DEFAULT    (110)   /* 舵机默认右限幅。 */
 #define FLASH_START_SPEED_MIN           (0)     /* 启动页后轮目标速度下限，0 表示静止。 */
@@ -69,10 +65,6 @@ typedef struct
 {
     uint8 kp_tenth;         /* 巡线 KP，单位 0.1。 */
     uint8 kd_tenth;         /* 巡线 KD，单位 0.1。 */
-    uint8 near_row_offset;  /* 近点参考行，相对有效底部的偏移量。 */
-    uint8 far_row_offset;   /* 远点参考行，相对有效底部的偏移量。 */
-    uint8 near_weight;      /* 近点权重。 */
-    uint8 far_weight;       /* 远点权重。 */
     uint8 servo_min_angle;  /* 舵机最小角限制。 */
     uint8 servo_max_angle;  /* 舵机最大角限制。 */
 } flash_line_tune_page_t;
