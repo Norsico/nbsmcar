@@ -141,7 +141,7 @@ void main(void)
                 }
                 if(g_flag_encoder){
                     /* 准备态不跑后轮闭环，直接丢掉累计采样，避免待处理周期在后台越堆越多。 */
-                    system_take_encoder_pending_count();
+                    g_flag_encoder = 0;
                     encoder_clear();
                 }
                 if(g_flag_center){
@@ -188,7 +188,8 @@ void main(void)
             case SYS_RUNNING: // 运行状态
                 if(g_flag_encoder){
                     // 编码器
-                    encoder_update(system_take_encoder_pending_count());
+                    g_flag_encoder = 0;
+                    encoder_update(1);
                     // 更新后调用PID控制电机速度
                     car_wheel_update();
                     //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
