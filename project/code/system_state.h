@@ -69,6 +69,8 @@ extern vuint8 g_flag_display;                      // 显示刷新标志
 extern vuint8 g_flag_wifi;                         // WiFi任务标志
 #endif
 
+extern uint8 system_take_encoder_pending_count(void); // 原子取走待处理的编码器周期数
+
 
 /************ 定时器回调函数 ************/
 extern void system_tick_handler(void);            // 系统Tick中断处理，每1ms调用一次

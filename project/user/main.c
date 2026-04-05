@@ -19,10 +19,6 @@
 
 void main(void)
 {
-    uint8 ui_mode_enable = 0;
-    uint8 wifi_mode_enable = 0;
-    uint8 encoder_pending = 0;
-
     // 系统初始化
     clock_init(SYSTEM_CLOCK_96M);
     debug_init();
@@ -43,11 +39,9 @@ void main(void)
     other_init(); // 蜂鸣器激光笔、拨码开关
     switch_update(); // 上电时锁存当前拨码模式
     flash_store_init(); // 掉电保存参数初始化
-    ui_mode_enable = switch_ui_enabled();
-    wifi_mode_enable = switch_wifi_enabled();
 
 #if IPS_ENABLE
-    if(ui_mode_enable)
+    if(switch_ui_enabled())
     {
         display_init();
     }
@@ -62,7 +56,7 @@ void main(void)
     key_event_init(); // 按键事件初始化
     ackerman_init(); // 阿克曼运动学初始化
 #if WIFI_ENABLE
-    if(wifi_mode_enable)
+    if(switch_wifi_enabled())
     {
         tuning_param_boot_init(); // 根据拨码结果决定是否进入WiFi调参模式
     }
@@ -84,7 +78,7 @@ void main(void)
 
     // 调试器件初始化
 #if WIFI_ENABLE
-    if(wifi_mode_enable)
+    if(switch_wifi_enabled())
     {
         if(tuning_param_start_transport()){
             // 1代表失败
@@ -92,7 +86,7 @@ void main(void)
     }
 #endif
 #if IPS_ENABLE
-    if(ui_mode_enable)
+    if(switch_ui_enabled())
     {
         /* UI 模式下也提前拉起摄像头链路，进入第一页即可直接看图像。 */
         line_app_init();
@@ -103,14 +97,14 @@ void main(void)
 #else
     {
 #endif
-        if(!wifi_mode_enable || !tuning_param_should_skip_line_init()){
+        if(!switch_wifi_enabled() || !tuning_param_should_skip_line_init()){
             line_app_init();
         }
     }
 
     // 陀螺仪初始化并调零
 #if IPS_ENABLE
-    if(!ui_mode_enable)
+    if(!switch_ui_enabled())
     {
 #else
     {
@@ -147,13 +141,13 @@ void main(void)
                 }
                 if(g_flag_encoder){
                     /* 准备态不跑后轮闭环，直接丢掉累计采样，避免待处理周期在后台越堆越多。 */
-                    g_flag_encoder = 0;
+                    system_take_encoder_pending_count();
                     encoder_clear();
                 }
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
-                    if(ui_mode_enable)
+                    if(switch_ui_enabled())
                     {
                         if(display_menu_in_camera_view())
                         {
@@ -163,13 +157,13 @@ void main(void)
                     }
                     else
                     {
-                        if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
+                        if(!switch_wifi_enabled() || !tuning_param_should_pause_line_app()){
                             line_app_process_frame();
                         }
                     }
                 }
 #if IPS_ENABLE
-                if(ui_mode_enable && g_flag_display){
+                if(switch_ui_enabled() && g_flag_display){
                     // 屏幕
                     g_flag_display = 0;
                     if(display_menu_in_camera_view())
@@ -183,7 +177,7 @@ void main(void)
                 }
 #endif
 #if WIFI_ENABLE
-                if(wifi_mode_enable && g_flag_wifi){
+                if(switch_wifi_enabled() && g_flag_wifi){
                     // WiFi
                     g_flag_wifi = 0;
                     tuning_param_task();
@@ -194,9 +188,7 @@ void main(void)
             case SYS_RUNNING: // 运行状态
                 if(g_flag_encoder){
                     // 编码器
-                    encoder_pending = g_flag_encoder;
-                    g_flag_encoder = 0;
-                    encoder_update(encoder_pending);
+                    encoder_update(system_take_encoder_pending_count());
                     // 更新后调用PID控制电机速度
                     car_wheel_update();
                     //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
@@ -205,7 +197,7 @@ void main(void)
                     // 搜线算法
                     g_flag_center = 0;
                     // 屏幕打开
-                    if(ui_mode_enable)
+                    if(switch_ui_enabled())
                     {
                         // 打开预览
                         if(display_menu_in_camera_view())
@@ -216,7 +208,7 @@ void main(void)
                     }
                     else
                     {   // 关闭屏幕，关闭WIFI调参，赛道直接跑
-                        if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
+                        if(!switch_wifi_enabled() || !tuning_param_should_pause_line_app()){
                             line_app_process_frame();
                         }
                     }
@@ -232,7 +224,7 @@ void main(void)
                     key_event_poll();
                 }
 #if IPS_ENABLE
-                if(ui_mode_enable && g_flag_display){
+                if(switch_ui_enabled() && g_flag_display){
                     g_flag_display = 0;
                     if(display_menu_in_camera_view())
                     {
@@ -245,7 +237,7 @@ void main(void)
                 }
 #endif
 #if WIFI_ENABLE
-                if(wifi_mode_enable && g_flag_wifi){
+                if(switch_wifi_enabled() && g_flag_wifi){
                     g_flag_wifi = 0;
                     tuning_param_task();
                 }
