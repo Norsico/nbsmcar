@@ -2,9 +2,6 @@
 #include "system_state.h"
 
 // 配置蜂鸣器、激光笔初始化
-static uint8 g_switch_debug_enable = 1;
-static uint8 g_switch_ui_enable = 0;
-static uint8 g_switch_wifi_enable = 0;
 
 void other_init(void)
 {
@@ -46,33 +43,15 @@ void switch_update(void)
 
 #if IPS_ENABLE
     /* PB0 打开时走屏幕 UI 模式。 */
-    g_switch_ui_enable = screen_pin;
+    g_ips_enable = screen_pin;
 #else
-    g_switch_ui_enable = 0;
+    g_ips_enable = 0;
 #endif
 
 #if WIFI_ENABLE
     /* PB1 打开且屏幕关闭时，走无屏 WiFi 调参模式。 */
-    g_switch_wifi_enable = (uint8)(wifi_pin && !g_switch_ui_enable);
+    g_wifi_enable = (uint8)(wifi_pin && !g_ips_enable);
 #else
-    g_switch_wifi_enable = 0;
+    g_wifi_enable = 0;
 #endif
-
-    /* 统一保留一个调试总状态，当前等价于屏幕或 WiFi 任一模式被拨开。 */
-    g_switch_debug_enable = (uint8)(g_switch_ui_enable || g_switch_wifi_enable);
-}
-
-uint8 switch_debug_enabled(void)
-{
-    return g_switch_debug_enable;
-}
-
-uint8 switch_ui_enabled(void)
-{
-    return g_switch_ui_enable;
-}
-
-uint8 switch_wifi_enabled(void)
-{
-    return g_switch_wifi_enable;
 }

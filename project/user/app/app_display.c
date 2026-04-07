@@ -205,11 +205,6 @@ static void display_menu_draw_battery(uint8 force)
     uint16 fill_w = 0;
     uint8 percent = 0;
 
-    if(!power_adc_is_ready())
-    {
-        return;
-    }
-
     battery = (uint16)(power_adc_get_voltage() * 10.0f + 0.5f);
     if(battery <= BATTERY_EMPTY_DECI)
     {
@@ -1717,6 +1712,7 @@ void display_menu_render(void)
 
 void display_menu_move_up(void)
 {
+    if(!g_ips_enable) return;
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing && (START_SLOT_SPEED == g_start_selected))
@@ -1777,6 +1773,7 @@ void display_menu_move_up(void)
 
 void display_menu_move_down(void)
 {
+    if(!g_ips_enable) return;
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing && (START_SLOT_SPEED == g_start_selected))
@@ -1837,6 +1834,7 @@ void display_menu_move_down(void)
 
 void display_menu_move_up_fast(void)
 {
+    if(!g_ips_enable) return;
     if(!g_param_editing)
     {
         return;
@@ -1863,6 +1861,7 @@ void display_menu_move_up_fast(void)
 
 void display_menu_move_down_fast(void)
 {
+    if(!g_ips_enable) return;
     if(!g_param_editing)
     {
         return;
@@ -1889,6 +1888,7 @@ void display_menu_move_down_fast(void)
 
 void display_menu_enter(void)
 {
+    if(!g_ips_enable) return;
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(START_SLOT_SPEED == g_start_selected)
@@ -1968,6 +1968,7 @@ void display_menu_enter(void)
 
 void display_menu_back(void)
 {
+    if(!g_ips_enable) return;
     if(DISPLAY_PAGE_ROOT == g_menu_page)
     {
         return;
@@ -2025,6 +2026,7 @@ void display_menu_back(void)
 
 void display_menu_go_root(void)
 {
+    if(!g_ips_enable) return;
     if(DISPLAY_PAGE_ROOT == g_menu_page)
     {
         if(0 == g_menu_selected)

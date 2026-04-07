@@ -44,6 +44,10 @@ typedef enum {
 extern volatile system_state_t g_system_state;  // 系统当前状态
 extern uint8 system_error;                       // 系统错误标志
 
+// 使能标志位
+extern uint8 g_ips_enable; // 显示屏使能标志位
+extern uint8 g_wifi_enable; // WiFi使能标志位
+
 // 任务计时器
 extern vuint32 g_system_ticks;           // 系统Tick计数器
 extern vuint32 g_key_ticks;              // 按键扫描计时器

@@ -390,7 +390,7 @@ void line_app_render_frame(void)
         return;
     }
 
-    if(!switch_ui_enabled())
+    if(!g_ips_enable)
     {
         return;
     }
@@ -419,6 +419,7 @@ static uint8 line_app_handle_frame(void)
     return 1;
 }
 
+/* 搜线算法初始化 - 仅初始化PID和舵机 */
 void line_app_init(void)
 {
     pid_param_init(&g_line_servo_pid, LINE_TRACK_DEFAULT_KP, LINE_TRACK_DEFAULT_KI, LINE_TRACK_DEFAULT_KD, 0.0f, 0.0f);
@@ -427,23 +428,13 @@ void line_app_init(void)
     g_line_track_info.control_ready = 0;
     g_line_track_info.lost_frame_count = 0;
     car_servo_set_center();
+}
 
-#if IPS_ENABLE
-    if(switch_ui_enabled())
-    {
-        ips200_clear(RGB565_WHITE);
-        ips200_show_string(0, 0, "mt9v03x init.");
-    }
-#endif
-
+/* 总钻风摄像头初始化 - 初始化摄像头和加载配置，无屏幕操作 */
+void line_app_camera_init(void)
+{
     while(mt9v03x_init())
     {
-#if IPS_ENABLE
-        if(switch_ui_enabled())
-        {
-            ips200_show_string(0, 16, "mt9v03x reinit.");
-        }
-#endif
         system_delay_ms(100);
     }
 
@@ -451,13 +442,6 @@ void line_app_init(void)
     line_app_apply_tune_page_from_flash();
 
     line_camera_ready = 1;
-
-#if IPS_ENABLE
-    if(switch_ui_enabled())
-    {
-        ips200_show_string(0, 16, "init success.");
-    }
-#endif
 }
 
 uint8 line_app_process_frame(void)

@@ -7,7 +7,6 @@
 static key_event_handler_t key_event_table[KEY_MAX];
 
 static void key1_handler(key_state_t state){
-	if(!switch_ui_enabled()) return;
 	switch(state){
 		case KEY_IDLE:
 			break;
@@ -22,7 +21,6 @@ static void key1_handler(key_state_t state){
 		}
 }
 static void key2_handler(key_state_t state){
-	if(!switch_ui_enabled()) return;
 	switch(state){
 		case KEY_IDLE:
 			break;
@@ -37,7 +35,6 @@ static void key2_handler(key_state_t state){
 	}
 }
 static void key3_handler(key_state_t state){
-	if(!switch_ui_enabled()) return;
 	switch(state){
 		case KEY_IDLE:
 			break;
@@ -49,7 +46,6 @@ static void key3_handler(key_state_t state){
 		}
 }
 static void key4_handler(key_state_t state){
-	if(!switch_ui_enabled()) return;
 	switch(state){
 		case KEY_IDLE:
 			break;

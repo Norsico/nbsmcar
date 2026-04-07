@@ -19,10 +19,6 @@
 
 void main(void)
 {
-    uint8 ui_mode_enable = 0;
-    uint8 wifi_mode_enable = 0;
-    uint8 encoder_pending = 0;
-
     // 系统初始化
     clock_init(SYSTEM_CLOCK_96M);
     debug_init();
@@ -40,38 +36,43 @@ void main(void)
     }
 
     // ----- 正常启动 ------
-    other_init(); // 蜂鸣器激光笔、拨码开关
-    switch_update(); // 上电时锁存当前拨码模式
-    flash_store_init(); // 掉电保存参数初始化
-    ui_mode_enable = switch_ui_enabled();
-    wifi_mode_enable = switch_wifi_enabled();
-
-#if IPS_ENABLE
-    if(ui_mode_enable)
-    {
-        display_init();
-    }
-#endif
-    key_init(); // 按键
+		key_init(); // 按键
     power_adc_init(); // 电池电量ADC
-    car_servo_init(); // 舵机初始化并回中
+    other_init(); // 蜂鸣器激光笔、拨码开关
+    flash_store_init(); // 掉电保存参数初始化
+		car_servo_init(); // 舵机初始化并回中
     bldc_motor_init(); // 无刷电机
     car_wheel_init(); // 直流电机
     car_wheel_pid_init(); // 电机pid结构体初始化
     encoder_init(); // 编码器初始化
     key_event_init(); // 按键事件初始化
     ackerman_init(); // 阿克曼运动学初始化
-#if WIFI_ENABLE
-    if(wifi_mode_enable)
+		line_app_camera_init(); // 总钻风摄像头初始化
+		line_app_init(); // 搜线算法初始化
+		
+    switch_update(); // 上电时锁存当前拨码模式
+		
+		
+		// 调试相关
+#if IPS_ENABLE
+    if(g_ips_enable)
     {
-        tuning_param_boot_init(); // 根据拨码结果决定是否进入WiFi调参模式
+      display_init();
+			display_menu_init();
+			display_menu_render();
     }
 #endif
-    bldc_motor_stop();
-    car_wheel_stop_all();
-    car_wheel_set_target(0.0f);
-    car_servo_set_center();
-    display_menu_init(); // 无论是否开屏，都先恢复 Start 配置
+
+#if WIFI_ENABLE
+    if(g_wifi_enable)
+    {
+			// 根据拨码结果决定是否进入WiFi调参模式
+      tuning_param_boot_init(); 
+			tuning_param_start_transport();
+    }
+#endif
+
+    
 
     if(power_adc_judge()){
         // 低电量报警
@@ -82,43 +83,11 @@ void main(void)
         // g_system_state = SYS_EMERGENCY;
     }
 
-    // 调试器件初始化
-#if WIFI_ENABLE
-    if(wifi_mode_enable)
-    {
-        if(tuning_param_start_transport()){
-            // 1代表失败
-        }
-    }
-#endif
-#if IPS_ENABLE
-    if(ui_mode_enable)
-    {
-        /* UI 模式下也提前拉起摄像头链路，进入第一页即可直接看图像。 */
-        line_app_init();
-        display_menu_render();
-    }
-    else
-    {
-#else
-    {
-#endif
-        if(!wifi_mode_enable || !tuning_param_should_skip_line_init()){
-            line_app_init();
-        }
-    }
-
     // 陀螺仪初始化并调零
-#if IPS_ENABLE
-    if(!ui_mode_enable)
-    {
-#else
-    {
-#endif
-        if(!imu_init_with_retry()){
-            // 初始化成功
-            imu_calibrate(100); // 100 次采样计算零偏
-        }
+
+    if(!imu_init_with_retry()){
+       // 初始化成功
+       imu_calibrate(100); // 100 次采样计算零偏
     }
 
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
@@ -153,23 +122,10 @@ void main(void)
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
-                    if(ui_mode_enable)
-                    {
-                        if(display_menu_in_camera_view())
-                        {
-                            /* UI 相机页也更新舵机控制，避免只有图像预览没有转向输出。 */
-                            line_app_process_frame();
-                        }
-                    }
-                    else
-                    {
-                        if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
-                            line_app_process_frame();
-                        }
-                    }
+										line_app_process_frame();
                 }
 #if IPS_ENABLE
-                if(ui_mode_enable && g_flag_display){
+                if(g_ips_enable && g_flag_display){
                     // 屏幕
                     g_flag_display = 0;
                     if(display_menu_in_camera_view())
@@ -183,7 +139,7 @@ void main(void)
                 }
 #endif
 #if WIFI_ENABLE
-                if(wifi_mode_enable && g_flag_wifi){
+                if(g_wifi_enable && g_flag_wifi){
                     // WiFi
                     g_flag_wifi = 0;
                     tuning_param_task();
@@ -194,9 +150,8 @@ void main(void)
             case SYS_RUNNING: // 运行状态
                 if(g_flag_encoder){
                     // 编码器
-                    encoder_pending = g_flag_encoder;
+                    encoder_update(g_flag_encoder);
                     g_flag_encoder = 0;
-                    encoder_update(encoder_pending);
                     // 更新后调用PID控制电机速度
                     car_wheel_update();
                     //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
@@ -204,22 +159,8 @@ void main(void)
                 if(g_flag_center){
                     // 搜线算法
                     g_flag_center = 0;
+										line_app_process_frame();
                     // 屏幕打开
-                    if(ui_mode_enable)
-                    {
-                        // 打开预览
-                        if(display_menu_in_camera_view())
-                        {
-                            line_app_process_frame();
-                        }
-                        // 不开预览UI界面舵机不动
-                    }
-                    else
-                    {   // 关闭屏幕，关闭WIFI调参，赛道直接跑
-                        if(!wifi_mode_enable || !tuning_param_should_pause_line_app()){
-                            line_app_process_frame();
-                        }
-                    }
                 }
                 if(g_flag_imu){
                     // IMU
@@ -232,7 +173,7 @@ void main(void)
                     key_event_poll();
                 }
 #if IPS_ENABLE
-                if(ui_mode_enable && g_flag_display){
+                if(g_ips_enable && g_flag_display){
                     g_flag_display = 0;
                     if(display_menu_in_camera_view())
                     {
@@ -245,7 +186,7 @@ void main(void)
                 }
 #endif
 #if WIFI_ENABLE
-                if(wifi_mode_enable && g_flag_wifi){
+                if(g_wifi_enable && g_flag_wifi){
                     g_flag_wifi = 0;
                     tuning_param_task();
                 }

@@ -15,6 +15,7 @@ typedef enum
 } line_tune_slot_t;
 
 void line_app_init(void);
+void line_app_camera_init(void);
 uint8 line_app_process_frame(void);
 uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value);
 void line_app_get_tune_range(line_tune_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value);

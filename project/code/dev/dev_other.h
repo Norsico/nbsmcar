@@ -18,8 +18,5 @@ void laser_on(void);
 void laser_off(void);
 // 拨码开关
 void switch_update(void);
-uint8 switch_debug_enabled(void);
-uint8 switch_ui_enabled(void);
-uint8 switch_wifi_enabled(void);
 
 #endif
