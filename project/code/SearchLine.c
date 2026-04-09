@@ -1,4 +1,5 @@
 #include "SearchLine.h"
+#include "dev_servo.h"
 
 #define SEARCH_LINE_OTSU_W                  (80)
 #define SEARCH_LINE_OTSU_H                  (60)
@@ -18,6 +19,22 @@
 #define SEARCH_LINE_OTSU_MIN_WIDTH          (7)
 #define SEARCH_LINE_OTSU_EDGE_LIMIT         (10)
 #define SEARCH_LINE_OTSU_SCAN_WINDOW        (2)
+#define SEARCH_LINE_OTSU_MIDDLE_LINE        (SEARCH_LINE_OTSU_W / 2 - 1)
+/* 普通赛道固定前瞻行。
+ * 当前先固定在 20 行，后续接速度自适应前瞻时再按参考逻辑放开。
+ */
+#define SEARCH_LINE_OTSU_DET_TOW_POINT      (20)
+#define SEARCH_LINE_OTSU_DET_WINDOW         (5)
+#define SEARCH_LINE_OTSU_DET_TOW_POINT_MAX  (49)
+#define SEARCH_LINE_OTSU_VARIANCE_ACC_LIMIT (32)
+#define SEARCH_LINE_OTSU_STRAIGHT_OFFLINE_MAX (8)
+#define SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX (1)
+#define SEARCH_LINE_STEER_REF_MIDDLE_DUTY   (4880.0f)
+#define SEARCH_LINE_STEER_REF_RIGHT_DUTY    (4100.0f)
+#define SEARCH_LINE_STEER_REF_LEFT_DUTY     (5520.0f)
+/* 参考代码里默认舵机参数主要走 flash，这里先按 Data_Settings 注释里的基础值做预览。 */
+#define SEARCH_LINE_STEER_PREVIEW_P         (24.0f)
+#define SEARCH_LINE_STEER_PREVIEW_D         (56.0f)
 
 #define SEARCH_LINE_STATE_INIT              ('F')
 #define SEARCH_LINE_STATE_FOUND             ('T')
@@ -50,8 +67,25 @@ static uint8 SearchLine_Otsu_Left_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Right_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Map_Ready = 0;
 static uint8 SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
+/* 对齐参考代码的单边丢线计数。 */
+static uint8 SearchLine_Otsu_Left_Line = 0;
+static uint8 SearchLine_Otsu_Right_Line = 0;
+/* 对齐参考代码的前瞻行和加权中线。 */
+static uint8 SearchLine_Otsu_TowPoint_True = SEARCH_LINE_OTSU_DET_TOW_POINT;
+static uint8 SearchLine_Otsu_Det_True = SEARCH_LINE_OTSU_MIDDLE_LINE;
+/* 对齐参考代码的直道判定结果。 */
+static uint8 SearchLine_Otsu_Straight_Acc = 0;
+static uint16 SearchLine_Otsu_Variance_Acc = 0;
+/* 对齐参考代码的舵机位置式 PD 预览量。 */
+static int16 SearchLine_Otsu_Steer_Offset = 0;
+static uint8 SearchLine_Otsu_Steer_Command = CAR_SERVO_CENTER_ANGLE;
+static float SearchLine_Otsu_Steer_Last_Error = 0.0f;
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
+static float SearchLine_Otsu_Det_Weight[SEARCH_LINE_OTSU_DET_WINDOW] =
+{
+    0.96f, 0.92f, 0.88f, 0.83f, 0.77f
+};
 
 static int32 SearchLine_Limit_Int32(int32 value, int32 limit1, int32 limit2)
 {
@@ -140,6 +174,8 @@ static void SearchLine_Clear_Otsu_State(void)
     SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
     SearchLine_Otsu_Left_Extend_Allowed = 1;
     SearchLine_Otsu_Right_Extend_Allowed = 1;
+    SearchLine_Otsu_Left_Line = 0;
+    SearchLine_Otsu_Right_Line = 0;
 
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
@@ -464,6 +500,9 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
     float left_slope = 0.0f;
     float right_slope = 0.0f;
 
+    SearchLine_Otsu_Left_Line = 0;
+    SearchLine_Otsu_Right_Line = 0;
+
     for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row > SearchLine_Otsu_Offline_Row; row--)
     {
         row_data = SearchLine_Otsu_Binary[row];
@@ -638,6 +677,14 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
         SearchLine_Otsu_Center_Line[row] =
             (uint8)(((uint16)SearchLine_Otsu_Left_Border[row] + (uint16)SearchLine_Otsu_Right_Border[row]) / 2);
         SearchLine_Otsu_Row_Valid[row] = 1;
+        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+        {
+            SearchLine_Otsu_Left_Line++;
+        }
+        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+        {
+            SearchLine_Otsu_Right_Line++;
+        }
 
         if(((int16)SearchLine_Otsu_Right_Border[row] - (int16)SearchLine_Otsu_Left_Border[row]) <= SEARCH_LINE_OTSU_MIN_WIDTH)
         {
@@ -828,6 +875,180 @@ static void SearchLine_RouteFilter_Otsu(void)
     }
 }
 
+/* 固定前瞻加权中线。 */
+static void SearchLine_Update_Otsu_Det(void)
+{
+    int16 tow_point = 0;
+    int16 row = 0;
+    int16 weight_index = 0;
+    float det_temp = 0.0f;
+    float unit_all = 0.0f;
+    int16 det_value = 0;
+
+    tow_point = SEARCH_LINE_OTSU_DET_TOW_POINT;
+    if(tow_point < ((int16)SearchLine_Otsu_Offline_Row + 1))
+    {
+        tow_point = (int16)SearchLine_Otsu_Offline_Row + 1;
+    }
+    if(tow_point > SEARCH_LINE_OTSU_DET_TOW_POINT_MAX)
+    {
+        tow_point = SEARCH_LINE_OTSU_DET_TOW_POINT_MAX;
+    }
+
+    SearchLine_Otsu_TowPoint_True = (uint8)tow_point;
+
+    if((tow_point - SEARCH_LINE_OTSU_DET_WINDOW) >= (int16)SearchLine_Otsu_Offline_Row)
+    {
+        for(row = tow_point - SEARCH_LINE_OTSU_DET_WINDOW; row < tow_point; row++)
+        {
+            weight_index = tow_point - row - 1;
+            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
+            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+        }
+
+        for(row = tow_point + SEARCH_LINE_OTSU_DET_WINDOW; row > tow_point; row--)
+        {
+            weight_index = row - tow_point - 1;
+            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
+            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+        }
+
+        det_temp = ((float)SearchLine_Otsu_Center_Line[tow_point] + det_temp) / (unit_all + 1.0f);
+    }
+    else if(tow_point > (int16)SearchLine_Otsu_Offline_Row)
+    {
+        for(row = (int16)SearchLine_Otsu_Offline_Row; row < tow_point; row++)
+        {
+            weight_index = tow_point - row - 1;
+            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
+            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+        }
+
+        for(row = tow_point + tow_point - (int16)SearchLine_Otsu_Offline_Row; row > tow_point; row--)
+        {
+            weight_index = row - tow_point - 1;
+            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
+            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+        }
+
+        det_temp = ((float)SearchLine_Otsu_Center_Line[tow_point] + det_temp) / (unit_all + 1.0f);
+    }
+    else
+    {
+        det_temp = (float)SearchLine_Otsu_Det_True;
+    }
+
+    det_value = (int16)(det_temp + 0.5f);
+    SearchLine_Otsu_Det_True = (uint8)SearchLine_Limit_Int32(det_value, 0, SEARCH_LINE_OTSU_W - 1);
+}
+
+/* 直道方差判定。 */
+static void SearchLine_Update_Otsu_StraightAcc(void)
+{
+    int16 row = 0;
+    int16 delta = 0;
+    uint16 valid_count = 0;
+    uint32 sum = 0;
+    float variance_acc = 0.0f;
+
+    SearchLine_Otsu_Straight_Acc = 0;
+    SearchLine_Otsu_Variance_Acc = 0;
+
+    if(SearchLine_Otsu_Offline_Row >= 54)
+    {
+        return;
+    }
+
+    for(row = 55; row > ((int16)SearchLine_Otsu_Offline_Row + 1); row--)
+    {
+        delta = (int16)SearchLine_Otsu_Center_Line[row] - SEARCH_LINE_OTSU_MIDDLE_LINE;
+        sum += (uint32)(delta * delta);
+        valid_count++;
+    }
+
+    if(0 == valid_count)
+    {
+        return;
+    }
+
+    variance_acc = (float)sum / (float)valid_count;
+    SearchLine_Otsu_Variance_Acc = (uint16)(variance_acc + 0.5f);
+    if((variance_acc < (float)SEARCH_LINE_OTSU_VARIANCE_ACC_LIMIT) &&
+       (SearchLine_Otsu_Offline_Row <= SEARCH_LINE_OTSU_STRAIGHT_OFFLINE_MAX) &&
+       (SearchLine_Otsu_Left_Line <= SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX) &&
+       (SearchLine_Otsu_Right_Line <= SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX))
+    {
+        SearchLine_Otsu_Straight_Acc = 1;
+    }
+}
+
+/* 舵机位置式 PD 预览。 */
+static void SearchLine_Update_Otsu_SteerPreview(void)
+{
+    int16 abs_offset = 0;
+    int16 command_angle = 0;
+    float i_error = 0.0f;
+    float steer_err = 0.0f;
+    float pwm = 0.0f;
+    float center_angle = 0.0f;
+    float min_angle = 0.0f;
+    float max_angle = 0.0f;
+    float angle = 0.0f;
+
+    SearchLine_Otsu_Steer_Offset = (int16)SearchLine_Otsu_Det_True - SEARCH_LINE_OTSU_MIDDLE_LINE;
+    i_error = (float)SearchLine_Otsu_Steer_Offset;
+    steer_err = SEARCH_LINE_STEER_PREVIEW_P * i_error +
+                SEARCH_LINE_STEER_PREVIEW_D * (i_error - SearchLine_Otsu_Steer_Last_Error);
+
+    abs_offset = SearchLine_Otsu_Steer_Offset;
+    if(abs_offset < 0)
+    {
+        abs_offset = (int16)(-abs_offset);
+    }
+    if(abs_offset < 3)
+    {
+        i_error = 0.3f * i_error;
+    }
+    if(abs_offset > 15)
+    {
+        i_error = 1.2f * i_error;
+    }
+    SearchLine_Otsu_Steer_Last_Error = i_error;
+
+    pwm = SEARCH_LINE_STEER_REF_MIDDLE_DUTY - steer_err;
+    if(pwm > SEARCH_LINE_STEER_REF_LEFT_DUTY)
+    {
+        pwm = SEARCH_LINE_STEER_REF_LEFT_DUTY;
+    }
+    if(pwm < SEARCH_LINE_STEER_REF_RIGHT_DUTY)
+    {
+        pwm = SEARCH_LINE_STEER_REF_RIGHT_DUTY;
+    }
+
+    min_angle = (float)car_servo_get_min_angle();
+    max_angle = (float)car_servo_get_max_angle();
+    center_angle = (float)CAR_SERVO_CENTER_ANGLE;
+    if(pwm >= SEARCH_LINE_STEER_REF_MIDDLE_DUTY)
+    {
+        angle = center_angle -
+                (pwm - SEARCH_LINE_STEER_REF_MIDDLE_DUTY) *
+                (center_angle - min_angle) /
+                (SEARCH_LINE_STEER_REF_LEFT_DUTY - SEARCH_LINE_STEER_REF_MIDDLE_DUTY);
+    }
+    else
+    {
+        angle = center_angle +
+                (SEARCH_LINE_STEER_REF_MIDDLE_DUTY - pwm) *
+                (max_angle - center_angle) /
+                (SEARCH_LINE_STEER_REF_MIDDLE_DUTY - SEARCH_LINE_STEER_REF_RIGHT_DUTY);
+    }
+
+    command_angle = (int16)(angle + 0.5f);
+    SearchLine_Otsu_Steer_Command = (uint8)SearchLine_Limit_Int32(command_angle,
+                                                                   (int16)min_angle,
+                                                                   (int16)max_angle);
+}
+
 static uint8 SearchLine_Calc_Otsu_Threshold(void)
 {
     uint16 row = 0;
@@ -954,6 +1175,12 @@ static void SearchLine_Process_Otsu(void)
     SearchLine_DrawExtensionLine_Otsu();
     /* 中线滤波平滑。 */
     SearchLine_RouteFilter_Otsu();
+    /* 直道方差判定。 */
+    SearchLine_Update_Otsu_StraightAcc();
+    /* 固定前瞻加权中线。 */
+    SearchLine_Update_Otsu_Det();
+    /* 舵机位置式 PD 预览。 */
+    SearchLine_Update_Otsu_SteerPreview();
 }
 
 void SearchLine_Process(void)
@@ -972,12 +1199,16 @@ uint8 SearchLine_GetOtsuThreshold(void)
 void SearchLine_DrawBinaryPreview(void)
 {
     char threshold_text[6];
+    char offset_text[4];
+    char command_text[4];
     uint16 x = 0;
     uint16 y = 0;
     uint8 row = 0;
     uint8 left_col = 0;
     uint8 right_col = 0;
     uint8 center_col = 0;
+    uint16 offset_abs = 0;
+    uint8 command_value = 0;
 
     ips200_show_gray_image(0,
                            0,
@@ -1010,6 +1241,31 @@ void SearchLine_DrawBinaryPreview(void)
         threshold_text[1] = '\0';
     }
     ips200_show_string(32, (uint16)(CAMERA_RAW_H + 4), threshold_text);
+
+    if(SearchLine_Otsu_Steer_Offset < 0)
+    {
+        offset_text[0] = '-';
+        offset_abs = (uint16)(-SearchLine_Otsu_Steer_Offset);
+    }
+    else
+    {
+        offset_text[0] = '+';
+        offset_abs = (uint16)SearchLine_Otsu_Steer_Offset;
+    }
+    offset_text[1] = (char)('0' + (offset_abs / 10U) % 10U);
+    offset_text[2] = (char)('0' + offset_abs % 10U);
+    offset_text[3] = '\0';
+
+    command_value = SearchLine_Otsu_Steer_Command;
+    command_text[0] = (char)('0' + command_value / 100U);
+    command_text[1] = (char)('0' + (command_value / 10U) % 10U);
+    command_text[2] = (char)('0' + command_value % 10U);
+    command_text[3] = '\0';
+
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 20), "ofs");
+    ips200_show_string(72, (uint16)(CAMERA_RAW_H + 20), "cmd");
+    ips200_show_string(24, (uint16)(CAMERA_RAW_H + 20), offset_text);
+    ips200_show_string(104, (uint16)(CAMERA_RAW_H + 20), command_text);
 
     for(row = SearchLine_Otsu_Offline_Row; row <= SEARCH_LINE_OTSU_BOTTOM_ROW; row++)
     {
