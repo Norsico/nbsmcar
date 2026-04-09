@@ -244,6 +244,18 @@ void main(void)
             case SYS_STOPED:
                 break;
             case SYS_EMERGENCY:
+                /* 进入急停后持续断开执行器输出，当前重新上电前不再恢复。 */
+                bldc_motor_stop();
+                car_wheel_control_reset();
+                car_servo_set_center();
+                g_flag_encoder = 0;
+                g_flag_center = 0;
+#if IPS_ENABLE
+                g_flag_display = 0;
+#endif
+#if WIFI_ENABLE
+                g_flag_wifi = 0;
+#endif
                 break;
             default:
                 break;

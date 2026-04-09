@@ -66,6 +66,8 @@ void line_app_render_frame(void)
 
 static uint8 line_app_handle_frame(void)
 {
+    uint8 threshold = 0;
+
     if(!line_camera_ready)
     {
         return 0;
@@ -77,6 +79,13 @@ static uint8 line_app_handle_frame(void)
     }
 
     SearchLine_Process();
+    threshold = SearchLine_GetOtsuThreshold();
+    if((SYS_RUNNING == g_system_state) && (threshold < 50))
+    {
+        /* 抓车后当前帧阈值过低，直接锁死到急停态。 */
+        system_error = 1;
+        g_system_state = SYS_EMERGENCY;
+    }
     mt9v03x_finish_flag = 0;
     return 1;
 }

@@ -11,5 +11,6 @@
 
 void SearchLine_Process(void);
 void SearchLine_DrawBinaryPreview(void);
+uint8 SearchLine_GetOtsuThreshold(void);
 
 #endif

@@ -5,7 +5,7 @@
 #define SEARCH_LINE_OTSU_BOTTOM_ROW         (SEARCH_LINE_OTSU_H - 1)
 #define SEARCH_LINE_OTSU_BOTTOM_INIT_ROW    (55)
 #define SEARCH_LINE_OTSU_OFFLINE_MIN        (2)
-#define SEARCH_LINE_OTSU_THRESHOLD_MIN      (70)
+#define SEARCH_LINE_OTSU_THRESHOLD_MIN      (0)
 #define SEARCH_LINE_OTSU_THRESHOLD_CAP      (180)
 /* OTSU 阈值重算周期。
  * 1 表示每帧都重算。
@@ -46,6 +46,8 @@ static uint8 SearchLine_Otsu_Row_Valid[SEARCH_LINE_OTSU_H] = {0};
 static uint8 SearchLine_Otsu_Left_State[SEARCH_LINE_OTSU_H] = {0};
 /* 右边界状态。 */
 static uint8 SearchLine_Otsu_Right_State[SEARCH_LINE_OTSU_H] = {0};
+static uint8 SearchLine_Otsu_Left_Extend_Allowed = 1;
+static uint8 SearchLine_Otsu_Right_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Map_Ready = 0;
 static uint8 SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
@@ -81,26 +83,27 @@ static void SearchLine_Init_Otsu_Map(void)
     uint16 row = 0;
     uint16 col = 0;
     uint32 scaled_value = 0;
+    float row_scale = 0.0f;
+    float col_scale = 0.0f;
 
     if(SearchLine_Otsu_Map_Ready)
     {
         return;
     }
 
+    row_scale = (float)CAMERA_RAW_H / (float)SEARCH_LINE_OTSU_H;
+    col_scale = (float)CAMERA_RAW_W / (float)SEARCH_LINE_OTSU_W;
+
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
-        scaled_value = ((uint32)row * (uint32)(CAMERA_RAW_H - 1) +
-                        (uint32)((SEARCH_LINE_OTSU_H - 1) / 2)) /
-                       (uint32)(SEARCH_LINE_OTSU_H - 1);
+        scaled_value = (uint32)((float)row * row_scale + 0.5f);
         SearchLine_Otsu_Row_Map[row] =
             (uint8)SearchLine_Limit_Int32((int32)scaled_value, 0, CAMERA_RAW_H - 1);
     }
 
     for(col = 0; col < SEARCH_LINE_OTSU_W; col++)
     {
-        scaled_value = ((uint32)col * (uint32)CAMERA_LAST_VALID_COL +
-                        (uint32)((SEARCH_LINE_OTSU_W - 1) / 2)) /
-                       (uint32)(SEARCH_LINE_OTSU_W - 1);
+        scaled_value = (uint32)((float)col * col_scale + 0.5f);
         SearchLine_Otsu_Col_Map[col] =
             (uint8)SearchLine_Limit_Int32((int32)scaled_value, 0, CAMERA_LAST_VALID_COL);
     }
@@ -135,6 +138,8 @@ static void SearchLine_Clear_Otsu_State(void)
     uint16 row = 0;
 
     SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
+    SearchLine_Otsu_Left_Extend_Allowed = 1;
+    SearchLine_Otsu_Right_Extend_Allowed = 1;
 
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
@@ -396,7 +401,7 @@ static uint8 SearchLine_Rescue_Otsu_LeftBorder(const uint8 *row_data, uint8 left
         }
         else if(col == (int16)right_border - 1)
         {
-            *point = (uint8)col;
+            *point = left_border;
             return SEARCH_LINE_STATE_FOUND;
         }
     }
@@ -441,12 +446,23 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
     int16 row = 0;
     int16 low = 0;
     int16 high = 0;
+    int16 search_row = 0;
     uint8 left_point = 0;
     uint8 right_point = 0;
     uint8 left_state = 0;
     uint8 right_state = 0;
     int16 left_border = 0;
     int16 right_border = 0;
+    uint8 left_slope_checked = 0;
+    uint8 right_slope_checked = 0;
+    uint8 left_slope_ready = 0;
+    uint8 right_slope_ready = 0;
+    uint8 left_found_count = 0;
+    uint8 right_found_count = 0;
+    uint8 left_anchor_row = 0;
+    uint8 right_anchor_row = 0;
+    float left_slope = 0.0f;
+    float right_slope = 0.0f;
 
     for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row > SearchLine_Otsu_Offline_Row; row--)
     {
@@ -522,6 +538,103 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
             }
         }
 
+        /* 单边丢线时，先按参考斜率补当前行边界。 */
+        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row]) &&
+           (row > 10) &&
+           (row < 50))
+        {
+            if(!right_slope_checked)
+            {
+                right_slope_checked = 1;
+                right_anchor_row = (uint8)(row + 2);
+                right_found_count = 0;
+                for(search_row = row + 1;
+                    (search_row < SEARCH_LINE_OTSU_H) && (search_row < row + 15);
+                    search_row++)
+                {
+                    if(SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[search_row])
+                    {
+                        right_found_count++;
+                    }
+                }
+
+                if(right_found_count > 8)
+                {
+                    right_slope =
+                        ((float)SearchLine_Otsu_Right_Border[row + right_found_count] -
+                         (float)SearchLine_Otsu_Right_Border[row + 3]) /
+                        (float)(right_found_count - 3);
+                    if(right_slope > 0.0f)
+                    {
+                        right_slope_ready = 1;
+                    }
+                    else
+                    {
+                        right_slope_ready = 0;
+                        if(right_slope < 0.0f)
+                        {
+                            SearchLine_Otsu_Right_Extend_Allowed = 0;
+                        }
+                    }
+                }
+            }
+
+            if(right_slope_ready)
+            {
+                SearchLine_Otsu_Right_Border[row] =
+                    SearchLine_Clamp_Otsu_Search_Col((int16)((float)SearchLine_Otsu_Right_Border[right_anchor_row] -
+                                                             right_slope * (float)(right_anchor_row - row)));
+            }
+        }
+
+        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row]) &&
+           (row > 10) &&
+           (row < 50))
+        {
+            if(!left_slope_checked)
+            {
+                left_slope_checked = 1;
+                left_anchor_row = (uint8)(row + 2);
+                left_found_count = 0;
+                for(search_row = row + 1;
+                    (search_row < SEARCH_LINE_OTSU_H) && (search_row < row + 15);
+                    search_row++)
+                {
+                    if(SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[search_row])
+                    {
+                        left_found_count++;
+                    }
+                }
+
+                if(left_found_count > 8)
+                {
+                    left_slope =
+                        ((float)SearchLine_Otsu_Left_Border[row + 3] -
+                         (float)SearchLine_Otsu_Left_Border[row + left_found_count]) /
+                        (float)(left_found_count - 3);
+                    if(left_slope > 0.0f)
+                    {
+                        left_slope_ready = 1;
+                    }
+                    else
+                    {
+                        left_slope_ready = 0;
+                        if(left_slope < 0.0f)
+                        {
+                            SearchLine_Otsu_Left_Extend_Allowed = 0;
+                        }
+                    }
+                }
+            }
+
+            if(left_slope_ready)
+            {
+                SearchLine_Otsu_Left_Border[row] =
+                    SearchLine_Clamp_Otsu_Search_Col((int16)((float)SearchLine_Otsu_Left_Border[left_anchor_row] +
+                                                             left_slope * (float)(left_anchor_row - row)));
+            }
+        }
+
         SearchLine_Otsu_Center_Line[row] =
             (uint8)(((uint16)SearchLine_Otsu_Left_Border[row] + (uint16)SearchLine_Otsu_Right_Border[row]) / 2);
         SearchLine_Otsu_Row_Valid[row] = 1;
@@ -551,101 +664,107 @@ static void SearchLine_DrawExtensionLine_Otsu(void)
     int16 ftsite = 0;
     float slope = 0.0f;
 
-    tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
+    if(SearchLine_Otsu_Left_Extend_Allowed)
     {
-        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
+        for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
         {
-            if(SearchLine_Otsu_Left_Border[row + 1] >= 70)
+            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
             {
-                SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
-                break;
-            }
-
-            scan_row = row;
-            ftsite = 0;
-            while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
-            {
-                scan_row--;
-                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 1]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 2]) &&
-                   (SearchLine_Otsu_Left_Border[scan_row - 2] > 0) &&
-                   (SearchLine_Otsu_Left_Border[scan_row - 2] < 70))
+                if(SearchLine_Otsu_Left_Border[row + 1] >= 70)
                 {
-                    ftsite = scan_row - 2;
+                    SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
                     break;
                 }
-            }
 
-            if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
-            {
-                slope = ((float)SearchLine_Otsu_Left_Border[ftsite] -
-                         (float)SearchLine_Otsu_Left_Border[tfsite]) /
-                        (float)(ftsite - tfsite);
-                for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                scan_row = row;
+                ftsite = 0;
+                while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
                 {
-                    SearchLine_Otsu_Left_Border[fill_row] =
-                        SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
-                                                                  (float)SearchLine_Otsu_Left_Border[tfsite]));
-                    SearchLine_Otsu_Left_State[fill_row] = SEARCH_LINE_STATE_FOUND;
-                    SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                    scan_row--;
+                    if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 1]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 2]) &&
+                       (SearchLine_Otsu_Left_Border[scan_row - 2] > 0) &&
+                       (SearchLine_Otsu_Left_Border[scan_row - 2] < 70))
+                    {
+                        ftsite = scan_row - 2;
+                        break;
+                    }
                 }
-                row = ftsite;
+
+                if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
+                {
+                    slope = ((float)SearchLine_Otsu_Left_Border[ftsite] -
+                             (float)SearchLine_Otsu_Left_Border[tfsite]) /
+                            (float)(ftsite - tfsite);
+                    for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                    {
+                        SearchLine_Otsu_Left_Border[fill_row] =
+                            SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
+                                                                      (float)SearchLine_Otsu_Left_Border[tfsite]));
+                        SearchLine_Otsu_Left_State[fill_row] = SEARCH_LINE_STATE_FOUND;
+                        SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                    }
+                    row = ftsite;
+                }
             }
-        }
-        else
-        {
-            tfsite = row + 2;
+            else
+            {
+                tfsite = row + 2;
+            }
         }
     }
 
-    tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
+    if(SearchLine_Otsu_Right_Extend_Allowed)
     {
-        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
+        for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
         {
-            if(SearchLine_Otsu_Right_Border[row + 1] <= 10)
+            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
             {
-                SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
-                break;
-            }
-
-            scan_row = row;
-            ftsite = 0;
-            while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
-            {
-                scan_row--;
-                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 1]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 2]) &&
-                   (SearchLine_Otsu_Right_Border[scan_row - 2] < 70) &&
-                   (SearchLine_Otsu_Right_Border[scan_row - 2] > 10))
+                if(SearchLine_Otsu_Right_Border[row + 1] <= 10)
                 {
-                    ftsite = scan_row - 2;
+                    SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
                     break;
                 }
-            }
 
-            if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
-            {
-                slope = ((float)SearchLine_Otsu_Right_Border[ftsite] -
-                         (float)SearchLine_Otsu_Right_Border[tfsite]) /
-                        (float)(ftsite - tfsite);
-                for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                scan_row = row;
+                ftsite = 0;
+                while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
                 {
-                    SearchLine_Otsu_Right_Border[fill_row] =
-                        SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
-                                                                  (float)SearchLine_Otsu_Right_Border[tfsite]));
-                    SearchLine_Otsu_Right_State[fill_row] = SEARCH_LINE_STATE_FOUND;
-                    SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                    scan_row--;
+                    if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 1]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 2]) &&
+                       (SearchLine_Otsu_Right_Border[scan_row - 2] < 70) &&
+                       (SearchLine_Otsu_Right_Border[scan_row - 2] > 10))
+                    {
+                        ftsite = scan_row - 2;
+                        break;
+                    }
                 }
-                row = ftsite;
+
+                if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
+                {
+                    slope = ((float)SearchLine_Otsu_Right_Border[ftsite] -
+                             (float)SearchLine_Otsu_Right_Border[tfsite]) /
+                            (float)(ftsite - tfsite);
+                    for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                    {
+                        SearchLine_Otsu_Right_Border[fill_row] =
+                            SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
+                                                                      (float)SearchLine_Otsu_Right_Border[tfsite]));
+                        SearchLine_Otsu_Right_State[fill_row] = SEARCH_LINE_STATE_FOUND;
+                        SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                    }
+                    row = ftsite;
+                }
             }
-        }
-        else
-        {
-            tfsite = row + 2;
+            else
+            {
+                tfsite = row + 2;
+            }
         }
     }
 
@@ -844,9 +963,15 @@ void SearchLine_Process(void)
     gpio_set_level(IO_P52, 1);
 }
 
+uint8 SearchLine_GetOtsuThreshold(void)
+{
+    return SearchLine_Otsu_Threshold_Cache;
+}
+
 /* 显示压缩二值图。 */
 void SearchLine_DrawBinaryPreview(void)
 {
+    char threshold_text[6];
     uint16 x = 0;
     uint16 y = 0;
     uint8 row = 0;
@@ -862,6 +987,29 @@ void SearchLine_DrawBinaryPreview(void)
                            CAMERA_VALID_W,
                            CAMERA_RAW_H,
                            1);
+
+    /* 相机页底部显示当前 OTSU 阈值，方便边看图边确认二值门限。 */
+    ips200_set_color(RGB565_WHITE, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 4), "thr      ");
+    if(SearchLine_Otsu_Threshold_Cache >= 100)
+    {
+        threshold_text[0] = (char)('0' + SearchLine_Otsu_Threshold_Cache / 100U);
+        threshold_text[1] = (char)('0' + (SearchLine_Otsu_Threshold_Cache / 10U) % 10U);
+        threshold_text[2] = (char)('0' + SearchLine_Otsu_Threshold_Cache % 10U);
+        threshold_text[3] = '\0';
+    }
+    else if(SearchLine_Otsu_Threshold_Cache >= 10)
+    {
+        threshold_text[0] = (char)('0' + SearchLine_Otsu_Threshold_Cache / 10U);
+        threshold_text[1] = (char)('0' + SearchLine_Otsu_Threshold_Cache % 10U);
+        threshold_text[2] = '\0';
+    }
+    else
+    {
+        threshold_text[0] = (char)('0' + SearchLine_Otsu_Threshold_Cache);
+        threshold_text[1] = '\0';
+    }
+    ips200_show_string(32, (uint16)(CAMERA_RAW_H + 4), threshold_text);
 
     for(row = SearchLine_Otsu_Offline_Row; row <= SEARCH_LINE_OTSU_BOTTOM_ROW; row++)
     {
