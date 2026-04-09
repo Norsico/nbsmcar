@@ -1,15 +1,14 @@
 /*
- * app_display.c - IPS200 菜单与调参页面
+ * app_ui_display.c - UI 页面状态与显示逻辑
  */
 
-#include "app_display.h"
+#include "app_ui_display.h"
 
 #include "app_line.h"
+#include "app_ui_flash.h"
+#include "app_ui_library.h"
 #include "dev_adc.h"
-#include "dev_flash.h"
 #include "dev_servo.h"
-#include "dev_wheel.h"
-#include "system_state.h"
 
 #define MENU_LINE_HEIGHT            (16)
 #define MENU_ROOT_ITEM_COUNT        (3)
@@ -32,12 +31,6 @@
 #define MENU_PARAM_LABEL_CLEAR      "            "
 #define MENU_PARAM_VALUE_CLEAR      "      "
 #define MENU_PARAM_INFO_CLEAR       "                       "
-#define MENU_BAT_X                  (168)
-#define MENU_BAT_Y                  (2)
-#define MENU_BAT_W                  (36)
-#define MENU_BAT_H                  (10)
-#define MENU_BAT_CAP_W              (3)
-#define MENU_BAT_TEXT_X             (132)
 #define BATTERY_EMPTY_DECI          (114)
 #define BATTERY_FULL_DECI           (126)
 
@@ -49,6 +42,14 @@ typedef enum
     DISPLAY_PAGE_PARAM_MENU,
     DISPLAY_PAGE_PARAM_CAMERA
 } display_page_t;
+
+typedef enum
+{
+    START_SLOT_SPEED = 0,
+    START_SLOT_ENABLE
+} start_slot_t;
+
+typedef void (*display_menu_draw_item_t)(uint8 index);
 
 static const char *g_root_menu_titles[MENU_ROOT_ITEM_COUNT] =
 {
@@ -62,14 +63,6 @@ static const char *g_param_menu_titles[MENU_PARAM_MENU_ITEM_COUNT] =
     "Camera"
 };
 
-typedef enum
-{
-    START_SLOT_SPEED = 0,
-    START_SLOT_ENABLE
-} start_slot_t;
-
-typedef void (*display_menu_draw_item_t)(uint8 index);
-
 static uint8 g_menu_selected = 0;
 static uint8 g_param_menu_selected = 0;
 static display_page_t g_menu_page = DISPLAY_PAGE_ROOT;
@@ -77,96 +70,17 @@ static uint8 g_menu_dirty = 1;
 static uint8 g_menu_last_battery_percent = 0xFF;
 static flash_camera_slot_t g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
 static start_slot_t g_start_selected = START_SLOT_SPEED;
-static flash_start_page_t g_start_page = {FLASH_START_SPEED_DEFAULT, FLASH_START_ENABLE_DEFAULT, 0};
 static uint8 g_param_editing = 0;
 
-static void display_menu_show_percent(uint16 x, uint16 y, uint8 percent)
+static void display_menu_mark_dirty(void)
 {
-    char text[4];
-
-    if(percent >= 100)
-    {
-        text[0] = '1';
-        text[1] = '0';
-        text[2] = '0';
-        text[3] = '\0';
-    }
-    else if(percent >= 10)
-    {
-        text[0] = (char)('0' + percent / 10);
-        text[1] = (char)('0' + percent % 10);
-        text[2] = '\0';
-    }
-    else
-    {
-        text[0] = (char)('0' + percent);
-        text[1] = '\0';
-    }
-
-    ips200_show_string(x, y, "   ");
-    ips200_show_string(x, y, text);
+    g_menu_dirty = 1;
 }
 
-static void display_menu_draw_rect(uint16 x, uint16 y, uint16 w, uint16 h, uint16 color)
-{
-    uint16 row = 0;
-    uint16 col = 0;
-
-    for(row = 0; row < h; row++)
-    {
-        for(col = 0; col < w; col++)
-        {
-            ips200_draw_point(x + col, y + row, color);
-        }
-    }
-}
-
-static void display_menu_draw_rect_frame(uint16 x, uint16 y, uint16 w, uint16 h, uint16 color)
-{
-    uint16 col = 0;
-    uint16 row = 0;
-
-    for(col = 0; col < w; col++)
-    {
-        ips200_draw_point(x + col, y, color);
-        ips200_draw_point(x + col, y + h - 1, color);
-    }
-
-    for(row = 0; row < h; row++)
-    {
-        ips200_draw_point(x, y + row, color);
-        ips200_draw_point(x + w - 1, y + row, color);
-    }
-}
-
-static void display_menu_draw_dash_line(uint16 x, uint16 y, uint16 w, uint16 dash_w, uint16 gap_w, uint16 color)
-{
-    uint16 offset = 0;
-    uint16 draw_w = 0;
-
-    while(offset < w)
-    {
-        draw_w = dash_w;
-        if((uint16)(offset + draw_w) > w)
-        {
-            draw_w = (uint16)(w - offset);
-        }
-
-        display_menu_draw_rect((uint16)(x + offset), y, draw_w, 1, color);
-        offset = (uint16)(offset + dash_w + gap_w);
-    }
-}
-
-static void display_menu_draw_battery(uint8 force)
+static uint8 display_menu_get_battery_percent(void)
 {
     uint16 battery = 0;
-    uint16 fill_w = 0;
     uint8 percent = 0;
-
-    if(!power_adc_is_ready())
-    {
-        return;
-    }
 
     battery = (uint16)(power_adc_get_voltage() * 10.0f + 0.5f);
     if(battery <= BATTERY_EMPTY_DECI)
@@ -183,132 +97,32 @@ static void display_menu_draw_battery(uint8 force)
                           (BATTERY_FULL_DECI - BATTERY_EMPTY_DECI));
     }
 
+    return percent;
+}
+
+static void display_menu_draw_battery(uint8 force)
+{
+    uint8 percent = 0;
+
+    if(!power_adc_is_ready())
+    {
+        return;
+    }
+
+    /* 非强制刷新时只更新电量，避免整页反复重绘。 */
+    percent = display_menu_get_battery_percent();
     if(!force && (percent == g_menu_last_battery_percent))
     {
         return;
     }
 
-    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
-    display_menu_draw_rect(MENU_BAT_X, MENU_BAT_Y, MENU_BAT_W + MENU_BAT_CAP_W + 18, MENU_BAT_H + 2, RGB565_WHITE);
-    display_menu_draw_rect_frame(MENU_BAT_X, MENU_BAT_Y, MENU_BAT_W, MENU_BAT_H, RGB565_BLACK);
-    display_menu_draw_rect(MENU_BAT_X + MENU_BAT_W, MENU_BAT_Y + 3, MENU_BAT_CAP_W, MENU_BAT_H - 6, RGB565_BLACK);
-
-    if(percent > 0)
-    {
-        fill_w = ((uint16)(MENU_BAT_W - 2) * percent) / 100U;
-        if(fill_w > 0)
-        {
-            display_menu_draw_rect(MENU_BAT_X + 1, MENU_BAT_Y + 1, fill_w, MENU_BAT_H - 2, RGB565_GREEN);
-        }
-    }
-
-    ips200_show_string(MENU_BAT_TEXT_X, MENU_TITLE_Y, "    ");
-    display_menu_show_percent(MENU_BAT_TEXT_X, MENU_TITLE_Y, percent);
-    ips200_show_string(MENU_BAT_TEXT_X + 24, MENU_TITLE_Y, "%");
+    ui_library_draw_battery(percent);
     g_menu_last_battery_percent = percent;
-}
-
-static void display_menu_mark_dirty(void)
-{
-    g_menu_dirty = 1;
-}
-
-static void display_menu_draw_title(const char *title)
-{
-    ips200_set_color(RGB565_BLUE, RGB565_WHITE);
-    ips200_show_string(0, MENU_TITLE_Y, title);
-}
-
-static void display_menu_format_param_value(int16 value_tenth, char *text)
-{
-    uint16 integer_part = 0;
-    uint8 decimal_part = 0;
-
-    if(value_tenth < 0)
-    {
-        value_tenth = 0;
-    }
-
-    integer_part = (uint16)(value_tenth / 10);
-    decimal_part = (uint8)(value_tenth % 10);
-
-    if(integer_part >= 100)
-    {
-        integer_part = 99;
-        decimal_part = 9;
-    }
-
-    if(integer_part >= 10)
-    {
-        text[0] = (char)('0' + (integer_part / 10));
-        text[1] = (char)('0' + (integer_part % 10));
-        text[2] = '.';
-        text[3] = (char)('0' + decimal_part);
-        text[4] = '\0';
-    }
-    else
-    {
-        text[0] = (char)('0' + integer_part);
-        text[1] = '.';
-        text[2] = (char)('0' + decimal_part);
-        text[3] = '\0';
-    }
-}
-
-static void display_menu_format_uint16(uint16 value, char *text)
-{
-    if(value >= 10000)
-    {
-        value = 9999;
-    }
-
-    if(value >= 1000)
-    {
-        text[0] = (char)('0' + (value / 1000U));
-        text[1] = (char)('0' + ((value / 100U) % 10U));
-        text[2] = (char)('0' + ((value / 10U) % 10U));
-        text[3] = (char)('0' + (value % 10U));
-        text[4] = '\0';
-    }
-    else if(value >= 100)
-    {
-        text[0] = (char)('0' + (value / 100U));
-        text[1] = (char)('0' + ((value / 10U) % 10U));
-        text[2] = (char)('0' + (value % 10U));
-        text[3] = '\0';
-    }
-    else if(value >= 10)
-    {
-        text[0] = (char)('0' + (value / 10U));
-        text[1] = (char)('0' + (value % 10U));
-        text[2] = '\0';
-    }
-    else
-    {
-        text[0] = (char)('0' + value);
-        text[1] = '\0';
-    }
 }
 
 static uint16 display_menu_get_row_y(uint8 index)
 {
     return (uint16)(MENU_PARAM_LIST_Y + (uint16)index * MENU_PARAM_ROW_STEP);
-}
-
-static void display_menu_draw_list_item(uint16 y, const char *label, uint8 selected)
-{
-    if(selected)
-    {
-        ips200_set_color(RGB565_WHITE, RGB565_BLUE);
-        ips200_show_string(0, y, "> ");
-        ips200_show_string(16, y, label);
-    }
-    else
-    {
-        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
-        ips200_show_string(0, y, "  ");
-        ips200_show_string(16, y, label);
-    }
 }
 
 static void display_menu_draw_root_item(uint8 index)
@@ -318,9 +132,9 @@ static void display_menu_draw_root_item(uint8 index)
         return;
     }
 
-    display_menu_draw_list_item((uint16)(MENU_ROOT_LIST_Y + (uint16)index * MENU_LINE_HEIGHT),
-                                g_root_menu_titles[index],
-                                (index == g_menu_selected) ? 1 : 0);
+    ui_library_draw_list_item((uint16)(MENU_ROOT_LIST_Y + (uint16)index * MENU_LINE_HEIGHT),
+                              g_root_menu_titles[index],
+                              (index == g_menu_selected) ? 1 : 0);
 }
 
 static void display_menu_draw_param_menu_item(uint8 index)
@@ -330,9 +144,9 @@ static void display_menu_draw_param_menu_item(uint8 index)
         return;
     }
 
-    display_menu_draw_list_item((uint16)(MENU_SUBMENU_LIST_Y + (uint16)index * MENU_LINE_HEIGHT),
-                                g_param_menu_titles[index],
-                                (index == g_param_menu_selected) ? 1 : 0);
+    ui_library_draw_list_item((uint16)(MENU_SUBMENU_LIST_Y + (uint16)index * MENU_LINE_HEIGHT),
+                              g_param_menu_titles[index],
+                              (index == g_param_menu_selected) ? 1 : 0);
 }
 
 static void display_menu_cycle_list_selection(uint8 *selected,
@@ -347,6 +161,7 @@ static void display_menu_cycle_list_selection(uint8 *selected,
         return;
     }
 
+    /* 菜单项切换只局部重画前后两项，减小 UI 刷新量。 */
     previous_selected = *selected;
     if(direction > 0)
     {
@@ -398,47 +213,6 @@ static uint8 display_menu_get_camera_param_row_index(flash_camera_slot_t slot)
     }
 }
 
-static void display_menu_get_camera_param_range(flash_camera_slot_t slot,
-                                                uint16 *min_value,
-                                                uint16 *max_value,
-                                                uint16 *step_value)
-{
-    uint16 min_value_local = 0;
-    uint16 max_value_local = 0;
-    uint16 step_value_local = 0;
-
-    switch(slot)
-    {
-        case FLASH_CAMERA_SLOT_EXP_TIME:
-            min_value_local = FLASH_CAMERA_EXP_TIME_MIN;
-            max_value_local = FLASH_CAMERA_EXP_TIME_MAX;
-            step_value_local = FLASH_CAMERA_EXP_TIME_STEP;
-            break;
-        case FLASH_CAMERA_SLOT_GAIN:
-            min_value_local = FLASH_CAMERA_GAIN_MIN;
-            max_value_local = FLASH_CAMERA_GAIN_MAX;
-            step_value_local = FLASH_CAMERA_GAIN_STEP;
-            break;
-        default:
-            break;
-    }
-
-    if(0 != min_value)
-    {
-        *min_value = min_value_local;
-    }
-
-    if(0 != max_value)
-    {
-        *max_value = max_value_local;
-    }
-
-    if(0 != step_value)
-    {
-        *step_value = step_value_local;
-    }
-}
-
 static void display_menu_draw_camera_param_row(flash_camera_slot_t slot)
 {
     char value_text[6];
@@ -451,25 +225,26 @@ static void display_menu_draw_camera_param_row(flash_camera_slot_t slot)
 
     row_y = display_menu_get_row_y(display_menu_get_camera_param_row_index(slot));
     label_text = display_menu_get_camera_param_label(slot);
-    value = flash_store_get_camera_value(slot);
-    display_menu_format_uint16(value, value_text);
+    value = ui_flash_get_camera_value(slot);
+    ui_library_format_uint16(value, value_text);
 
-    display_menu_draw_rect(MENU_PARAM_ACCENT_X,
-                           (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
-                           MENU_PARAM_ACCENT_W,
-                           MENU_PARAM_ACCENT_H,
-                           RGB565_WHITE);
+    ui_library_draw_rect(MENU_PARAM_ACCENT_X,
+                         (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                         MENU_PARAM_ACCENT_W,
+                         MENU_PARAM_ACCENT_H,
+                         RGB565_WHITE);
 
+    /* 当前项蓝色表示选中，红色表示进入编辑态。 */
     if(slot == g_camera_param_selected)
     {
         guide_color = g_param_editing ? RGB565_RED : RGB565_BLUE;
         label_color = guide_color;
         value_color = guide_color;
-        display_menu_draw_rect(MENU_PARAM_ACCENT_X,
-                               (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
-                               MENU_PARAM_ACCENT_W,
-                               MENU_PARAM_ACCENT_H,
-                               guide_color);
+        ui_library_draw_rect(MENU_PARAM_ACCENT_X,
+                             (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                             MENU_PARAM_ACCENT_W,
+                             MENU_PARAM_ACCENT_H,
+                             guide_color);
     }
     else
     {
@@ -496,15 +271,16 @@ static void display_menu_draw_camera_param_info(void)
 
     ips200_set_color(RGB565_BLACK, RGB565_WHITE);
     ips200_show_string(0, MENU_PARAM_INFO_Y, MENU_PARAM_INFO_CLEAR);
+    /* 只有进入编辑态时，才显示当前参数的范围和步进。 */
     if(!g_param_editing)
     {
         return;
     }
 
-    display_menu_get_camera_param_range(g_camera_param_selected, &min_value, &max_value, &step_value);
-    display_menu_format_uint16(min_value, min_text);
-    display_menu_format_uint16(max_value, max_text);
-    display_menu_format_uint16(step_value, step_text);
+    ui_flash_get_camera_range(g_camera_param_selected, &min_value, &max_value, &step_value);
+    ui_library_format_uint16(min_value, min_text);
+    ui_library_format_uint16(max_value, max_text);
+    ui_library_format_uint16(step_value, step_text);
 
     ips200_set_color(RGB565_GRAY, RGB565_WHITE);
     ips200_show_string(0, MENU_PARAM_INFO_Y, "min");
@@ -525,9 +301,9 @@ static void display_menu_draw_camera_param_page_full(void)
 {
     ips200_clear(RGB565_WHITE);
 
-    display_menu_draw_title("Camera");
+    ui_library_draw_title("Camera");
     display_menu_draw_battery(1);
-    display_menu_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
+    ui_library_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
     display_menu_draw_camera_param_row(FLASH_CAMERA_SLOT_EXP_TIME);
     display_menu_draw_camera_param_row(FLASH_CAMERA_SLOT_GAIN);
     display_menu_draw_camera_param_info();
@@ -595,30 +371,10 @@ static int16 display_menu_build_step_delta(uint16 step_value, int8 direction, ui
 
 static void display_menu_camera_param_adjust(int16 delta)
 {
-    uint16 current_value = 0;
-    uint16 min_value = 0;
-    uint16 max_value = 0;
-    int32 next_value = 0;
-
-    current_value = flash_store_get_camera_value(g_camera_param_selected);
-    display_menu_get_camera_param_range(g_camera_param_selected, &min_value, &max_value, 0);
-    next_value = (int32)current_value + (int32)delta;
-
-    if(next_value < min_value)
+    /* 参数页只关心本页刷新，真正的落盘和相机生效交给 ui_flash。 */
+    if(ui_flash_adjust_camera_value(g_camera_param_selected, delta))
     {
-        next_value = min_value;
-    }
-    else if(next_value > max_value)
-    {
-        next_value = max_value;
-    }
-
-    if((uint16)next_value != current_value)
-    {
-        if(line_app_set_camera_param_value(g_camera_param_selected, (uint16)next_value))
-        {
-            display_menu_refresh_camera_current();
-        }
+        display_menu_refresh_camera_current();
     }
 }
 
@@ -627,7 +383,7 @@ static void display_menu_camera_param_adjust_by_step_mul(int8 direction, uint8 s
     uint16 step_value = 0;
     int16 delta = 0;
 
-    display_menu_get_camera_param_range(g_camera_param_selected, 0, 0, &step_value);
+    ui_flash_get_camera_range(g_camera_param_selected, 0, 0, &step_value);
     delta = display_menu_build_step_delta(step_value, direction, step_mul);
     if(0 == delta)
     {
@@ -635,120 +391,6 @@ static void display_menu_camera_param_adjust_by_step_mul(int8 direction, uint8 s
     }
 
     display_menu_camera_param_adjust(delta);
-}
-
-static void display_menu_fill_default_start_page(flash_start_page_t *page)
-{
-    if(0 == page)
-    {
-        return;
-    }
-
-    page->target_speed = FLASH_START_SPEED_DEFAULT;
-    page->enable = FLASH_START_ENABLE_DEFAULT;
-    page->reserved = 0;
-}
-
-static void display_menu_normalize_start_page(flash_start_page_t *page)
-{
-    if(0 == page)
-    {
-        return;
-    }
-
-    if(page->target_speed > FLASH_START_SPEED_MAX)
-    {
-        page->target_speed = FLASH_START_SPEED_MAX;
-    }
-
-    if(page->enable > FLASH_START_ENABLE_MAX)
-    {
-        page->enable = FLASH_START_ENABLE_MAX;
-    }
-
-    page->reserved = 0;
-}
-
-static uint8 display_menu_start_page_is_valid(const flash_start_page_t *page)
-{
-    if(0 == page)
-    {
-        return 0;
-    }
-
-    if(page->target_speed < FLASH_START_SPEED_MIN || page->target_speed > FLASH_START_SPEED_MAX)
-    {
-        return 0;
-    }
-
-    if(page->enable < FLASH_START_ENABLE_MIN || page->enable > FLASH_START_ENABLE_MAX)
-    {
-        return 0;
-    }
-
-    return 1;
-}
-
-static void display_menu_apply_start_page(const flash_start_page_t *page)
-{
-    uint8 previous_enable = 0;
-
-    if(0 == page)
-    {
-        return;
-    }
-
-    previous_enable = g_start_page.enable;
-    g_start_page.target_speed = page->target_speed;
-    g_start_page.enable = page->enable;
-    g_start_page.reserved = 0;
-    display_menu_normalize_start_page(&g_start_page);
-
-    if(g_start_page.enable)
-    {
-        if(!previous_enable)
-        {
-            car_wheel_control_reset();
-        }
-
-        car_wheel_set_target((float)g_start_page.target_speed);
-        if(DISPLAY_PAGE_CAMERA != g_menu_page)
-        {
-            car_servo_set_center();
-        }
-
-        if(SYS_EMERGENCY != g_system_state)
-        {
-            g_system_state = SYS_RUNNING;
-        }
-    }
-    else
-    {
-        car_wheel_control_reset();
-        if(SYS_EMERGENCY != g_system_state)
-        {
-            g_system_state = SYS_PREPARE;
-        }
-    }
-}
-
-static void display_menu_load_start_page_from_flash(void)
-{
-    flash_start_page_t page;
-
-    flash_store_get_start_page(&page);
-    if(!display_menu_start_page_is_valid(&page))
-    {
-        display_menu_fill_default_start_page(&page);
-        flash_store_set_start_page(&page);
-    }
-
-    display_menu_apply_start_page(&page);
-}
-
-uint8 display_menu_start_is_enabled(void)
-{
-    return g_start_page.enable;
 }
 
 static const char *display_menu_get_start_label(start_slot_t slot)
@@ -763,11 +405,14 @@ static const char *display_menu_get_start_label(start_slot_t slot)
 
 static void display_menu_format_start_value(start_slot_t slot, char *text)
 {
+    flash_start_page_t page;
+
+    ui_flash_get_start_page(&page);
     if(START_SLOT_SPEED == slot)
     {
-        display_menu_format_uint16(g_start_page.target_speed, text);
+        ui_library_format_uint16(page.target_speed, text);
     }
-    else if(g_start_page.enable)
+    else if(page.enable)
     {
         text[0] = 'o';
         text[1] = 'n';
@@ -795,22 +440,22 @@ static void display_menu_draw_start_row(start_slot_t slot)
     label_text = display_menu_get_start_label(slot);
     display_menu_format_start_value(slot, value_text);
 
-    display_menu_draw_rect(MENU_PARAM_ACCENT_X,
-                           (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
-                           MENU_PARAM_ACCENT_W,
-                           MENU_PARAM_ACCENT_H,
-                           RGB565_WHITE);
+    ui_library_draw_rect(MENU_PARAM_ACCENT_X,
+                         (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                         MENU_PARAM_ACCENT_W,
+                         MENU_PARAM_ACCENT_H,
+                         RGB565_WHITE);
 
     if(slot == g_start_selected)
     {
         guide_color = (g_param_editing && (START_SLOT_SPEED == slot)) ? RGB565_RED : RGB565_BLUE;
         label_color = guide_color;
         value_color = guide_color;
-        display_menu_draw_rect(MENU_PARAM_ACCENT_X,
-                               (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
-                               MENU_PARAM_ACCENT_W,
-                               MENU_PARAM_ACCENT_H,
-                               guide_color);
+        ui_library_draw_rect(MENU_PARAM_ACCENT_X,
+                             (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                             MENU_PARAM_ACCENT_W,
+                             MENU_PARAM_ACCENT_H,
+                             guide_color);
     }
     else
     {
@@ -831,10 +476,14 @@ static void display_menu_draw_start_info(void)
     char min_text[6];
     char max_text[6];
     char step_text[6];
+    uint16 min_value = 0;
+    uint16 max_value = 0;
+    uint16 step_value = 0;
 
     ips200_set_color(RGB565_BLACK, RGB565_WHITE);
     ips200_show_string(0, MENU_PARAM_INFO_Y, MENU_PARAM_INFO_CLEAR);
 
+    /* speed 项显示范围提示，enable 项显示确认键用途。 */
     if(START_SLOT_SPEED == g_start_selected)
     {
         if(!g_param_editing)
@@ -842,9 +491,10 @@ static void display_menu_draw_start_info(void)
             return;
         }
 
-        display_menu_format_uint16(FLASH_START_SPEED_MIN, min_text);
-        display_menu_format_uint16(FLASH_START_SPEED_MAX, max_text);
-        display_menu_format_uint16(FLASH_START_SPEED_STEP, step_text);
+        ui_flash_get_start_speed_range(&min_value, &max_value, &step_value);
+        ui_library_format_uint16(min_value, min_text);
+        ui_library_format_uint16(max_value, max_text);
+        ui_library_format_uint16(step_value, step_text);
 
         ips200_set_color(RGB565_GRAY, RGB565_WHITE);
         ips200_show_string(0, MENU_PARAM_INFO_Y, "min");
@@ -872,9 +522,9 @@ static void display_menu_draw_start_page_full(void)
 {
     ips200_clear(RGB565_WHITE);
 
-    display_menu_draw_title("Start");
+    ui_library_draw_title("Start");
     display_menu_draw_battery(1);
-    display_menu_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
+    ui_library_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
     display_menu_draw_start_row(START_SLOT_SPEED);
     display_menu_draw_start_row(START_SLOT_ENABLE);
     display_menu_draw_start_info();
@@ -921,53 +571,24 @@ static void display_menu_start_select_down(void)
     display_menu_start_select_up();
 }
 
-static void display_menu_start_adjust_speed(int16 delta)
-{
-    flash_start_page_t page;
-    int32 next_speed = 0;
-
-    page = g_start_page;
-    next_speed = (int32)page.target_speed + (int32)delta;
-    if(next_speed < FLASH_START_SPEED_MIN)
-    {
-        next_speed = FLASH_START_SPEED_MIN;
-    }
-    else if(next_speed > FLASH_START_SPEED_MAX)
-    {
-        next_speed = FLASH_START_SPEED_MAX;
-    }
-
-    if((uint16)next_speed == page.target_speed)
-    {
-        return;
-    }
-
-    page.target_speed = (uint16)next_speed;
-    display_menu_apply_start_page(&page);
-    flash_store_set_start_page(&g_start_page);
-}
-
 static void display_menu_start_adjust_speed_by_step_mul(int8 direction, uint8 step_mul)
 {
+    uint16 step_value = 0;
     int16 delta = 0;
 
-    delta = display_menu_build_step_delta(FLASH_START_SPEED_STEP, direction, step_mul);
+    ui_flash_get_start_speed_range(0, 0, &step_value);
+    delta = display_menu_build_step_delta(step_value, direction, step_mul);
     if(0 == delta)
     {
         return;
     }
 
-    display_menu_start_adjust_speed(delta);
+    ui_flash_adjust_start_speed(delta);
 }
 
 static void display_menu_start_toggle_enable(void)
 {
-    flash_start_page_t page;
-
-    page = g_start_page;
-    page.enable = (uint8)!page.enable;
-    display_menu_apply_start_page(&page);
-    flash_store_set_start_page(&g_start_page);
+    ui_flash_toggle_start_enable();
 }
 
 static void display_menu_draw_root(void)
@@ -990,7 +611,7 @@ static void display_menu_draw_param_menu(void)
     uint8 i = 0;
 
     ips200_clear(RGB565_WHITE);
-    display_menu_draw_title("Param Config");
+    ui_library_draw_title("Param Config");
     display_menu_draw_battery(1);
 
     for(i = 0; i < MENU_PARAM_MENU_ITEM_COUNT; i++)
@@ -1003,6 +624,7 @@ static void display_menu_move_root_selection(int8 direction)
 {
     uint8 previous_selected = 0;
 
+    /* 首页菜单保持循环切换，便于单手反复调页。 */
     previous_selected = g_menu_selected;
     if(direction > 0)
     {
@@ -1042,6 +664,7 @@ static void display_menu_prepare_camera_view(void)
 
 static void display_menu_enter_root_page(void)
 {
+    /* 退回首页时统一清掉编辑态，并把主菜单光标复位到第一项。 */
     g_menu_page = DISPLAY_PAGE_ROOT;
     g_menu_selected = 0;
     g_param_menu_selected = 0;
@@ -1061,8 +684,9 @@ void display_menu_init(void)
     g_menu_last_battery_percent = 0xFF;
     g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
     g_start_selected = START_SLOT_SPEED;
-    display_menu_load_start_page_from_flash();
     g_param_editing = 0;
+    /* UI 初始化时先恢复 Start 页缓存，主流程会直接读这个结果定初始状态。 */
+    ui_flash_init();
 }
 
 void display_menu_render(void)
@@ -1071,12 +695,14 @@ void display_menu_render(void)
     {
         if(g_menu_dirty)
         {
+            /* 相机页只切黑底，图像预览仍按原节拍交给 line_app_render_frame()。 */
             display_menu_prepare_camera_view();
             g_menu_dirty = 0;
         }
         return;
     }
 
+    /* 普通页面在非脏帧时只刷新电量条，减少闪烁。 */
     if(!g_menu_dirty)
     {
         display_menu_draw_battery(0);
@@ -1215,7 +841,6 @@ void display_menu_move_up_fast(void)
     else if(DISPLAY_PAGE_PARAM_CAMERA == g_menu_page)
     {
         display_menu_camera_param_adjust_by_step_mul(1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_camera_current();
     }
 }
 
@@ -1237,12 +862,12 @@ void display_menu_move_down_fast(void)
     else if(DISPLAY_PAGE_PARAM_CAMERA == g_menu_page)
     {
         display_menu_camera_param_adjust_by_step_mul(-1, MENU_PARAM_FAST_STEP_MUL);
-        display_menu_refresh_camera_current();
     }
 }
 
 void display_menu_enter(void)
 {
+    /* 进入键同时承担翻页、进入编辑和切换启动开关三类操作。 */
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(START_SLOT_SPEED == g_start_selected)
@@ -1308,6 +933,7 @@ void display_menu_back(void)
         return;
     }
 
+    /* 返回键优先退出编辑态，其次退回上一级页面。 */
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing)
@@ -1361,4 +987,9 @@ void display_menu_go_root(void)
 uint8 display_menu_in_camera_view(void)
 {
     return (DISPLAY_PAGE_CAMERA == g_menu_page) ? 1 : 0;
+}
+
+uint8 display_menu_start_is_enabled(void)
+{
+    return ui_flash_start_is_enabled();
 }

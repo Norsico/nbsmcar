@@ -950,9 +950,19 @@
           <GroupName>app</GroupName>
           <Files>
             <File>
-              <FileName>app_display.c</FileName>
+              <FileName>app_ui_library.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\user\app\app_display.c</FilePath>
+              <FilePath>..\user\app\app_ui_library.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_ui_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\app\app_ui_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_ui_display.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\user\app\app_ui_display.c</FilePath>
             </File>
             <File>
               <FileName>app_line.c</FileName>

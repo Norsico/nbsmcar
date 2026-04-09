@@ -14,7 +14,7 @@
 
 #include "app_key.h"
 #include "app_line.h"
-#include "app_display.h"
+#include "app_ui_display.h"
 #include "my_delay.h"
 
 void main(void)
