@@ -11,7 +11,7 @@
 #define CAR_WHEEL_TARGET_SPEED_MAX    ((float)FLASH_START_SPEED_MAX)   /* 对齐 Start 页速度上限，当前随 `FLASH_START_SPEED_MAX` 放宽到 400。 */
 #define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 最终下发到电机的百分比速度限幅，范围 0~100；当前按用户要求放宽到 75。 */
 #define CAR_WHEEL_DIFF_MIDDLE_LINE    (39)       /* 对齐参考 `Det_True - 39` 的差速分界。 */
-#define CAR_WHEEL_DIFF_RATIO          (6.3f)     /* 对齐参考 `Dif_spd_rat` 默认量级。 */
+#define CAR_WHEEL_DIFF_RATIO          (3.5f)     /* 对齐参考 `Dif_spd_rat` 默认量级，当前先略收小，减弱普通赛道单侧差速。 */
 #define CAR_WHEEL_DIFF_ERR_S          (0.0f)     /* 对齐参考 `err_s` 默认值，当前先不加被动差速补偿。 */
 #define CAR_WHEEL_DIFF_DUTY_MAX       (20.0f)    /* 对齐参考差速前的单侧丢线计数限幅。 */
 #define CAR_WHEEL_DIFF_SPEED_SCALE    (80.0f)    /* 对齐参考 `AcquareSpeed` 的比例换算。 */

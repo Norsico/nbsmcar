@@ -93,7 +93,7 @@ static uint8 line_app_handle_frame(void)
                                    SearchLine_GetLeftLine(),
                                    SearchLine_GetRightLine());
     raw_threshold = SearchLine_GetRawOtsuThreshold();
-    if((SYS_RUNNING == g_system_state) && (raw_threshold < 18))
+    if((SYS_RUNNING == g_system_state) && (raw_threshold < 40))
     {
         /* 抓车后当前帧阈值过低，直接锁死到急停态。 */
         system_error = 1;

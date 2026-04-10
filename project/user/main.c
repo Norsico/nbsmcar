@@ -129,6 +129,8 @@ void main(void)
 
         switch(g_system_state){
             case SYS_PREPARE: // 准备状态
+                /* 未启动时关闭负压，预览和调参阶段不再带风扇输出。 */
+                bldc_motor_stop();
                 if(g_flag_imu){
                     // IMU
                     g_flag_imu = 0;
@@ -186,12 +188,31 @@ void main(void)
 
                 break;
             case SYS_RUNNING: // 运行状态
+                if(switch_ui_enabled())
+                {
+                    /* 开屏拨码只保留 UI 和图像链路，后轮与负压都保持关闭。 */
+                    bldc_motor_stop();
+                    car_wheel_stop_all();
+                }
+                else
+                {
+                    /* 纯运行态负压固定 20%，负压调试先按常数输出。 */
+                    bldc_motor_set_duty(20, 20);
+                }
                 if(g_flag_encoder){
                     // 编码器
                     g_flag_encoder = 0;
-                    encoder_update(1);
-                    // 更新后调用PID控制电机速度
-                    car_wheel_update();
+                    if(switch_ui_enabled())
+                    {
+                        /* 开屏时不跑后轮闭环，避免屏幕刷新和执行器输出同时作用。 */
+                        encoder_clear();
+                    }
+                    else
+                    {
+                        encoder_update(1);
+                        // 更新后调用PID控制电机速度
+                        car_wheel_update();
+                    }
                     //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
                 }
                 if(g_flag_center){
