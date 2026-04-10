@@ -3,10 +3,20 @@
 
 #include "zf_common_typedef.h"
 
-/* 当前参数页先拿两项数值做最小验证，数值统一按 0.1 来存。 */
-#define FLASH_PARAM_VALUE_MIN_TENTH     (0)
-#define FLASH_PARAM_VALUE_MAX_TENTH     (999)
-#define FLASH_PARAM_VALUE_STEP_TENTH    (1)
+/* Steer P 当前按位置式 PD 的 P 系数保存，单位 0.1。
+ * 当前工程默认值按 30.0 起步，UI 可调范围先收口到 0.0-60.0，步进 2.0。
+ */
+#define FLASH_STEER_P_MIN_TENTH         (0)
+#define FLASH_STEER_P_MAX_TENTH         (600)
+#define FLASH_STEER_P_STEP_TENTH        (20)
+#define FLASH_STEER_P_DEFAULT_TENTH     (300)
+/* Steer D 当前按位置式 PD 的 D 系数保存，单位 0.1。
+ * 参考国一普通赛道默认值先按当前工程迁移值 2.0，UI 可调范围收口到 0.0-80.0，步进 2.0。
+ */
+#define FLASH_STEER_D_MIN_TENTH         (0)
+#define FLASH_STEER_D_MAX_TENTH         (800)
+#define FLASH_STEER_D_STEP_TENTH        (20)
+#define FLASH_STEER_D_DEFAULT_TENTH     (20)
 
 /* 摄像头参数页按摄像头原生整数值来存，下面这些范围就是屏幕调参时实际允许调的范围。 */
 #define FLASH_CAMERA_AUTO_EXP_MIN       (0)     /* 自动曝光下限：0 表示关闭自动曝光。 */
@@ -20,8 +30,11 @@
 #define FLASH_CAMERA_GAIN_STEP          (1)     /* 图像增益步进：屏幕上每次调整加减 1。 */
 #define FLASH_LINE_KP_DEFAULT_TENTH     (12)    /* 巡线 KP 默认值 1.2，单位统一按 0.1 保存。 */
 #define FLASH_LINE_KD_DEFAULT_TENTH     (10)    /* 巡线 KD 默认值 1.0，单位统一按 0.1 保存。 */
-#define FLASH_LINE_SERVO_MIN_DEFAULT    (80)    /* 舵机默认左限幅。 */
-#define FLASH_LINE_SERVO_MAX_DEFAULT    (110)   /* 舵机默认右限幅。 */
+#define FLASH_SERVO_LIMIT_ANGLE_MIN     (50)    /* 舵机限幅页最小可调角度。 */
+#define FLASH_SERVO_LIMIT_ANGLE_MAX     (120)   /* 舵机限幅页最大可调角度。 */
+#define FLASH_SERVO_LIMIT_ANGLE_STEP    (2)     /* 舵机限幅页步进。 */
+#define FLASH_LINE_SERVO_MIN_DEFAULT    (70)    /* 舵机默认右限幅角。 */
+#define FLASH_LINE_SERVO_MAX_DEFAULT    (110)   /* 舵机默认左限幅角。 */
 #define FLASH_START_SPEED_MIN           (0)     /* 启动页后轮目标速度下限，0 表示静止。 */
 #define FLASH_START_SPEED_MAX           (200)   /* 启动页后轮目标速度上限，先按 0-200 收口。 */
 #define FLASH_START_SPEED_STEP          (10)    /* 启动页后轮目标速度步进。 */
@@ -31,11 +44,11 @@
 #define FLASH_START_SPEED_DEFAULT       (100)   /* 启动页默认后轮目标速度。 */
 #define FLASH_START_ENABLE_DEFAULT      (0)     /* 上电默认不自动起跑。 */
 
-/* 当前参数页里这两行，后面真要扩参数就继续往后加。 */
+/* 当前参数页这两项当前用于 Steer PD，数值统一按 0.1 保存。 */
 typedef enum
 {
-    FLASH_PARAM_SLOT_FIRST = 0,
-    FLASH_PARAM_SLOT_SECOND,
+    FLASH_PARAM_SLOT_FIRST = 0,     /* Steer P。 */
+    FLASH_PARAM_SLOT_SECOND,        /* Steer D。 */
     FLASH_PARAM_SLOT_COUNT
 } flash_param_slot_t;
 
@@ -47,11 +60,11 @@ typedef enum
     FLASH_CAMERA_SLOT_COUNT
 } flash_camera_slot_t;
 
-/* 这是当前参数页在用的那一组参数。 */
+/* Param Config 里的 Steer PD 页。 */
 typedef struct
 {
-    int16 first_value_tenth;
-    int16 second_value_tenth;
+    int16 first_value_tenth;        /* Steer P，单位 0.1。 */
+    int16 second_value_tenth;       /* Steer D，单位 0.1。 */
 } flash_param_page_t;
 
 typedef struct

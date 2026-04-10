@@ -16,10 +16,10 @@
 /*********** 宏定义 *************/
 #define CAR_SERVO_PWM_PIN         (PWME_CH3P_PA4)
 #define CAR_SERVO_FREQ            (50)
-#define CAR_SERVO_MIN_ANGLE       (80)
+#define CAR_SERVO_MIN_ANGLE       (70)
 #define CAR_SERVO_CENTER_ANGLE    (90)
 #define CAR_SERVO_MAX_ANGLE       (110)
-#define CAR_SERVO_TUNE_MIN_ANGLE  (60)   /* 工程侧推定的屏幕调参下限，先给中心值两侧各约 30 度余量。 */
+#define CAR_SERVO_TUNE_MIN_ANGLE  (50)   /* 当前屏幕调参下限按用户要求放到 50 度。 */
 #define CAR_SERVO_TUNE_MAX_ANGLE  (120)  /* 工程侧推定的屏幕调参上限，避免调参时直接把机构顶到极限。 */
 
 /************ 串级控制器结构体 ************/

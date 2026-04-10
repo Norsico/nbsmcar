@@ -140,17 +140,11 @@ void car_wheel_control_reset(void)
     car_wheel_stop_all();
 }
 
-/* 运行时直接读当前舵机命令角，按中心值换算成阿克曼用的带符号转角。 */
+/* 先关掉阿克曼差速，排查后轮异常时让左右轮目标保持一致。 */
 static void car_wheel_update_target_from_vehicle(void)
 {
-    float steer_angle = 0.0f;
-
-	// 输入舵机角度
-    steer_angle = (float)car_servo_get_current_angle() - (float)CAR_SERVO_CENTER_ANGLE;
-    // 阿克曼计算
-	ackerman_calc_wheel_speeds(g_car_wheel_speed_target, steer_angle);
-    // 应用阿克曼结果（后面是PI控制）
-	car_wheel_apply_target(ackerman_get_left_speed(), ackerman_get_right_speed());
+    /* 当前只保留整车基础速度目标，先不根据舵机角拆左右轮差速。 */
+    car_wheel_apply_target(g_car_wheel_speed_target, g_car_wheel_speed_target);
 }
 
 static void car_wheel_limit_output_to_target_direction(pid_control_t *pid)

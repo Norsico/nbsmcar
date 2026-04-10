@@ -46,6 +46,14 @@ static void line_app_apply_camera_page_from_flash(void)
     line_app_apply_camera_page(&page);
 }
 
+static void line_app_apply_steer_pd_page_from_flash(void)
+{
+    flash_param_page_t page;
+
+    flash_store_get_param_page(&page);
+    SearchLine_SetSteerPdTenth((uint16)page.first_value_tenth, (uint16)page.second_value_tenth);
+}
+
 #if IPS_ENABLE
 void line_app_render_frame(void)
 {
@@ -66,7 +74,7 @@ void line_app_render_frame(void)
 
 static uint8 line_app_handle_frame(void)
 {
-    uint8 threshold = 0;
+    uint8 raw_threshold = 0;
 
     if(!line_camera_ready)
     {
@@ -79,12 +87,17 @@ static uint8 line_app_handle_frame(void)
     }
 
     SearchLine_Process();
-    threshold = SearchLine_GetOtsuThreshold();
-    if((SYS_RUNNING == g_system_state) && (threshold < 50))
+    raw_threshold = SearchLine_GetRawOtsuThreshold();
+    if((SYS_RUNNING == g_system_state) && (raw_threshold < 18))
     {
         /* 抓车后当前帧阈值过低，直接锁死到急停态。 */
         system_error = 1;
         g_system_state = SYS_EMERGENCY;
+    }
+    if(SYS_EMERGENCY != g_system_state)
+    {
+        /* 当前阶段先只把参考舵机命令接到前轮，后轮目标仍沿用现有链路。 */
+        car_servo_set_angle(SearchLine_GetSteerCommand());
     }
     mt9v03x_finish_flag = 0;
     return 1;
@@ -114,6 +127,7 @@ void line_app_init(void)
     }
 
     line_app_apply_camera_page_from_flash();
+    line_app_apply_steer_pd_page_from_flash();
     line_camera_ready = 1;
 
 #if IPS_ENABLE
@@ -161,4 +175,30 @@ uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value)
     }
 
     return flash_store_set_camera_page(&page);
+}
+
+uint8 line_app_set_steer_pd_value_tenth(flash_param_slot_t slot, int16 value_tenth)
+{
+    flash_param_page_t page;
+
+    flash_store_get_param_page(&page);
+    switch(slot)
+    {
+        case FLASH_PARAM_SLOT_FIRST:
+            page.first_value_tenth = value_tenth;
+            break;
+        case FLASH_PARAM_SLOT_SECOND:
+            page.second_value_tenth = value_tenth;
+            break;
+        default:
+            return 0;
+    }
+
+    if(!flash_store_set_param_value_tenth(slot, value_tenth))
+    {
+        return 0;
+    }
+
+    SearchLine_SetSteerPdTenth((uint16)page.first_value_tenth, (uint16)page.second_value_tenth);
+    return 1;
 }

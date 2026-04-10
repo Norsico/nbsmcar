@@ -1,4 +1,5 @@
 #include "SearchLine.h"
+#include "dev_flash.h"
 #include "dev_servo.h"
 
 #define SEARCH_LINE_OTSU_W                  (80)
@@ -8,6 +9,7 @@
 #define SEARCH_LINE_OTSU_OFFLINE_MIN        (2)
 #define SEARCH_LINE_OTSU_THRESHOLD_MIN      (0)
 #define SEARCH_LINE_OTSU_THRESHOLD_CAP      (180)
+#define SEARCH_LINE_OTSU_THRESHOLD_STATIC   (70)
 /* OTSU 阈值重算周期。
  * 1 表示每帧都重算。
  * 2-20 表示隔 N 帧重算一次，中间帧直接复用上一次阈值。
@@ -32,9 +34,6 @@
 #define SEARCH_LINE_STEER_REF_MIDDLE_DUTY   (4880.0f)
 #define SEARCH_LINE_STEER_REF_RIGHT_DUTY    (4100.0f)
 #define SEARCH_LINE_STEER_REF_LEFT_DUTY     (5520.0f)
-/* 参考代码里默认舵机参数主要走 flash，这里先按 Data_Settings 注释里的基础值做预览。 */
-#define SEARCH_LINE_STEER_PREVIEW_P         (24.0f)
-#define SEARCH_LINE_STEER_PREVIEW_D         (56.0f)
 
 #define SEARCH_LINE_STATE_INIT              ('F')
 #define SEARCH_LINE_STATE_FOUND             ('T')
@@ -79,7 +78,10 @@ static uint16 SearchLine_Otsu_Variance_Acc = 0;
 /* 对齐参考代码的舵机位置式 PD 预览量。 */
 static int16 SearchLine_Otsu_Steer_Offset = 0;
 static uint8 SearchLine_Otsu_Steer_Command = CAR_SERVO_CENTER_ANGLE;
+static uint16 SearchLine_Otsu_Steer_P_Tenth = FLASH_STEER_P_DEFAULT_TENTH;
+static uint16 SearchLine_Otsu_Steer_D_Tenth = FLASH_STEER_D_DEFAULT_TENTH;
 static float SearchLine_Otsu_Steer_Last_Error = 0.0f;
+static uint8 SearchLine_Otsu_Threshold_Raw_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
 static float SearchLine_Otsu_Det_Weight[SEARCH_LINE_OTSU_DET_WINDOW] =
@@ -994,11 +996,15 @@ static void SearchLine_Update_Otsu_SteerPreview(void)
     float min_angle = 0.0f;
     float max_angle = 0.0f;
     float angle = 0.0f;
+    float steer_p = 0.0f;
+    float steer_d = 0.0f;
 
     SearchLine_Otsu_Steer_Offset = (int16)SearchLine_Otsu_Det_True - SEARCH_LINE_OTSU_MIDDLE_LINE;
     i_error = (float)SearchLine_Otsu_Steer_Offset;
-    steer_err = SEARCH_LINE_STEER_PREVIEW_P * i_error +
-                SEARCH_LINE_STEER_PREVIEW_D * (i_error - SearchLine_Otsu_Steer_Last_Error);
+    steer_p = (float)SearchLine_Otsu_Steer_P_Tenth / 10.0f;
+    steer_d = (float)SearchLine_Otsu_Steer_D_Tenth / 10.0f;
+    steer_err = steer_p * i_error +
+                steer_d * (i_error - SearchLine_Otsu_Steer_Last_Error);
 
     abs_offset = SearchLine_Otsu_Steer_Offset;
     if(abs_offset < 0)
@@ -1030,16 +1036,17 @@ static void SearchLine_Update_Otsu_SteerPreview(void)
     center_angle = (float)CAR_SERVO_CENTER_ANGLE;
     if(pwm >= SEARCH_LINE_STEER_REF_MIDDLE_DUTY)
     {
-        angle = center_angle -
+        /* 当前前轮左右方向与参考舵机占空比方向相反，这里按本工程角度方向重映射。 */
+        angle = center_angle +
                 (pwm - SEARCH_LINE_STEER_REF_MIDDLE_DUTY) *
-                (center_angle - min_angle) /
+                (max_angle - center_angle) /
                 (SEARCH_LINE_STEER_REF_LEFT_DUTY - SEARCH_LINE_STEER_REF_MIDDLE_DUTY);
     }
     else
     {
-        angle = center_angle +
+        angle = center_angle -
                 (SEARCH_LINE_STEER_REF_MIDDLE_DUTY - pwm) *
-                (max_angle - center_angle) /
+                (center_angle - min_angle) /
                 (SEARCH_LINE_STEER_REF_MIDDLE_DUTY - SEARCH_LINE_STEER_REF_RIGHT_DUTY);
     }
 
@@ -1059,6 +1066,7 @@ static uint8 SearchLine_Calc_Otsu_Threshold(void)
     uint16 fg_weight = 0;
     uint32 gray_sum = 0;
     uint32 bg_sum = 0;
+    uint8 raw_threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
     uint8 threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
     float best_score = -1.0f;
     float mean_bg = 0.0f;
@@ -1113,15 +1121,22 @@ static uint8 SearchLine_Calc_Otsu_Threshold(void)
         if(score > best_score)
         {
             best_score = score;
-            threshold = (uint8)gray;
+            raw_threshold = (uint8)gray;
         }
     }
 
-    if(threshold < SEARCH_LINE_OTSU_THRESHOLD_MIN)
+    if(raw_threshold < SEARCH_LINE_OTSU_THRESHOLD_MIN)
     {
-        threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
+        raw_threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
     }
 
+    threshold = raw_threshold;
+    if(threshold < SEARCH_LINE_OTSU_THRESHOLD_STATIC)
+    {
+        threshold = SEARCH_LINE_OTSU_THRESHOLD_STATIC;
+    }
+
+    SearchLine_Otsu_Threshold_Raw_Cache = raw_threshold;
     SearchLine_Otsu_Threshold_Cache = threshold;
     SearchLine_Otsu_Threshold_Frame_Count = 1;
     return threshold;
@@ -1193,6 +1208,22 @@ void SearchLine_Process(void)
 uint8 SearchLine_GetOtsuThreshold(void)
 {
     return SearchLine_Otsu_Threshold_Cache;
+}
+
+uint8 SearchLine_GetRawOtsuThreshold(void)
+{
+    return SearchLine_Otsu_Threshold_Raw_Cache;
+}
+
+uint8 SearchLine_GetSteerCommand(void)
+{
+    return SearchLine_Otsu_Steer_Command;
+}
+
+void SearchLine_SetSteerPdTenth(uint16 p_tenth, uint16 d_tenth)
+{
+    SearchLine_Otsu_Steer_P_Tenth = p_tenth;
+    SearchLine_Otsu_Steer_D_Tenth = d_tenth;
 }
 
 /* 显示压缩二值图。 */

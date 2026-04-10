@@ -12,6 +12,55 @@
 static uint8 g_ui_flash_ready = 0;
 static flash_start_page_t g_ui_start_page = {FLASH_START_SPEED_DEFAULT, FLASH_START_ENABLE_DEFAULT, 0};
 
+static void ui_flash_fill_default_steer_pd_page(flash_param_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    page->first_value_tenth = FLASH_STEER_P_DEFAULT_TENTH;
+    page->second_value_tenth = FLASH_STEER_D_DEFAULT_TENTH;
+}
+
+static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
+{
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    if((page->first_value_tenth < FLASH_STEER_P_MIN_TENTH) ||
+       (page->first_value_tenth > FLASH_STEER_P_MAX_TENTH))
+    {
+        return 0;
+    }
+
+    if((page->second_value_tenth < FLASH_STEER_D_MIN_TENTH) ||
+       (page->second_value_tenth > FLASH_STEER_D_MAX_TENTH))
+    {
+        return 0;
+    }
+
+    /* 旧版本这两个槽位没用过，读到 0/0 时按新默认值迁过去。 */
+    if((0 == page->first_value_tenth) && (0 == page->second_value_tenth))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+static void ui_flash_apply_servo_limit_page(const flash_line_tune_page_t *page)
+{
+    if(0 == page)
+    {
+        return;
+    }
+
+    car_servo_set_limit(page->servo_min_angle, page->servo_max_angle);
+}
+
 static void ui_flash_fill_default_start_page(flash_start_page_t *page)
 {
     if(0 == page)
@@ -118,7 +167,20 @@ static void ui_flash_ensure_ready(void)
 
 void ui_flash_init(void)
 {
+    flash_store_data_t store_data;
+    flash_param_page_t param_page;
+    flash_line_tune_page_t line_tune_page;
     flash_start_page_t page;
+
+    flash_store_get_data(&store_data);
+    param_page = store_data.param_page;
+    if(!ui_flash_steer_pd_page_is_valid(&param_page))
+    {
+        ui_flash_fill_default_steer_pd_page(&store_data.param_page);
+        flash_store_set_data(&store_data);
+    }
+    line_tune_page = store_data.line_tune_page;
+    ui_flash_apply_servo_limit_page(&line_tune_page);
 
     /* 上电先校验启动页，异常值直接拉回默认配置。 */
     flash_store_get_start_page(&page);
@@ -130,6 +192,44 @@ void ui_flash_init(void)
 
     ui_flash_apply_start_page(&page);
     g_ui_flash_ready = 1;
+}
+
+void ui_flash_get_steer_pd_range(flash_param_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value)
+{
+    uint16 min_value_local = 0;
+    uint16 max_value_local = 0;
+    uint16 step_value_local = 0;
+
+    switch(slot)
+    {
+        case FLASH_PARAM_SLOT_FIRST:
+            min_value_local = FLASH_STEER_P_MIN_TENTH;
+            max_value_local = FLASH_STEER_P_MAX_TENTH;
+            step_value_local = FLASH_STEER_P_STEP_TENTH;
+            break;
+        case FLASH_PARAM_SLOT_SECOND:
+            min_value_local = FLASH_STEER_D_MIN_TENTH;
+            max_value_local = FLASH_STEER_D_MAX_TENTH;
+            step_value_local = FLASH_STEER_D_STEP_TENTH;
+            break;
+        default:
+            break;
+    }
+
+    if(0 != min_value)
+    {
+        *min_value = min_value_local;
+    }
+
+    if(0 != max_value)
+    {
+        *max_value = max_value_local;
+    }
+
+    if(0 != step_value)
+    {
+        *step_value = step_value_local;
+    }
 }
 
 void ui_flash_get_camera_range(flash_camera_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value)
@@ -176,6 +276,45 @@ uint16 ui_flash_get_camera_value(flash_camera_slot_t slot)
     return flash_store_get_camera_value(slot);
 }
 
+uint16 ui_flash_get_steer_pd_value_tenth(flash_param_slot_t slot)
+{
+    return (uint16)flash_store_get_param_value_tenth(slot);
+}
+
+void ui_flash_get_servo_limit_range(uint16 *min_value, uint16 *max_value, uint16 *step_value)
+{
+    if(0 != min_value)
+    {
+        *min_value = FLASH_SERVO_LIMIT_ANGLE_MIN;
+    }
+
+    if(0 != max_value)
+    {
+        *max_value = FLASH_SERVO_LIMIT_ANGLE_MAX;
+    }
+
+    if(0 != step_value)
+    {
+        *step_value = FLASH_SERVO_LIMIT_ANGLE_STEP;
+    }
+}
+
+uint16 ui_flash_get_servo_limit_min_value(void)
+{
+    flash_line_tune_page_t page;
+
+    flash_store_get_line_tune_page(&page);
+    return page.servo_min_angle;
+}
+
+uint16 ui_flash_get_servo_limit_max_value(void)
+{
+    flash_line_tune_page_t page;
+
+    flash_store_get_line_tune_page(&page);
+    return page.servo_max_angle;
+}
+
 uint8 ui_flash_adjust_camera_value(flash_camera_slot_t slot, int16 delta)
 {
     uint16 current_value = 0;
@@ -203,6 +342,106 @@ uint8 ui_flash_adjust_camera_value(flash_camera_slot_t slot, int16 delta)
     }
 
     return line_app_set_camera_param_value(slot, (uint16)next_value);
+}
+
+uint8 ui_flash_adjust_servo_limit_min_value(int16 delta)
+{
+    flash_line_tune_page_t page;
+    uint16 min_value = 0;
+    uint16 max_value = 0;
+    int32 next_value = 0;
+
+    flash_store_get_line_tune_page(&page);
+    ui_flash_get_servo_limit_range(&min_value, &max_value, 0);
+    next_value = (int32)page.servo_min_angle + (int32)delta;
+    if(next_value < min_value)
+    {
+        next_value = min_value;
+    }
+    else if(next_value > max_value)
+    {
+        next_value = max_value;
+    }
+    if((uint16)next_value >= page.servo_max_angle)
+    {
+        next_value = (int32)page.servo_max_angle - FLASH_SERVO_LIMIT_ANGLE_STEP;
+    }
+    if(next_value < min_value)
+    {
+        next_value = min_value;
+    }
+    if((uint16)next_value == page.servo_min_angle)
+    {
+        return 0;
+    }
+
+    page.servo_min_angle = (uint8)next_value;
+    ui_flash_apply_servo_limit_page(&page);
+    return flash_store_set_line_tune_page(&page);
+}
+
+uint8 ui_flash_adjust_servo_limit_max_value(int16 delta)
+{
+    flash_line_tune_page_t page;
+    uint16 min_value = 0;
+    uint16 max_value = 0;
+    int32 next_value = 0;
+
+    flash_store_get_line_tune_page(&page);
+    ui_flash_get_servo_limit_range(&min_value, &max_value, 0);
+    next_value = (int32)page.servo_max_angle + (int32)delta;
+    if(next_value < min_value)
+    {
+        next_value = min_value;
+    }
+    else if(next_value > max_value)
+    {
+        next_value = max_value;
+    }
+    if((uint16)next_value <= page.servo_min_angle)
+    {
+        next_value = (int32)page.servo_min_angle + FLASH_SERVO_LIMIT_ANGLE_STEP;
+    }
+    if(next_value > max_value)
+    {
+        next_value = max_value;
+    }
+    if((uint16)next_value == page.servo_max_angle)
+    {
+        return 0;
+    }
+
+    page.servo_max_angle = (uint8)next_value;
+    ui_flash_apply_servo_limit_page(&page);
+    return flash_store_set_line_tune_page(&page);
+}
+
+uint8 ui_flash_adjust_steer_pd_value_tenth(flash_param_slot_t slot, int16 delta)
+{
+    uint16 current_value = 0;
+    uint16 min_value = 0;
+    uint16 max_value = 0;
+    int32 next_value = 0;
+
+    current_value = ui_flash_get_steer_pd_value_tenth(slot);
+    ui_flash_get_steer_pd_range(slot, &min_value, &max_value, 0);
+    next_value = (int32)current_value + (int32)delta;
+
+    if(next_value < min_value)
+    {
+        next_value = min_value;
+    }
+    else if(next_value > max_value)
+    {
+        next_value = max_value;
+    }
+
+    if((uint16)next_value == current_value)
+    {
+        return 0;
+    }
+
+    return line_app_set_steer_pd_value_tenth(slot, (int16)next_value);
 }
 
 void ui_flash_get_start_page(flash_start_page_t *page)

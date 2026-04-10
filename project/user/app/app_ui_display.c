@@ -12,7 +12,7 @@
 
 #define MENU_LINE_HEIGHT            (16)
 #define MENU_ROOT_ITEM_COUNT        (3)
-#define MENU_PARAM_MENU_ITEM_COUNT  (1)
+#define MENU_PARAM_MENU_ITEM_COUNT  (2)
 #define MENU_TITLE_Y                (0)
 #define MENU_ROOT_LIST_Y            (16)
 #define MENU_SUBMENU_LIST_Y         (24)
@@ -40,7 +40,8 @@ typedef enum
     DISPLAY_PAGE_CAMERA,
     DISPLAY_PAGE_START,
     DISPLAY_PAGE_PARAM_MENU,
-    DISPLAY_PAGE_PARAM_CAMERA
+    DISPLAY_PAGE_PARAM_CAMERA,
+    DISPLAY_PAGE_PARAM_STEER_PD
 } display_page_t;
 
 typedef enum
@@ -48,6 +49,14 @@ typedef enum
     START_SLOT_SPEED = 0,
     START_SLOT_ENABLE
 } start_slot_t;
+
+typedef enum
+{
+    STEER_PAGE_SLOT_P = 0,
+    STEER_PAGE_SLOT_D,
+    STEER_PAGE_SLOT_SERVO_MIN,
+    STEER_PAGE_SLOT_SERVO_MAX
+} steer_page_slot_t;
 
 typedef void (*display_menu_draw_item_t)(uint8 index);
 
@@ -60,7 +69,8 @@ static const char *g_root_menu_titles[MENU_ROOT_ITEM_COUNT] =
 
 static const char *g_param_menu_titles[MENU_PARAM_MENU_ITEM_COUNT] =
 {
-    "Camera"
+    "Camera",
+    "Steer PD"
 };
 
 static uint8 g_menu_selected = 0;
@@ -69,6 +79,7 @@ static display_page_t g_menu_page = DISPLAY_PAGE_ROOT;
 static uint8 g_menu_dirty = 1;
 static uint8 g_menu_last_battery_percent = 0xFF;
 static flash_camera_slot_t g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
+static steer_page_slot_t g_steer_pd_selected = STEER_PAGE_SLOT_P;
 static start_slot_t g_start_selected = START_SLOT_SPEED;
 static uint8 g_param_editing = 0;
 
@@ -393,6 +404,278 @@ static void display_menu_camera_param_adjust_by_step_mul(int8 direction, uint8 s
     display_menu_camera_param_adjust(delta);
 }
 
+static const char *display_menu_get_steer_pd_label(steer_page_slot_t slot)
+{
+    switch(slot)
+    {
+        case STEER_PAGE_SLOT_P:
+            return "steer p";
+        case STEER_PAGE_SLOT_D:
+            return "steer d";
+        case STEER_PAGE_SLOT_SERVO_MIN:
+            return "servo min";
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            return "servo max";
+        default:
+            return "";
+    }
+}
+
+static uint8 display_menu_get_steer_pd_row_index(steer_page_slot_t slot)
+{
+    switch(slot)
+    {
+        case STEER_PAGE_SLOT_P:
+            return 0;
+        case STEER_PAGE_SLOT_D:
+            return 1;
+        case STEER_PAGE_SLOT_SERVO_MIN:
+            return 2;
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            return 3;
+        default:
+            return 0;
+    }
+}
+
+static void display_menu_draw_steer_pd_row(steer_page_slot_t slot)
+{
+    char value_text[8];
+    const char *label_text = 0;
+    uint16 row_y = 0;
+    uint16 guide_color = RGB565_GRAY;
+    uint16 label_color = RGB565_BLACK;
+    uint16 value_color = RGB565_BLACK;
+    uint16 value = 0;
+
+    row_y = display_menu_get_row_y(display_menu_get_steer_pd_row_index(slot));
+    label_text = display_menu_get_steer_pd_label(slot);
+    switch(slot)
+    {
+        case STEER_PAGE_SLOT_P:
+            value = ui_flash_get_steer_pd_value_tenth(FLASH_PARAM_SLOT_FIRST);
+            ui_library_format_tenth((int16)value, value_text);
+            break;
+        case STEER_PAGE_SLOT_D:
+            value = ui_flash_get_steer_pd_value_tenth(FLASH_PARAM_SLOT_SECOND);
+            ui_library_format_tenth((int16)value, value_text);
+            break;
+        case STEER_PAGE_SLOT_SERVO_MIN:
+            value = ui_flash_get_servo_limit_min_value();
+            ui_library_format_uint16(value, value_text);
+            break;
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            value = ui_flash_get_servo_limit_max_value();
+            ui_library_format_uint16(value, value_text);
+            break;
+        default:
+            value_text[0] = '\0';
+            break;
+    }
+
+    ui_library_draw_rect(MENU_PARAM_ACCENT_X,
+                         (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                         MENU_PARAM_ACCENT_W,
+                         MENU_PARAM_ACCENT_H,
+                         RGB565_WHITE);
+
+    if(slot == g_steer_pd_selected)
+    {
+        guide_color = g_param_editing ? RGB565_RED : RGB565_BLUE;
+        label_color = guide_color;
+        value_color = guide_color;
+        ui_library_draw_rect(MENU_PARAM_ACCENT_X,
+                             (uint16)(row_y + MENU_PARAM_ACCENT_Y_OFFSET),
+                             MENU_PARAM_ACCENT_W,
+                             MENU_PARAM_ACCENT_H,
+                             guide_color);
+    }
+    else
+    {
+        label_color = RGB565_GRAY;
+    }
+
+    ips200_set_color(label_color, RGB565_WHITE);
+    ips200_show_string(MENU_PARAM_LABEL_X, row_y, MENU_PARAM_LABEL_CLEAR);
+    ips200_show_string(MENU_PARAM_LABEL_X, row_y, label_text);
+
+    ips200_set_color(value_color, RGB565_WHITE);
+    ips200_show_string(MENU_PARAM_VALUE_X, row_y, MENU_PARAM_VALUE_CLEAR);
+    ips200_show_string(MENU_PARAM_VALUE_X, row_y, value_text);
+}
+
+static void display_menu_draw_steer_pd_info(void)
+{
+    char min_text[8];
+    char max_text[8];
+    char step_text[8];
+    uint16 min_value = 0;
+    uint16 max_value = 0;
+    uint16 step_value = 0;
+
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+    ips200_show_string(0, MENU_PARAM_INFO_Y, MENU_PARAM_INFO_CLEAR);
+    if(!g_param_editing)
+    {
+        return;
+    }
+
+    switch(g_steer_pd_selected)
+    {
+        case STEER_PAGE_SLOT_P:
+            ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FIRST, &min_value, &max_value, &step_value);
+            ui_library_format_tenth((int16)min_value, min_text);
+            ui_library_format_tenth((int16)max_value, max_text);
+            ui_library_format_tenth((int16)step_value, step_text);
+            break;
+        case STEER_PAGE_SLOT_D:
+            ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_SECOND, &min_value, &max_value, &step_value);
+            ui_library_format_tenth((int16)min_value, min_text);
+            ui_library_format_tenth((int16)max_value, max_text);
+            ui_library_format_tenth((int16)step_value, step_text);
+            break;
+        case STEER_PAGE_SLOT_SERVO_MIN:
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            ui_flash_get_servo_limit_range(&min_value, &max_value, &step_value);
+            ui_library_format_uint16(min_value, min_text);
+            ui_library_format_uint16(max_value, max_text);
+            ui_library_format_uint16(step_value, step_text);
+            break;
+        default:
+            return;
+    }
+
+    ips200_set_color(RGB565_GRAY, RGB565_WHITE);
+    ips200_show_string(0, MENU_PARAM_INFO_Y, "min");
+    ips200_show_string(64, MENU_PARAM_INFO_Y, "max");
+    ips200_show_string(136, MENU_PARAM_INFO_Y, "sp");
+
+    ips200_set_color(RGB565_GREEN, RGB565_WHITE);
+    ips200_show_string(24, MENU_PARAM_INFO_Y, min_text);
+
+    ips200_set_color(RGB565_RED, RGB565_WHITE);
+    ips200_show_string(88, MENU_PARAM_INFO_Y, max_text);
+
+    ips200_set_color(RGB565_BLUE, RGB565_WHITE);
+    ips200_show_string(152, MENU_PARAM_INFO_Y, step_text);
+}
+
+static void display_menu_draw_steer_pd_page_full(void)
+{
+    ips200_clear(RGB565_WHITE);
+
+    ui_library_draw_title("Steer PD");
+    display_menu_draw_battery(1);
+    ui_library_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
+    display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_P);
+    display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_D);
+    display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_SERVO_MIN);
+    display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_SERVO_MAX);
+    display_menu_draw_steer_pd_info();
+}
+
+static void display_menu_refresh_steer_pd_selection(steer_page_slot_t previous_slot)
+{
+    display_menu_draw_steer_pd_row(previous_slot);
+    display_menu_draw_steer_pd_row(g_steer_pd_selected);
+    display_menu_draw_steer_pd_info();
+}
+
+static void display_menu_refresh_steer_pd_current(void)
+{
+    display_menu_draw_steer_pd_row(g_steer_pd_selected);
+    display_menu_draw_steer_pd_info();
+}
+
+static void display_menu_steer_pd_select_up(void)
+{
+    steer_page_slot_t previous_slot = g_steer_pd_selected;
+
+    if(STEER_PAGE_SLOT_P == g_steer_pd_selected)
+    {
+        g_steer_pd_selected = STEER_PAGE_SLOT_SERVO_MAX;
+    }
+    else
+    {
+        g_steer_pd_selected = (steer_page_slot_t)(g_steer_pd_selected - 1);
+    }
+
+    display_menu_refresh_steer_pd_selection(previous_slot);
+}
+
+static void display_menu_steer_pd_select_down(void)
+{
+    steer_page_slot_t previous_slot = g_steer_pd_selected;
+
+    if(STEER_PAGE_SLOT_SERVO_MAX == g_steer_pd_selected)
+    {
+        g_steer_pd_selected = STEER_PAGE_SLOT_P;
+    }
+    else
+    {
+        g_steer_pd_selected = (steer_page_slot_t)(g_steer_pd_selected + 1);
+    }
+
+    display_menu_refresh_steer_pd_selection(previous_slot);
+}
+
+static void display_menu_steer_pd_adjust(int16 delta)
+{
+    uint8 changed = 0;
+
+    switch(g_steer_pd_selected)
+    {
+        case STEER_PAGE_SLOT_P:
+            changed = ui_flash_adjust_steer_pd_value_tenth(FLASH_PARAM_SLOT_FIRST, delta);
+            break;
+        case STEER_PAGE_SLOT_D:
+            changed = ui_flash_adjust_steer_pd_value_tenth(FLASH_PARAM_SLOT_SECOND, delta);
+            break;
+        case STEER_PAGE_SLOT_SERVO_MIN:
+            changed = ui_flash_adjust_servo_limit_min_value(delta);
+            break;
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            changed = ui_flash_adjust_servo_limit_max_value(delta);
+            break;
+        default:
+            break;
+    }
+
+    if(changed)
+    {
+        display_menu_refresh_steer_pd_current();
+    }
+}
+
+static void display_menu_steer_pd_adjust_by_step_mul(int8 direction, uint8 step_mul)
+{
+    uint16 step_value = 0;
+    int16 delta = 0;
+
+    switch(g_steer_pd_selected)
+    {
+        case STEER_PAGE_SLOT_P:
+            ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FIRST, 0, 0, &step_value);
+            break;
+        case STEER_PAGE_SLOT_D:
+            ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_SECOND, 0, 0, &step_value);
+            break;
+        case STEER_PAGE_SLOT_SERVO_MIN:
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            ui_flash_get_servo_limit_range(0, 0, &step_value);
+            break;
+        default:
+            return;
+    }
+    delta = display_menu_build_step_delta(step_value, direction, step_mul);
+    if(0 == delta)
+    {
+        return;
+    }
+
+    display_menu_steer_pd_adjust(delta);
+}
+
 static const char *display_menu_get_start_label(start_slot_t slot)
 {
     if(START_SLOT_SPEED == slot)
@@ -668,6 +951,8 @@ static void display_menu_enter_root_page(void)
     g_menu_page = DISPLAY_PAGE_ROOT;
     g_menu_selected = 0;
     g_param_menu_selected = 0;
+    g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
+    g_steer_pd_selected = STEER_PAGE_SLOT_P;
     g_start_selected = START_SLOT_SPEED;
     g_param_editing = 0;
     display_menu_mark_dirty();
@@ -683,6 +968,7 @@ void display_menu_init(void)
     g_menu_dirty = 1;
     g_menu_last_battery_percent = 0xFF;
     g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
+    g_steer_pd_selected = STEER_PAGE_SLOT_P;
     g_start_selected = START_SLOT_SPEED;
     g_param_editing = 0;
     /* UI 初始化时先恢复 Start 页缓存，主流程会直接读这个结果定初始状态。 */
@@ -720,6 +1006,9 @@ void display_menu_render(void)
         case DISPLAY_PAGE_PARAM_CAMERA:
             display_menu_draw_camera_param_page_full();
             break;
+        case DISPLAY_PAGE_PARAM_STEER_PD:
+            display_menu_draw_steer_pd_page_full();
+            break;
         case DISPLAY_PAGE_START:
             display_menu_draw_start_page_full();
             break;
@@ -756,6 +1045,19 @@ void display_menu_move_up(void)
         else
         {
             display_menu_camera_param_select_up();
+        }
+        return;
+    }
+
+    if(DISPLAY_PAGE_PARAM_STEER_PD == g_menu_page)
+    {
+        if(g_param_editing)
+        {
+            display_menu_steer_pd_adjust_by_step_mul(1, 1);
+        }
+        else
+        {
+            display_menu_steer_pd_select_up();
         }
         return;
     }
@@ -806,6 +1108,19 @@ void display_menu_move_down(void)
         return;
     }
 
+    if(DISPLAY_PAGE_PARAM_STEER_PD == g_menu_page)
+    {
+        if(g_param_editing)
+        {
+            display_menu_steer_pd_adjust_by_step_mul(-1, 1);
+        }
+        else
+        {
+            display_menu_steer_pd_select_down();
+        }
+        return;
+    }
+
     if(DISPLAY_PAGE_PARAM_MENU == g_menu_page)
     {
         display_menu_cycle_list_selection(&g_param_menu_selected,
@@ -842,6 +1157,10 @@ void display_menu_move_up_fast(void)
     {
         display_menu_camera_param_adjust_by_step_mul(1, MENU_PARAM_FAST_STEP_MUL);
     }
+    else if(DISPLAY_PAGE_PARAM_STEER_PD == g_menu_page)
+    {
+        display_menu_steer_pd_adjust_by_step_mul(1, MENU_PARAM_FAST_STEP_MUL);
+    }
 }
 
 void display_menu_move_down_fast(void)
@@ -862,6 +1181,10 @@ void display_menu_move_down_fast(void)
     else if(DISPLAY_PAGE_PARAM_CAMERA == g_menu_page)
     {
         display_menu_camera_param_adjust_by_step_mul(-1, MENU_PARAM_FAST_STEP_MUL);
+    }
+    else if(DISPLAY_PAGE_PARAM_STEER_PD == g_menu_page)
+    {
+        display_menu_steer_pd_adjust_by_step_mul(-1, MENU_PARAM_FAST_STEP_MUL);
     }
 }
 
@@ -890,11 +1213,26 @@ void display_menu_enter(void)
         return;
     }
 
+    if(DISPLAY_PAGE_PARAM_STEER_PD == g_menu_page)
+    {
+        g_param_editing = (uint8)!g_param_editing;
+        display_menu_refresh_steer_pd_current();
+        return;
+    }
+
     if(DISPLAY_PAGE_PARAM_MENU == g_menu_page)
     {
         g_param_editing = 0;
-        g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
-        g_menu_page = DISPLAY_PAGE_PARAM_CAMERA;
+        if(0 == g_param_menu_selected)
+        {
+            g_camera_param_selected = FLASH_CAMERA_SLOT_EXP_TIME;
+            g_menu_page = DISPLAY_PAGE_PARAM_CAMERA;
+        }
+        else
+        {
+            g_steer_pd_selected = STEER_PAGE_SLOT_P;
+            g_menu_page = DISPLAY_PAGE_PARAM_STEER_PD;
+        }
         display_menu_mark_dirty();
         display_menu_render();
         return;
@@ -953,6 +1291,21 @@ void display_menu_back(void)
         {
             g_param_editing = 0;
             display_menu_refresh_camera_current();
+            return;
+        }
+
+        g_menu_page = DISPLAY_PAGE_PARAM_MENU;
+        display_menu_mark_dirty();
+        display_menu_render();
+        return;
+    }
+
+    if(DISPLAY_PAGE_PARAM_STEER_PD == g_menu_page)
+    {
+        if(g_param_editing)
+        {
+            g_param_editing = 0;
+            display_menu_refresh_steer_pd_current();
             return;
         }
 

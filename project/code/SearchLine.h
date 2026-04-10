@@ -12,5 +12,8 @@
 void SearchLine_Process(void);
 void SearchLine_DrawBinaryPreview(void);
 uint8 SearchLine_GetOtsuThreshold(void);
+uint8 SearchLine_GetRawOtsuThreshold(void);
+uint8 SearchLine_GetSteerCommand(void);
+void SearchLine_SetSteerPdTenth(uint16 p_tenth, uint16 d_tenth);
 
 #endif

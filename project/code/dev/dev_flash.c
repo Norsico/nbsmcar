@@ -21,10 +21,17 @@ typedef struct
 static flash_store_image_t g_flash_store_cache;
 static uint8 g_flash_store_ready = 0;
 
-/* 这两项参数暂时共用同一套范围限制。 */
-static uint8 flash_store_value_in_range(int16 value_tenth)
+static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 value_tenth)
 {
-    return (value_tenth >= FLASH_PARAM_VALUE_MIN_TENTH && value_tenth <= FLASH_PARAM_VALUE_MAX_TENTH) ? 1 : 0;
+    switch(slot)
+    {
+        case FLASH_PARAM_SLOT_FIRST:
+            return (value_tenth >= FLASH_STEER_P_MIN_TENTH && value_tenth <= FLASH_STEER_P_MAX_TENTH) ? 1 : 0;
+        case FLASH_PARAM_SLOT_SECOND:
+            return (value_tenth >= FLASH_STEER_D_MIN_TENTH && value_tenth <= FLASH_STEER_D_MAX_TENTH) ? 1 : 0;
+        default:
+            return 0;
+    }
 }
 
 static uint8 flash_store_camera_value_in_range(flash_camera_slot_t slot, uint16 value)
@@ -70,6 +77,18 @@ static uint8 flash_store_line_tune_page_is_valid(const flash_line_tune_page_t *p
         return 0;
     }
 
+    if((page->servo_min_angle < FLASH_SERVO_LIMIT_ANGLE_MIN) ||
+       (page->servo_min_angle > FLASH_SERVO_LIMIT_ANGLE_MAX))
+    {
+        return 0;
+    }
+
+    if((page->servo_max_angle < FLASH_SERVO_LIMIT_ANGLE_MIN) ||
+       (page->servo_max_angle > FLASH_SERVO_LIMIT_ANGLE_MAX))
+    {
+        return 0;
+    }
+
     if(page->servo_min_angle >= page->servo_max_angle)
     {
         return 0;
@@ -98,11 +117,11 @@ static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
 static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
 {
     memset(store_ptr, 0, sizeof(*store_ptr));
-    store_ptr->param_page.first_value_tenth = 0;
-    store_ptr->param_page.second_value_tenth = 0;
+    store_ptr->param_page.first_value_tenth = FLASH_STEER_P_DEFAULT_TENTH;
+    store_ptr->param_page.second_value_tenth = FLASH_STEER_D_DEFAULT_TENTH;
     store_ptr->camera_page.auto_exp = MT9V03X_AUTO_EXP_DEF;
-    store_ptr->camera_page.exp_time = MT9V03X_EXP_TIME_DEF;
-    store_ptr->camera_page.gain = MT9V03X_GAIN_DEF;
+    store_ptr->camera_page.exp_time = 32;
+    store_ptr->camera_page.gain = 16;
     store_ptr->line_tune_page.kp_tenth = FLASH_LINE_KP_DEFAULT_TENTH;
     store_ptr->line_tune_page.kd_tenth = FLASH_LINE_KD_DEFAULT_TENTH;
     store_ptr->line_tune_page.servo_min_angle = FLASH_LINE_SERVO_MIN_DEFAULT;
@@ -125,12 +144,12 @@ static void flash_store_fill_default_image(flash_store_image_t *image)
 /* 现在先检查已经接进来的这一组参数。 */
 static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
 {
-    if(!flash_store_value_in_range(store_ptr->param_page.first_value_tenth))
+    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_FIRST, store_ptr->param_page.first_value_tenth))
     {
         return 0;
     }
 
-    if(!flash_store_value_in_range(store_ptr->param_page.second_value_tenth))
+    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_SECOND, store_ptr->param_page.second_value_tenth))
     {
         return 0;
     }
@@ -324,17 +343,20 @@ uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_ten
         flash_store_init();
     }
 
-    if(!flash_store_value_in_range(value_tenth))
-    {
-        return 0;
-    }
-
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
+            if(!flash_store_steer_pd_value_in_range(slot, value_tenth))
+            {
+                return 0;
+            }
             target_value = &g_flash_store_cache.store_data.param_page.first_value_tenth;
             break;
         case FLASH_PARAM_SLOT_SECOND:
+            if(!flash_store_steer_pd_value_in_range(slot, value_tenth))
+            {
+                return 0;
+            }
             target_value = &g_flash_store_cache.store_data.param_page.second_value_tenth;
             break;
         default:
