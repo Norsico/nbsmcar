@@ -23,6 +23,11 @@ typedef enum
 // 左右轮PID控制器
 extern pid_control_t wheel_pid_left;
 extern pid_control_t wheel_pid_right;
+extern int16 enc_l_f;
+extern int16 enc_r_f;
+extern float speed_goal_eff;
+extern float ref_left_target;
+extern float ref_right_target;
 
 // 函数 
 void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent); // 单独设置速度
@@ -31,6 +36,8 @@ void car_wheel_stop_all(void);  // 全部停止
 void car_wheel_init(void); // 初始化
 void car_wheel_pid_init(void); // pid结构体初始化
 void car_wheel_set_target(float speed); // 设置整车基础速度，由内部自动换算左右轮目标
+void car_wheel_set_straight_acc(uint8 straight_acc); // 同步图像侧直道判定，只更新观测量
+void car_wheel_set_line_observation(uint8 det_true, uint8 left_line, uint8 right_line); // 同步图像侧差速观测量，只更新预览值
 void car_wheel_control_reset(void); // 清空闭环状态并停轮
 void car_wheel_update(void); // 自动调用pid进行车轮更新函数
 

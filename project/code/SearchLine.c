@@ -1,6 +1,7 @@
 #include "SearchLine.h"
 #include "dev_flash.h"
 #include "dev_servo.h"
+#include "dev_wheel.h"
 
 #define SEARCH_LINE_OTSU_W                  (80)
 #define SEARCH_LINE_OTSU_H                  (60)
@@ -1220,6 +1221,26 @@ uint8 SearchLine_GetSteerCommand(void)
     return SearchLine_Otsu_Steer_Command;
 }
 
+uint8 SearchLine_GetStraightAcc(void)
+{
+    return SearchLine_Otsu_Straight_Acc;
+}
+
+uint8 SearchLine_GetDetTrue(void)
+{
+    return SearchLine_Otsu_Det_True;
+}
+
+uint8 SearchLine_GetLeftLine(void)
+{
+    return SearchLine_Otsu_Left_Line;
+}
+
+uint8 SearchLine_GetRightLine(void)
+{
+    return SearchLine_Otsu_Right_Line;
+}
+
 void SearchLine_SetSteerPdTenth(uint16 p_tenth, uint16 d_tenth)
 {
     SearchLine_Otsu_Steer_P_Tenth = p_tenth;
@@ -1239,7 +1260,13 @@ void SearchLine_DrawBinaryPreview(void)
     uint8 right_col = 0;
     uint8 center_col = 0;
     uint16 offset_abs = 0;
+    uint16 wheel_text_y = 0;
+    uint16 wheel_enc_y = 0;
+    uint16 wheel_ref_y = 0;
     uint8 command_value = 0;
+    int16 speed_goal_display = 0;
+    int16 ref_left_display = 0;
+    int16 ref_right_display = 0;
 
     ips200_show_gray_image(0,
                            0,
@@ -1297,6 +1324,42 @@ void SearchLine_DrawBinaryPreview(void)
     ips200_show_string(72, (uint16)(CAMERA_RAW_H + 20), "cmd");
     ips200_show_string(24, (uint16)(CAMERA_RAW_H + 20), offset_text);
     ips200_show_string(104, (uint16)(CAMERA_RAW_H + 20), command_text);
+
+    wheel_text_y = (uint16)(CAMERA_RAW_H + 36);
+    wheel_enc_y = (uint16)(CAMERA_RAW_H + 52);
+    wheel_ref_y = (uint16)(CAMERA_RAW_H + 68);
+    speed_goal_display = (int16)(speed_goal_eff + 0.5f);
+    if(ref_left_target >= 0.0f)
+    {
+        ref_left_display = (int16)(ref_left_target + 0.5f);
+    }
+    else
+    {
+        ref_left_display = (int16)(ref_left_target - 0.5f);
+    }
+    if(ref_right_target >= 0.0f)
+    {
+        ref_right_display = (int16)(ref_right_target + 0.5f);
+    }
+    else
+    {
+        ref_right_display = (int16)(ref_right_target - 0.5f);
+    }
+
+    ips200_show_string(0, wheel_text_y, "sa");
+    ips200_show_int32(16, wheel_text_y, (int32)SearchLine_Otsu_Straight_Acc, 1);
+    ips200_show_string(48, wheel_text_y, "sg");
+    ips200_show_int32(64, wheel_text_y, (int32)speed_goal_display, 3);
+
+    ips200_show_string(0, wheel_enc_y, "el");
+    ips200_show_int32(16, wheel_enc_y, (int32)enc_l_f, 4);
+    ips200_show_string(96, wheel_enc_y, "er");
+    ips200_show_int32(112, wheel_enc_y, (int32)enc_r_f, 4);
+
+    ips200_show_string(0, wheel_ref_y, "rl");
+    ips200_show_int32(16, wheel_ref_y, (int32)ref_left_display, 4);
+    ips200_show_string(96, wheel_ref_y, "rr");
+    ips200_show_int32(112, wheel_ref_y, (int32)ref_right_display, 4);
 
     for(row = SearchLine_Otsu_Offline_Row; row <= SEARCH_LINE_OTSU_BOTTOM_ROW; row++)
     {

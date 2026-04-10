@@ -36,7 +36,7 @@
 #define FLASH_LINE_SERVO_MIN_DEFAULT    (70)    /* 舵机默认右限幅角。 */
 #define FLASH_LINE_SERVO_MAX_DEFAULT    (110)   /* 舵机默认左限幅角。 */
 #define FLASH_START_SPEED_MIN           (0)     /* 启动页后轮目标速度下限，0 表示静止。 */
-#define FLASH_START_SPEED_MAX           (200)   /* 启动页后轮目标速度上限，先按 0-200 收口。 */
+#define FLASH_START_SPEED_MAX           (400)   /* 启动页后轮目标速度上限，当前按用户要求放宽到 0-400。 */
 #define FLASH_START_SPEED_STEP          (10)    /* 启动页后轮目标速度步进。 */
 #define FLASH_START_ENABLE_MIN          (0)     /* 启动开关下限，0 表示关闭。 */
 #define FLASH_START_ENABLE_MAX          (1)     /* 启动开关上限，1 表示开启。 */

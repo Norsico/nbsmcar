@@ -14,8 +14,8 @@
  * 进入调参模式后，可按需关闭屏幕、跳过巡线初始化、暂停巡线处理。
  */
 #define WIFI_TUNING_DISABLE_IPS_WHEN_ACTIVE    (1)
-#define WIFI_TUNING_SKIP_LINE_INIT_WHEN_ACTIVE (1)
-#define WIFI_TUNING_PAUSE_LINE_APP_WHEN_ACTIVE (1)
+#define WIFI_TUNING_SKIP_LINE_INIT_WHEN_ACTIVE (0)
+#define WIFI_TUNING_PAUSE_LINE_APP_WHEN_ACTIVE (0)
 
 /* 示波器数据发送周期，单位 ms。 */
 #define WIFI_TUNING_OSC_PERIOD_MS              (50)
@@ -23,9 +23,9 @@
 #define WIFI_TUNING_CONNECT_RETRY_MS           (1000)
 
 /* WiFi 和上位机网络参数。 */
-#define WIFI_TUNING_WIFI_SSID                  "xyh"
-#define WIFI_TUNING_WIFI_PASSWORD              "1261340160xyh"
-#define WIFI_TUNING_TARGET_IP                  "192.168.43.236"
+#define WIFI_TUNING_WIFI_SSID                  "OnePlus"
+#define WIFI_TUNING_WIFI_PASSWORD              "1234567890xia"          /* 热点密码 */
+#define WIFI_TUNING_TARGET_IP                  "10.11.37.9"
 #define WIFI_TUNING_TARGET_PORT                "8086"
 #define WIFI_TUNING_LOCAL_PORT                 "8086"
 
@@ -50,23 +50,36 @@
 
 #include "dev_encoder.h"
 #include "dev_wheel.h"
+#include "SearchLine.h"
 
-/* 右轮编码器值，作为示波器上行数据示例。 */
-static float wifi_tuning_read_right_encoder(void)
+/* 当前加权 det。 */
+static float wifi_tuning_read_det_true(void)
 {
-    return (float)encoder_get_right();
+    return (float)SearchLine_GetDetTrue();
 }
 
-/* 将 PID 输出换算成百分比，方便上位机直接看波形。 */
-static float wifi_tuning_read_right_pwm_percent(void)
+/* 当前舵机命令角。 */
+static float wifi_tuning_read_steer_command(void)
 {
-    return wheel_pid_right.output * 100.0f / 9900.0f;
+    return (float)SearchLine_GetSteerCommand();
 }
 
-/* 右轮速度环当前误差。 */
-static float wifi_tuning_read_right_error(void)
+/* 当前直道判定。 */
+static float wifi_tuning_read_straight_acc(void)
 {
-    return wheel_pid_right.error;
+    return (float)SearchLine_GetStraightAcc();
+}
+
+/* 左轮滤波编码器镜像。 */
+static float wifi_tuning_read_left_encoder_filter(void)
+{
+    return (float)enc_l_f;
+}
+
+/* 右轮滤波编码器镜像。 */
+static float wifi_tuning_read_right_encoder_filter(void)
+{
+    return (float)enc_r_f;
 }
 
 /*
@@ -94,13 +107,14 @@ static float wifi_tuning_read_right_error(void)
  * - reader_fn: 自定义读取函数；不用时填 0。
  */
 #define WIFI_TUNING_OSC_TABLE(APPLY) \
-    APPLY(0, &wheel_pid_right.target,   0) \
-    APPLY(1, 0, wifi_tuning_read_right_encoder) \
-    APPLY(2, 0, wifi_tuning_read_right_pwm_percent) \
-    APPLY(3, 0, wifi_tuning_read_right_error) \
-    APPLY(4, &wheel_pid_right.param.kp, 0) \
-    APPLY(5, &wheel_pid_right.param.ki, 0) \
-    APPLY(6, &wheel_pid_right.param.kd, 0)
+    APPLY(0, 0, wifi_tuning_read_det_true) \
+    APPLY(1, 0, wifi_tuning_read_steer_command) \
+    APPLY(2, 0, wifi_tuning_read_straight_acc) \
+    APPLY(3, &speed_goal_eff, 0) \
+    APPLY(4, 0, wifi_tuning_read_left_encoder_filter) \
+    APPLY(5, 0, wifi_tuning_read_right_encoder_filter) \
+    APPLY(6, &ref_left_target, 0) \
+    APPLY(7, &ref_right_target, 0)
 
 #endif
 

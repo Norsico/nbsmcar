@@ -3,6 +3,7 @@
 #include "SearchLine.h"
 #include "dev_other.h"
 #include "dev_servo.h"
+#include "dev_wheel.h"
 
 static uint8 line_camera_ready = 0;
 
@@ -87,6 +88,10 @@ static uint8 line_app_handle_frame(void)
     }
 
     SearchLine_Process();
+    car_wheel_set_straight_acc(SearchLine_GetStraightAcc());
+    car_wheel_set_line_observation(SearchLine_GetDetTrue(),
+                                   SearchLine_GetLeftLine(),
+                                   SearchLine_GetRightLine());
     raw_threshold = SearchLine_GetRawOtsuThreshold();
     if((SYS_RUNNING == g_system_state) && (raw_threshold < 18))
     {
