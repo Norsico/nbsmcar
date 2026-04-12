@@ -23,9 +23,7 @@
 #define SEARCH_LINE_OTSU_MIN_WIDTH          (7)
 #define SEARCH_LINE_OTSU_EDGE_LIMIT         (10)
 #define SEARCH_LINE_OTSU_SCAN_WINDOW        (2)
-#define SEARCH_LINE_OTSU_SCAN_WINDOW_CROSS  (2)
 #define SEARCH_LINE_OTSU_MIDDLE_LINE        (SEARCH_LINE_OTSU_W / 2 - 1)
-#define SEARCH_LINE_OTSU_SEARCH_BORDER_BOTTOM_ROW (SEARCH_LINE_OTSU_H - 2)
 /* 普通赛道基础前瞻行，当前按参考常用值先收回到 27。 */
 #define SEARCH_LINE_OTSU_DET_TOW_POINT      (27)
 #define SEARCH_LINE_OTSU_DET_WINDOW         (5)
@@ -41,28 +39,12 @@
 #define SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX (0)
 #define SEARCH_LINE_STEER_REF_MIDDLE_DUTY   (4880.0f)
 #define SEARCH_LINE_STEER_REF_RIGHT_DUTY    (4100.0f)
+
 #define SEARCH_LINE_STEER_REF_LEFT_DUTY     (5520.0f)
-
-#define SEARCH_LINE_STATE_INIT              ('F')
-#define SEARCH_LINE_STATE_FOUND             ('T')
-#define SEARCH_LINE_STATE_WHITE             ('W')
-#define SEARCH_LINE_STATE_BLACK             ('H')
-
-typedef enum
-{
-    SEARCH_LINE_ROAD_NORMAL = 0,
-    SEARCH_LINE_ROAD_STRAIGHT,
-    SEARCH_LINE_ROAD_CROSS,
-    SEARCH_LINE_ROAD_RAMP,
-    SEARCH_LINE_ROAD_LEFT_CIRQUE,
-    SEARCH_LINE_ROAD_RIGHT_CIRQUE,
-    SEARCH_LINE_ROAD_FORKIN,
-    SEARCH_LINE_ROAD_FORKOUT,
-    SEARCH_LINE_ROAD_BARN_OUT,
-    SEARCH_LINE_ROAD_BARN_IN,
-    SEARCH_LINE_ROAD_CROSS_TRUE,
-    SEARCH_LINE_ROAD_ZEBRA
-} search_line_road_type_t;
+#define SEARCH_LINE_STATE_INIT              ('F') /* 初始态，当前行未完成搜边。 */
+#define SEARCH_LINE_STATE_FOUND             ('T') /* 找到跳变边界。 */
+#define SEARCH_LINE_STATE_WHITE             ('W') /* 扫描窗内全白，当前侧无明确边界。 */
+#define SEARCH_LINE_STATE_BLACK             ('H') /* 扫描窗内全黑，当前侧搜索失败。 */
 
 /* 80x60 灰度压缩图。 */
 static uint8 SearchLine_Otsu_Gray[SEARCH_LINE_OTSU_H][SEARCH_LINE_OTSU_W] = {0};
@@ -86,12 +68,6 @@ static uint8 SearchLine_Otsu_Row_Valid[SEARCH_LINE_OTSU_H] = {0};
 static uint8 SearchLine_Otsu_Left_State[SEARCH_LINE_OTSU_H] = {0};
 /* 右边界状态。 */
 static uint8 SearchLine_Otsu_Right_State[SEARCH_LINE_OTSU_H] = {0};
-/* 对齐参考 Search_Border_OTSU 的首次边界缓存。 */
-static uint8 SearchLine_Otsu_Left_Boundary_First[SEARCH_LINE_OTSU_H] = {0};
-static uint8 SearchLine_Otsu_Right_Boundary_First[SEARCH_LINE_OTSU_H] = {0};
-/* 对齐参考 Search_Border_OTSU 的方向跟踪边界缓存。 */
-static uint8 SearchLine_Otsu_Left_Boundary[SEARCH_LINE_OTSU_H] = {0};
-static uint8 SearchLine_Otsu_Right_Boundary[SEARCH_LINE_OTSU_H] = {0};
 static uint8 SearchLine_Otsu_Left_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Right_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Map_Ready = 0;
@@ -106,16 +82,6 @@ static uint8 SearchLine_Otsu_Det_True = SEARCH_LINE_OTSU_MIDDLE_LINE;
 /* 对齐参考代码的直道判定结果。 */
 static uint8 SearchLine_Otsu_Straight_Acc = 0;
 static uint16 SearchLine_Otsu_Variance_Acc = 0;
-/* 对齐参考 Search_Border_OTSU 的十字/元素观测量。 */
-static uint8 SearchLine_Otsu_WhiteLine_L = 0;
-static uint8 SearchLine_Otsu_WhiteLine_R = 0;
-static uint8 SearchLine_Otsu_OffLine_Boundary = 5;
-static uint8 SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
-static uint8 SearchLine_Otsu_CirquePass = SEARCH_LINE_STATE_INIT;
-static uint8 SearchLine_Otsu_IsCinqueOutIn = SEARCH_LINE_STATE_INIT;
-static uint8 SearchLine_Otsu_CirqueOut = SEARCH_LINE_STATE_INIT;
-static uint8 SearchLine_Otsu_CirqueOff = SEARCH_LINE_STATE_INIT;
-static uint8 SearchLine_Otsu_Fork_Down = 0;
 /* 对齐参考代码的舵机位置式 PD 预览量。 */
 static int16 SearchLine_Otsu_Steer_Offset = 0;
 static uint8 SearchLine_Otsu_Steer_Command = CAR_SERVO_CENTER_ANGLE;
@@ -221,15 +187,6 @@ static void SearchLine_Clear_Otsu_State(void)
     SearchLine_Otsu_Left_Line = 0;
     SearchLine_Otsu_Right_Line = 0;
     SearchLine_Otsu_White_Line = 0;
-    SearchLine_Otsu_WhiteLine_L = 0;
-    SearchLine_Otsu_WhiteLine_R = 0;
-    SearchLine_Otsu_OffLine_Boundary = 5;
-    SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
-    SearchLine_Otsu_CirquePass = SEARCH_LINE_STATE_INIT;
-    SearchLine_Otsu_IsCinqueOutIn = SEARCH_LINE_STATE_INIT;
-    SearchLine_Otsu_CirqueOut = SEARCH_LINE_STATE_INIT;
-    SearchLine_Otsu_CirqueOff = SEARCH_LINE_STATE_INIT;
-    SearchLine_Otsu_Fork_Down = 0;
 
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
@@ -239,31 +196,12 @@ static void SearchLine_Clear_Otsu_State(void)
         SearchLine_Otsu_Row_Valid[row] = 0;
         SearchLine_Otsu_Left_State[row] = SEARCH_LINE_STATE_INIT;
         SearchLine_Otsu_Right_State[row] = SEARCH_LINE_STATE_INIT;
-        SearchLine_Otsu_Left_Boundary_First[row] = 0;
-        SearchLine_Otsu_Right_Boundary_First[row] = SEARCH_LINE_OTSU_W - 1;
-        SearchLine_Otsu_Left_Boundary[row] = 0;
-        SearchLine_Otsu_Right_Boundary[row] = SEARCH_LINE_OTSU_W - 1;
     }
 }
 
 static uint8 SearchLine_Clamp_Otsu_Search_Col(int16 value)
 {
     return (uint8)SearchLine_Limit_Int32(value, 1, SEARCH_LINE_OTSU_W - 2);
-}
-
-static uint8 SearchLine_Get_Otsu_Search_Border_Pixel(int16 row, int16 col, uint8 bottom_row)
-{
-    if((row <= 0) || (row > bottom_row))
-    {
-        return 0;
-    }
-
-    if((col <= 0) || (col >= (SEARCH_LINE_OTSU_W - 1)))
-    {
-        return 0;
-    }
-
-    return SearchLine_Otsu_Binary[row][col];
 }
 
 /* 一行边界结果写入缓存。 */
@@ -286,7 +224,7 @@ static void SearchLine_Set_Otsu_Row(uint8 row, int16 left_border, int16 right_bo
     SearchLine_Otsu_Right_State[row] = SEARCH_LINE_STATE_FOUND;
 }
 
-/* 参考 Pixle_Filter 的十字内噪点补白，当前默认不上主链。 */
+/* 参考 Pixle_Filter 的噪点补白，当前默认不上主链。 */
 static void SearchLine_Pixle_Filter_Otsu(void)
 {
     int16 row = 0;
@@ -308,247 +246,6 @@ static void SearchLine_Pixle_Filter_Otsu(void)
     }
 }
 
-/* 参考 Search_Border_OTSU 的底边扫描。 */
-static void SearchLine_Search_Bottom_Line_Otsu(uint8 bottom_row)
-{
-    int16 col = 0;
-
-    SearchLine_Otsu_Left_Boundary[bottom_row] = 0;
-    SearchLine_Otsu_Right_Boundary[bottom_row] = SEARCH_LINE_OTSU_W - 1;
-
-    for(col = SEARCH_LINE_OTSU_W / 2 - 2; col > 1; col--)
-    {
-        if((1 == SearchLine_Get_Otsu_Search_Border_Pixel(bottom_row, col, bottom_row)) &&
-           (0 == SearchLine_Get_Otsu_Search_Border_Pixel(bottom_row, col - 1, bottom_row)))
-        {
-            SearchLine_Otsu_Left_Boundary[bottom_row] = (uint8)col;
-            break;
-        }
-    }
-
-    for(col = SEARCH_LINE_OTSU_W / 2 + 2; col < SEARCH_LINE_OTSU_W - 1; col++)
-    {
-        if((1 == SearchLine_Get_Otsu_Search_Border_Pixel(bottom_row, col, bottom_row)) &&
-           (0 == SearchLine_Get_Otsu_Search_Border_Pixel(bottom_row, col + 1, bottom_row)))
-        {
-            SearchLine_Otsu_Right_Boundary[bottom_row] = (uint8)col;
-            break;
-        }
-    }
-}
-
-/* 参考 Search_Border_OTSU 的方向跟踪边界扫描。 */
-static void SearchLine_Search_Left_And_Right_Lines_Otsu(uint8 bottom_row)
-{
-    static const int8 left_rule[2][8] =
-    {
-        {0, -1, 1, 0, 0, 1, -1, 0},
-        {-1, -1, 1, -1, 1, 1, -1, 1}
-    };
-    static const int8 right_rule[2][8] =
-    {
-        {0, -1, 1, 0, 0, 1, -1, 0},
-        {1, -1, 1, 1, -1, 1, -1, -1}
-    };
-    uint8 left_y = 0;
-    uint8 left_x = 0;
-    uint8 left_direction = 0;
-    uint8 right_y = 0;
-    uint8 right_x = 0;
-    uint8 right_direction = 0;
-    uint8 pixel_left_y = 0;
-    uint8 pixel_left_x = 0;
-    uint8 pixel_right_y = 0;
-    uint8 pixel_right_x = 0;
-    uint8 row = 0;
-    uint16 guard_count = 0;
-    int16 next_row = 0;
-    int16 next_col = 0;
-
-    left_y = bottom_row;
-    left_x = SearchLine_Otsu_Left_Boundary[bottom_row];
-    right_y = bottom_row;
-    right_x = SearchLine_Otsu_Right_Boundary[bottom_row];
-    pixel_left_y = bottom_row;
-    pixel_right_y = bottom_row;
-    row = bottom_row;
-    SearchLine_Otsu_OffLine_Boundary = 5;
-
-    while(1)
-    {
-        guard_count++;
-        if(guard_count > 400)
-        {
-            SearchLine_Otsu_OffLine_Boundary = row;
-            break;
-        }
-
-        if((row >= pixel_left_y) && (row >= pixel_right_y))
-        {
-            if(row < SearchLine_Otsu_OffLine_Boundary)
-            {
-                SearchLine_Otsu_OffLine_Boundary = row;
-                break;
-            }
-
-            row--;
-        }
-
-        if((pixel_left_y > row) || (row == SearchLine_Otsu_OffLine_Boundary))
-        {
-            next_row = (int16)left_y + left_rule[0][2 * left_direction + 1];
-            next_col = (int16)left_x + left_rule[0][2 * left_direction];
-            pixel_left_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-            pixel_left_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
-
-            if(0 == SearchLine_Get_Otsu_Search_Border_Pixel(pixel_left_y, pixel_left_x, bottom_row))
-            {
-                left_direction = (uint8)((left_direction + 1U) & 0x03U);
-            }
-            else
-            {
-                next_row = (int16)left_y + left_rule[1][2 * left_direction + 1];
-                next_col = (int16)left_x + left_rule[1][2 * left_direction];
-                pixel_left_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                pixel_left_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
-
-                if(0 == SearchLine_Get_Otsu_Search_Border_Pixel(pixel_left_y, pixel_left_x, bottom_row))
-                {
-                    left_y = (uint8)SearchLine_Limit_Int32((int16)left_y + left_rule[0][2 * left_direction + 1],
-                                                           0,
-                                                           SEARCH_LINE_OTSU_H - 1);
-                    left_x = (uint8)SearchLine_Limit_Int32((int16)left_x + left_rule[0][2 * left_direction],
-                                                           0,
-                                                           SEARCH_LINE_OTSU_W - 1);
-                    if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
-                    {
-                        SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
-                    }
-                    SearchLine_Otsu_Left_Boundary[left_y] = left_x;
-                }
-                else
-                {
-                    left_y = (uint8)SearchLine_Limit_Int32((int16)left_y + left_rule[1][2 * left_direction + 1],
-                                                           0,
-                                                           SEARCH_LINE_OTSU_H - 1);
-                    left_x = (uint8)SearchLine_Limit_Int32((int16)left_x + left_rule[1][2 * left_direction],
-                                                           0,
-                                                           SEARCH_LINE_OTSU_W - 1);
-                    if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
-                    {
-                        SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
-                    }
-                    SearchLine_Otsu_Left_Boundary[left_y] = left_x;
-                    if(0 == left_direction)
-                    {
-                        left_direction = 3;
-                    }
-                    else
-                    {
-                        left_direction--;
-                    }
-                }
-            }
-        }
-
-        if((pixel_right_y > row) || (row == SearchLine_Otsu_OffLine_Boundary))
-        {
-            next_row = (int16)right_y + right_rule[0][2 * right_direction + 1];
-            next_col = (int16)right_x + right_rule[0][2 * right_direction];
-            pixel_right_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-            pixel_right_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
-
-            if(0 == SearchLine_Get_Otsu_Search_Border_Pixel(pixel_right_y, pixel_right_x, bottom_row))
-            {
-                if(0 == right_direction)
-                {
-                    right_direction = 3;
-                }
-                else
-                {
-                    right_direction--;
-                }
-            }
-            else
-            {
-                next_row = (int16)right_y + right_rule[1][2 * right_direction + 1];
-                next_col = (int16)right_x + right_rule[1][2 * right_direction];
-                pixel_right_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                pixel_right_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
-
-                if(0 == SearchLine_Get_Otsu_Search_Border_Pixel(pixel_right_y, pixel_right_x, bottom_row))
-                {
-                    right_y = (uint8)SearchLine_Limit_Int32((int16)right_y + right_rule[0][2 * right_direction + 1],
-                                                            0,
-                                                            SEARCH_LINE_OTSU_H - 1);
-                    right_x = (uint8)SearchLine_Limit_Int32((int16)right_x + right_rule[0][2 * right_direction],
-                                                            0,
-                                                            SEARCH_LINE_OTSU_W - 1);
-                    if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
-                    {
-                        SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
-                    }
-                    SearchLine_Otsu_Right_Boundary[right_y] = right_x;
-                }
-                else
-                {
-                    right_y = (uint8)SearchLine_Limit_Int32((int16)right_y + right_rule[1][2 * right_direction + 1],
-                                                            0,
-                                                            SEARCH_LINE_OTSU_H - 1);
-                    right_x = (uint8)SearchLine_Limit_Int32((int16)right_x + right_rule[1][2 * right_direction],
-                                                            0,
-                                                            SEARCH_LINE_OTSU_W - 1);
-                    if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
-                    {
-                        SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
-                    }
-                    SearchLine_Otsu_Right_Boundary[right_y] = right_x;
-                    right_direction = (uint8)((right_direction + 1U) & 0x03U);
-                }
-            }
-        }
-
-        if((pixel_right_x >= pixel_left_x) ? ((pixel_right_x - pixel_left_x) < 3U) :
-                                             ((pixel_left_x - pixel_right_x) < 3U))
-        {
-            SearchLine_Otsu_OffLine_Boundary = row;
-            break;
-        }
-    }
-}
-
-/* 参考 Search_Border_OTSU 的十字边界跟踪支线。 */
-static void SearchLine_Search_Border_Otsu(void)
-{
-    int16 row = 0;
-    uint8 bottom_row = SEARCH_LINE_OTSU_SEARCH_BORDER_BOTTOM_ROW;
-
-    SearchLine_Otsu_WhiteLine_L = 0;
-    SearchLine_Otsu_WhiteLine_R = 0;
-
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
-    {
-        SearchLine_Otsu_Left_Boundary_First[row] = 0;
-        SearchLine_Otsu_Right_Boundary_First[row] = SEARCH_LINE_OTSU_W - 1;
-        SearchLine_Otsu_Left_Boundary[row] = 0;
-        SearchLine_Otsu_Right_Boundary[row] = SEARCH_LINE_OTSU_W - 1;
-    }
-
-    SearchLine_Search_Bottom_Line_Otsu(bottom_row);
-    SearchLine_Search_Left_And_Right_Lines_Otsu(bottom_row);
-
-    for(row = bottom_row; row > (int16)SearchLine_Otsu_OffLine_Boundary + 1; row--)
-    {
-        if(SearchLine_Otsu_Left_Boundary[row] < 3)
-        {
-            SearchLine_Otsu_WhiteLine_L++;
-        }
-        if(SearchLine_Otsu_Right_Boundary[row] > (SEARCH_LINE_OTSU_W - 3))
-        {
-            SearchLine_Otsu_WhiteLine_R++;
-        }
-    }
-}
 
 /* 底边初始化。 */
 static void SearchLine_Init_Otsu_BottomRows(void)
@@ -819,7 +516,6 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
     int16 row = 0;
     int16 low = 0;
     int16 high = 0;
-    int16 scan_window = 0;
     int16 search_row = 0;
     uint8 left_point = 0;
     uint8 right_point = 0;
@@ -845,20 +541,14 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
     for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row > SearchLine_Otsu_Offline_Row; row--)
     {
         row_data = SearchLine_Otsu_Binary[row];
-        scan_window = SEARCH_LINE_OTSU_SCAN_WINDOW;
-        if(SEARCH_LINE_ROAD_CROSS_TRUE == SearchLine_Otsu_Road_Type)
-        {
-            scan_window = SEARCH_LINE_OTSU_SCAN_WINDOW_CROSS;
-        }
-
-        low = (int16)SearchLine_Otsu_Right_Border[row + 1] - scan_window;
-        high = (int16)SearchLine_Otsu_Right_Border[row + 1] + scan_window;
+        low = (int16)SearchLine_Otsu_Right_Border[row + 1] - SEARCH_LINE_OTSU_SCAN_WINDOW;
+        high = (int16)SearchLine_Otsu_Right_Border[row + 1] + SEARCH_LINE_OTSU_SCAN_WINDOW;
         low = SearchLine_Clamp_Otsu_Search_Col(low);
         high = SearchLine_Clamp_Otsu_Search_Col(high);
         right_state = SearchLine_Find_Otsu_JumpPoint(row_data, 0, low, high, &right_point);
 
-        low = (int16)SearchLine_Otsu_Left_Border[row + 1] - scan_window;
-        high = (int16)SearchLine_Otsu_Left_Border[row + 1] + scan_window;
+        low = (int16)SearchLine_Otsu_Left_Border[row + 1] - SEARCH_LINE_OTSU_SCAN_WINDOW;
+        high = (int16)SearchLine_Otsu_Left_Border[row + 1] + SEARCH_LINE_OTSU_SCAN_WINDOW;
         low = SearchLine_Clamp_Otsu_Search_Col(low);
         high = SearchLine_Clamp_Otsu_Search_Col(high);
         left_state = SearchLine_Find_Otsu_JumpPoint(row_data, 1, low, high, &left_point);
@@ -1060,143 +750,123 @@ static void SearchLine_DrawExtensionLine_Otsu(void)
     int16 ftsite = 0;
     float slope = 0.0f;
 
-    if((((0 == SearchLine_Otsu_Fork_Down) &&
-         (SEARCH_LINE_STATE_INIT == SearchLine_Otsu_CirquePass) &&
-         (SEARCH_LINE_STATE_INIT == SearchLine_Otsu_IsCinqueOutIn) &&
-         (SEARCH_LINE_STATE_INIT == SearchLine_Otsu_CirqueOut) &&
-         (SEARCH_LINE_ROAD_BARN_IN != SearchLine_Otsu_Road_Type) &&
-         (SEARCH_LINE_ROAD_RAMP != SearchLine_Otsu_Road_Type) &&
-         (SEARCH_LINE_ROAD_CROSS_TRUE != SearchLine_Otsu_Road_Type)) ||
-        (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_CirqueOff)))
+    if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
     {
-        if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
-        {
-            tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-        }
-        if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_CirqueOff) &&
-           (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type))
-        {
-            tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-        }
+        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
+    }
 
-        if(SearchLine_Otsu_Left_Extend_Allowed)
+    if(SearchLine_Otsu_Left_Extend_Allowed)
+    {
+        for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
         {
-            for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
+            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
             {
-                if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+                if(SearchLine_Otsu_Left_Border[row + 1] >= 70)
                 {
-                    if(SearchLine_Otsu_Left_Border[row + 1] >= 70)
+                    SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                    break;
+                }
+
+                scan_row = row;
+                ftsite = 0;
+                while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
+                {
+                    scan_row--;
+                    if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 1]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 2]) &&
+                       (SearchLine_Otsu_Left_Border[scan_row - 2] > 0) &&
+                       (SearchLine_Otsu_Left_Border[scan_row - 2] < 70))
                     {
-                        SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                        ftsite = scan_row - 2;
                         break;
                     }
-
-                    scan_row = row;
-                    ftsite = 0;
-                    while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
-                    {
-                        scan_row--;
-                        if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row]) &&
-                           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 1]) &&
-                           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 2]) &&
-                           (SearchLine_Otsu_Left_Border[scan_row - 2] > 0) &&
-                           (SearchLine_Otsu_Left_Border[scan_row - 2] < 70))
-                        {
-                            ftsite = scan_row - 2;
-                            break;
-                        }
-                    }
-
-                    if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
-                    {
-                        slope = ((float)SearchLine_Otsu_Left_Border[ftsite] -
-                                 (float)SearchLine_Otsu_Left_Border[tfsite]) /
-                                (float)(ftsite - tfsite);
-                        for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
-                        {
-                            SearchLine_Otsu_Left_Border[fill_row] =
-                                SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
-                                                                          (float)SearchLine_Otsu_Left_Border[tfsite]));
-                            SearchLine_Otsu_Left_State[fill_row] = SEARCH_LINE_STATE_FOUND;
-                            SearchLine_Otsu_Row_Valid[fill_row] = 1;
-                        }
-                        row = ftsite;
-                    }
                 }
-                else
+
+                if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
                 {
-                    tfsite = row + 2;
+                    slope = ((float)SearchLine_Otsu_Left_Border[ftsite] -
+                             (float)SearchLine_Otsu_Left_Border[tfsite]) /
+                            (float)(ftsite - tfsite);
+                    for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                    {
+                        SearchLine_Otsu_Left_Border[fill_row] =
+                            SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
+                                                                      (float)SearchLine_Otsu_Left_Border[tfsite]));
+                        SearchLine_Otsu_Left_State[fill_row] = SEARCH_LINE_STATE_FOUND;
+                        SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                    }
+                    row = ftsite;
                 }
             }
-        }
-
-        if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
-        {
-            tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-        }
-        if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_CirqueOff) &&
-           (SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type))
-        {
-            tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-        }
-
-        if(SearchLine_Otsu_Right_Extend_Allowed)
-        {
-            for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
+            else
             {
-                if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+                tfsite = row + 2;
+            }
+        }
+    }
+
+    if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
+    {
+        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
+    }
+
+    if(SearchLine_Otsu_Right_Extend_Allowed)
+    {
+        for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
+        {
+            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+            {
+                if(SearchLine_Otsu_Right_Border[row + 1] <= 10)
                 {
-                    if(SearchLine_Otsu_Right_Border[row + 1] <= 10)
+                    SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                    break;
+                }
+
+                scan_row = row;
+                ftsite = 0;
+                while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
+                {
+                    scan_row--;
+                    if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 1]) &&
+                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 2]) &&
+                       (SearchLine_Otsu_Right_Border[scan_row - 2] < 70) &&
+                       (SearchLine_Otsu_Right_Border[scan_row - 2] > 10))
                     {
-                        SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                        ftsite = scan_row - 2;
                         break;
                     }
-
-                    scan_row = row;
-                    ftsite = 0;
-                    while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
-                    {
-                        scan_row--;
-                        if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row]) &&
-                           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 1]) &&
-                           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 2]) &&
-                           (SearchLine_Otsu_Right_Border[scan_row - 2] < 70) &&
-                           (SearchLine_Otsu_Right_Border[scan_row - 2] > 10))
-                        {
-                            ftsite = scan_row - 2;
-                            break;
-                        }
-                    }
-
-                    if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
-                    {
-                        slope = ((float)SearchLine_Otsu_Right_Border[ftsite] -
-                                 (float)SearchLine_Otsu_Right_Border[tfsite]) /
-                                (float)(ftsite - tfsite);
-                        for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
-                        {
-                            SearchLine_Otsu_Right_Border[fill_row] =
-                                SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
-                                                                          (float)SearchLine_Otsu_Right_Border[tfsite]));
-                            SearchLine_Otsu_Right_State[fill_row] = SEARCH_LINE_STATE_FOUND;
-                            SearchLine_Otsu_Row_Valid[fill_row] = 1;
-                        }
-                        row = ftsite;
-                    }
                 }
-                else
+
+                if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
                 {
-                    tfsite = row + 2;
+                    slope = ((float)SearchLine_Otsu_Right_Border[ftsite] -
+                             (float)SearchLine_Otsu_Right_Border[tfsite]) /
+                            (float)(ftsite - tfsite);
+                    for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                    {
+                        SearchLine_Otsu_Right_Border[fill_row] =
+                            SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
+                                                                      (float)SearchLine_Otsu_Right_Border[tfsite]));
+                        SearchLine_Otsu_Right_State[fill_row] = SEARCH_LINE_STATE_FOUND;
+                        SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                    }
+                    row = ftsite;
                 }
             }
+            else
+            {
+                tfsite = row + 2;
+            }
         }
+    }
 
-        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row >= SearchLine_Otsu_Offline_Row; row--)
-        {
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)(((uint16)SearchLine_Otsu_Left_Border[row] + (uint16)SearchLine_Otsu_Right_Border[row]) / 2);
-            SearchLine_Otsu_Row_Valid[row] = 1;
-        }
+    for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row >= SearchLine_Otsu_Offline_Row; row--)
+    {
+        SearchLine_Otsu_Center_Line[row] =
+            (uint8)(((uint16)SearchLine_Otsu_Left_Border[row] + (uint16)SearchLine_Otsu_Right_Border[row]) / 2);
+        SearchLine_Otsu_Row_Valid[row] = 1;
     }
 }
 
@@ -1239,7 +909,7 @@ static void SearchLine_RouteFilter_Otsu(void)
                                                           SEARCH_LINE_OTSU_W - 1);
                         SearchLine_Otsu_Row_Valid[fill_row] = 1;
                     }
-                    row = search_row;
+                    row = search_row - 1;
                     break;
                 }
             }
@@ -1279,15 +949,6 @@ static void SearchLine_Update_Otsu_Det(void)
     }
 
     tow_point = (int16)((float)SEARCH_LINE_OTSU_DET_TOW_POINT - speed_gain);
-    if((SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type) ||
-       (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type))
-    {
-        tow_point = 15;
-    }
-    else if(SEARCH_LINE_ROAD_CROSS_TRUE == SearchLine_Otsu_Road_Type)
-    {
-        tow_point = 22;
-    }
 
     if(tow_point < ((int16)SearchLine_Otsu_Offline_Row + 1))
     {
@@ -1607,8 +1268,6 @@ static void SearchLine_Process_Otsu(void)
     SearchLine_Init_Otsu_BottomRows();
     /* 逐行向上搜边。 */
     SearchLine_DrawLinesProcess_Otsu();
-    /* 十字/元素边界观测支线。 */
-    SearchLine_Search_Border_Otsu();
     /* 延长线补边。 */
     SearchLine_DrawExtensionLine_Otsu();
     /* 中线滤波平滑。 */
