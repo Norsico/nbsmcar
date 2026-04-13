@@ -23,7 +23,6 @@
 #define SEARCH_LINE_OTSU_MIN_WIDTH          (7)
 #define SEARCH_LINE_OTSU_EDGE_LIMIT         (10)
 #define SEARCH_LINE_OTSU_SCAN_WINDOW        (2)
-#define SEARCH_LINE_OTSU_RIGHT_RETRY_EXTRA  (8)
 #define SEARCH_LINE_OTSU_MIDDLE_LINE        (SEARCH_LINE_OTSU_W / 2 - 1)
 /* 普通赛道基础前瞻行，当前按参考常用值先收回到 27。 */
 #define SEARCH_LINE_OTSU_DET_TOW_POINT      (27)
@@ -389,7 +388,6 @@ static uint8 SearchLine_Find_Otsu_JumpPoint(const uint8 *row_data, uint8 search_
 {
     int16 col = 0;
     int16 mid = 0;
-    uint8 edge_found = 0;
 
     if(0 == row_data || 0 == point)
     {
@@ -435,23 +433,20 @@ static uint8 SearchLine_Find_Otsu_JumpPoint(const uint8 *row_data, uint8 search_
             if((1 == row_data[col]) && (0 == row_data[col + 1]))
             {
                 *point = (uint8)col;
-                edge_found = 1;
+                return SEARCH_LINE_STATE_FOUND;
+            }
+            else if(col == (high - 1))
+            {
+                if(0 != row_data[mid])
+                {
+                    *point = (uint8)mid;
+                    return SEARCH_LINE_STATE_WHITE;
+                }
+
+                *point = (uint8)low;
+                return SEARCH_LINE_STATE_BLACK;
             }
         }
-
-        if(edge_found)
-        {
-            return SEARCH_LINE_STATE_FOUND;
-        }
-
-        if(0 != row_data[mid])
-        {
-            *point = (uint8)mid;
-            return SEARCH_LINE_STATE_WHITE;
-        }
-
-        *point = (uint8)low;
-        return SEARCH_LINE_STATE_BLACK;
     }
 
     *point = (uint8)mid;
@@ -540,7 +535,6 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
     uint8 right_found_count = 0;
     uint8 left_anchor_row = 0;
     uint8 right_anchor_row = 0;
-    uint8 retry_state = 0;
     float left_slope = 0.0f;
     float right_slope = 0.0f;
 
@@ -556,20 +550,6 @@ static void SearchLine_DrawLinesProcess_Otsu(void)
         low = SearchLine_Clamp_Otsu_Search_Col(low);
         high = SearchLine_Clamp_Otsu_Search_Col(high);
         right_state = SearchLine_Find_Otsu_JumpPoint(row_data, 0, low, high, &right_point);
-        if((SEARCH_LINE_STATE_WHITE == right_state) ||
-           (SEARCH_LINE_STATE_BLACK == right_state))
-        {
-            high = (int16)SearchLine_Otsu_Right_Border[row + 1] +
-                   SEARCH_LINE_OTSU_SCAN_WINDOW +
-                   SEARCH_LINE_OTSU_RIGHT_RETRY_EXTRA;
-            high = SearchLine_Clamp_Otsu_Search_Col(high);
-            retry_state = SearchLine_Find_Otsu_JumpPoint(row_data, 0, low, high, &right_point);
-            if(SEARCH_LINE_STATE_FOUND == retry_state)
-            {
-                /* 右侧遇到前方岔白块时，向外补搜一次，避免内侧假边把右边界吸进去。 */
-                right_state = retry_state;
-            }
-        }
 
         low = (int16)SearchLine_Otsu_Left_Border[row + 1] - SEARCH_LINE_OTSU_SCAN_WINDOW;
         high = (int16)SearchLine_Otsu_Left_Border[row + 1] + SEARCH_LINE_OTSU_SCAN_WINDOW;
@@ -1223,6 +1203,10 @@ static uint8 SearchLine_Calc_Otsu_Threshold(void)
         {
             best_score = score;
             raw_threshold = (uint8)gray;
+        }
+        else if(score < best_score)
+        {
+            break;
         }
     }
 
