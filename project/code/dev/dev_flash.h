@@ -24,10 +24,10 @@
 #define FLASH_CAMERA_AUTO_EXP_STEP      (1)     /* 自动曝光步进：屏幕上每次调整加减 1。 */
 #define FLASH_CAMERA_EXP_TIME_MIN       (1)     /* 曝光时间下限：工程侧收口为 1，避免出现 0 这种无意义配置。 */
 #define FLASH_CAMERA_EXP_TIME_MAX       (300)   /* 曝光时间上限：底层库没写明确数值上限，这里按默认值 50、示例值 100 和赛道调参需求，先把 UI 可调范围收口到 300。 */
-#define FLASH_CAMERA_EXP_TIME_STEP      (1)     /* 曝光时间步进：屏幕上每次调整加减 1。 */
+#define FLASH_CAMERA_EXP_TIME_STEP      (10)     /* 曝光时间步进：屏幕上每次调整加减 5。 */
 #define FLASH_CAMERA_GAIN_MIN           (16)    /* 图像增益下限：逐飞库注释给的有效范围起点。 */
 #define FLASH_CAMERA_GAIN_MAX           (64)    /* 图像增益上限：逐飞库注释给的有效范围终点。 */
-#define FLASH_CAMERA_GAIN_STEP          (1)     /* 图像增益步进：屏幕上每次调整加减 1。 */
+#define FLASH_CAMERA_GAIN_STEP          (10)     /* 图像增益步进：屏幕上每次调整加减 5。 */
 #define FLASH_LINE_KP_DEFAULT_TENTH     (12)    /* 巡线 KP 默认值 1.2，单位统一按 0.1 保存。 */
 #define FLASH_LINE_KD_DEFAULT_TENTH     (10)    /* 巡线 KD 默认值 1.0，单位统一按 0.1 保存。 */
 #define FLASH_SERVO_LIMIT_ANGLE_MIN     (50)    /* 舵机限幅页最小可调角度。 */

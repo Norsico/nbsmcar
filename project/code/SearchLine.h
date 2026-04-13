@@ -12,6 +12,7 @@
 void SearchLine_Process(void);
 void SearchLine_DrawBinaryPreview(void);
 void SearchLine_DrawRawPreview(void);
+void SearchLine_ResetPreviewOverlay(void);
 uint8 SearchLine_GetOtsuThreshold(void);
 uint8 SearchLine_GetRawOtsuThreshold(void);
 uint8 SearchLine_GetSteerCommand(void);

@@ -92,6 +92,10 @@ static float SearchLine_Otsu_Steer_Last_Error = 0.0f;
 static uint8 SearchLine_Otsu_Threshold_Raw_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
+static uint8 SearchLine_Preview_Label_Ready = 0;
+static uint8 SearchLine_Preview_Last_Threshold = 0xFF;
+static int16 SearchLine_Preview_Last_Offset = 32767;
+static uint8 SearchLine_Preview_Last_Command = 0xFF;
 static float SearchLine_Otsu_Det_Weight[SEARCH_LINE_OTSU_DET_WEIGHT_COUNT] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
@@ -1348,12 +1352,42 @@ void SearchLine_SetSteerPdTenth(uint16 p_tenth, uint16 d_tenth)
     SearchLine_Otsu_Steer_D_Tenth = d_tenth;
 }
 
+static void SearchLine_DrawPreviewLabels(void)
+{
+    ips200_set_color(RGB565_WHITE, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 4), "yu zhi");
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 20), "qian zhan pian cha");
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 36), "duo ji jiao du");
+    SearchLine_Preview_Label_Ready = 1;
+}
+
+static void SearchLine_FormatThresholdText(char *text, uint8 threshold)
+{
+    if(0 == text)
+    {
+        return;
+    }
+
+    text[0] = (threshold >= 100U) ? (char)('0' + threshold / 100U) : ' ';
+    text[1] = (threshold >= 10U) ? (char)('0' + (threshold / 10U) % 10U) : ' ';
+    text[2] = (char)('0' + threshold % 10U);
+    text[3] = '\0';
+}
+
+void SearchLine_ResetPreviewOverlay(void)
+{
+    /* 相机页切黑底后重新补标签与数值，运行时尽量只刷变化项。 */
+    SearchLine_Preview_Label_Ready = 0;
+    SearchLine_Preview_Last_Threshold = 0xFF;
+    SearchLine_Preview_Last_Offset = 32767;
+    SearchLine_Preview_Last_Command = 0xFF;
+}
+
 static void SearchLine_DrawPreview(uint8 show_raw)
 {
-    char threshold_text[6];
+    char threshold_text[4];
     char offset_text[4];
     char command_text[4];
-    const char *line_clear_text = "                              ";
     uint16 x = 0;
     uint16 y = 0;
     uint8 row = 0;
@@ -1362,9 +1396,9 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     uint8 center_col = 0;
     uint16 offset_abs = 0;
     uint8 command_value = 0;
-    int16 speed_goal_display = 0;
-    int16 ref_left_display = 0;
-    int16 ref_right_display = 0;
+    /* int16 speed_goal_display = 0; */
+    /* int16 ref_left_display = 0; */
+    /* int16 ref_right_display = 0; */
 
     if(show_raw)
     {
@@ -1391,28 +1425,16 @@ static void SearchLine_DrawPreview(uint8 show_raw)
 
     /* 相机页底部显示当前 OTSU 阈值，方便边看图边确认二值门限。 */
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
-    if(SearchLine_Otsu_Threshold_Cache >= 100)
+    if(!SearchLine_Preview_Label_Ready)
     {
-        threshold_text[0] = (char)('0' + SearchLine_Otsu_Threshold_Cache / 100U);
-        threshold_text[1] = (char)('0' + (SearchLine_Otsu_Threshold_Cache / 10U) % 10U);
-        threshold_text[2] = (char)('0' + SearchLine_Otsu_Threshold_Cache % 10U);
-        threshold_text[3] = '\0';
+        SearchLine_DrawPreviewLabels();
     }
-    else if(SearchLine_Otsu_Threshold_Cache >= 10)
+    if(SearchLine_Preview_Last_Threshold != SearchLine_Otsu_Threshold_Cache)
     {
-        threshold_text[0] = (char)('0' + SearchLine_Otsu_Threshold_Cache / 10U);
-        threshold_text[1] = (char)('0' + SearchLine_Otsu_Threshold_Cache % 10U);
-        threshold_text[2] = '\0';
+        SearchLine_FormatThresholdText(threshold_text, SearchLine_Otsu_Threshold_Cache);
+        ips200_show_string(160, (uint16)(CAMERA_RAW_H + 4), threshold_text);
+        SearchLine_Preview_Last_Threshold = SearchLine_Otsu_Threshold_Cache;
     }
-    else
-    {
-        threshold_text[0] = (char)('0' + SearchLine_Otsu_Threshold_Cache);
-        threshold_text[1] = '\0';
-    }
-
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 4), line_clear_text);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 4), "yu zhi");
-    ips200_show_string(160, (uint16)(CAMERA_RAW_H + 4), threshold_text);
 
     if(SearchLine_Otsu_Steer_Offset < 0)
     {
@@ -1434,14 +1456,19 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     command_text[2] = (char)('0' + command_value % 10U);
     command_text[3] = '\0';
 
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 20), line_clear_text);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 20), "qian zhan pian cha");
-    ips200_show_string(160, (uint16)(CAMERA_RAW_H + 20), offset_text);
+    if(SearchLine_Preview_Last_Offset != SearchLine_Otsu_Steer_Offset)
+    {
+        ips200_show_string(160, (uint16)(CAMERA_RAW_H + 20), offset_text);
+        SearchLine_Preview_Last_Offset = SearchLine_Otsu_Steer_Offset;
+    }
+    if(SearchLine_Preview_Last_Command != command_value)
+    {
+        ips200_show_string(160, (uint16)(CAMERA_RAW_H + 36), command_text);
+        SearchLine_Preview_Last_Command = command_value;
+    }
 
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 36), line_clear_text);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 36), "duo ji jiao du");
-    ips200_show_string(160, (uint16)(CAMERA_RAW_H + 36), command_text);
-
+    /* 暂时关闭底部速度与目标值文字显示，先只保留图像预览。 */
+    /*
     speed_goal_display = (int16)(speed_goal_eff + 0.5f);
     if(ref_left_target >= 0.0f)
     {
@@ -1471,6 +1498,7 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     ips200_show_string(0, (uint16)(CAMERA_RAW_H + 84), line_clear_text);
     ips200_show_string(0, (uint16)(CAMERA_RAW_H + 84), "you bian ma mu biao");
     ips200_show_int32(160, (uint16)(CAMERA_RAW_H + 84), (int32)ref_right_display, 4);
+    */
 
     for(row = SearchLine_Otsu_Offline_Row; row <= SEARCH_LINE_OTSU_BOTTOM_ROW; row++)
     {

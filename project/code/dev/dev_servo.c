@@ -68,7 +68,7 @@ void car_servo_set_angle(uint8 angle)
 {
     uint8 safe_angle = 0;
 
-    safe_angle = car_servo_limit_angle(angle);
+    safe_angle = car_servo_limit_angle(angle) + 8;
     g_car_servo_current_angle = safe_angle;
     pwm_set_duty(CAR_SERVO_PWM_PIN, CAR_SERVO_DUTY(safe_angle));
 }

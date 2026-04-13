@@ -4,6 +4,7 @@
 
 #include "app_ui_display.h"
 
+#include "SearchLine.h"
 #include "app_line.h"
 #include "app_ui_flash.h"
 #include "app_ui_library.h"
@@ -943,6 +944,7 @@ static void display_menu_move_root_selection(int8 direction)
 static void display_menu_prepare_camera_view(void)
 {
     ips200_clear(RGB565_BLACK);
+    SearchLine_ResetPreviewOverlay();
 }
 
 static void display_menu_toggle_camera_preview(void)
