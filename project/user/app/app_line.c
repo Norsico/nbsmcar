@@ -6,6 +6,7 @@
 #include "dev_wheel.h"
 
 static uint8 line_camera_ready = 0;
+static line_app_preview_mode_t g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
 
 static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
 {
@@ -68,10 +69,34 @@ void line_app_render_frame(void)
         return;
     }
 
-    /* 显示压缩二值图。 */
-    SearchLine_DrawBinaryPreview();
+    /* 相机页只切显示模式，搜线处理链仍按当前原图处理结果继续跑。 */
+    if(LINE_APP_PREVIEW_RAW == g_line_preview_mode)
+    {
+        SearchLine_DrawRawPreview();
+    }
+    else
+    {
+        SearchLine_DrawBinaryPreview();
+    }
 }
 #endif
+
+void line_app_set_preview_mode(line_app_preview_mode_t mode)
+{
+    if(LINE_APP_PREVIEW_RAW == mode)
+    {
+        g_line_preview_mode = LINE_APP_PREVIEW_RAW;
+    }
+    else
+    {
+        g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
+    }
+}
+
+line_app_preview_mode_t line_app_get_preview_mode(void)
+{
+    return g_line_preview_mode;
+}
 
 static uint8 line_app_handle_frame(void)
 {

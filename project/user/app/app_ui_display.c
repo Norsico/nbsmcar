@@ -945,6 +945,19 @@ static void display_menu_prepare_camera_view(void)
     ips200_clear(RGB565_BLACK);
 }
 
+static void display_menu_toggle_camera_preview(void)
+{
+    /* 相机页当前只保留二值和原始灰度两档，方向键统一按切换模式处理。 */
+    if(LINE_APP_PREVIEW_RAW == line_app_get_preview_mode())
+    {
+        line_app_set_preview_mode(LINE_APP_PREVIEW_BINARY);
+    }
+    else
+    {
+        line_app_set_preview_mode(LINE_APP_PREVIEW_RAW);
+    }
+}
+
 static void display_menu_enter_root_page(void)
 {
     /* 退回首页时统一清掉编辑态，并把主菜单光标复位到第一项。 */
@@ -1022,6 +1035,12 @@ void display_menu_render(void)
 
 void display_menu_move_up(void)
 {
+    if(DISPLAY_PAGE_CAMERA == g_menu_page)
+    {
+        display_menu_toggle_camera_preview();
+        return;
+    }
+
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing && (START_SLOT_SPEED == g_start_selected))
@@ -1081,6 +1100,12 @@ void display_menu_move_up(void)
 
 void display_menu_move_down(void)
 {
+    if(DISPLAY_PAGE_CAMERA == g_menu_page)
+    {
+        display_menu_toggle_camera_preview();
+        return;
+    }
+
     if(DISPLAY_PAGE_START == g_menu_page)
     {
         if(g_param_editing && (START_SLOT_SPEED == g_start_selected))
