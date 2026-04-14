@@ -24,6 +24,7 @@
 #define SEARCH_LINE_OTSU_EDGE_LIMIT         (10)
 #define SEARCH_LINE_OTSU_SCAN_WINDOW        (2)
 #define SEARCH_LINE_OTSU_MIDDLE_LINE        (SEARCH_LINE_OTSU_W / 2 - 1)
+#define SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW (SEARCH_LINE_OTSU_H - 2)
 /* 普通赛道基础前瞻行，当前按参考常用值先收回到 27。 */
 #define SEARCH_LINE_OTSU_DET_TOW_POINT      (27)
 #define SEARCH_LINE_OTSU_DET_WINDOW         (5)
@@ -45,6 +46,30 @@
 #define SEARCH_LINE_STATE_FOUND             ('T') /* 找到跳变边界。 */
 #define SEARCH_LINE_STATE_WHITE             ('W') /* 扫描窗内全白，当前侧无明确边界。 */
 #define SEARCH_LINE_STATE_BLACK             ('H') /* 扫描窗内全黑，当前侧搜索失败。 */
+#define SEARCH_LINE_ROAD_NORMAL             (0)
+#define SEARCH_LINE_ROAD_STRAIGHT           (1)
+#define SEARCH_LINE_ROAD_CROSS              (2)
+#define SEARCH_LINE_ROAD_RAMP               (3)
+#define SEARCH_LINE_ROAD_LEFT_CIRQUE        (4)
+#define SEARCH_LINE_ROAD_RIGHT_CIRQUE       (5)
+#define SEARCH_LINE_ROAD_FORK_IN            (6)
+#define SEARCH_LINE_ROAD_FORK_OUT           (7)
+#define SEARCH_LINE_ROAD_BARN_OUT           (8)
+#define SEARCH_LINE_ROAD_BARN_IN            (9)
+#define SEARCH_LINE_ROAD_CROSS_TRUE         (10)
+#define SEARCH_LINE_ROAD_ZEBRA              (11)
+
+/* 边界跟踪前进规则，口径对齐 19 国一 Search_Left_and_Right_Lines。 */
+static const int8 SearchLine_Otsu_Left_Rule[2][8] =
+{
+    {0, -1, 1, 0, 0, 1, -1, 0},
+    {-1, -1, 1, -1, 1, 1, -1, 1}
+};
+static const int8 SearchLine_Otsu_Right_Rule[2][8] =
+{
+    {0, -1, 1, 0, 0, 1, -1, 0},
+    {1, -1, 1, 1, -1, 1, -1, -1}
+};
 
 /* 80x60 灰度压缩图。 */
 static uint8 SearchLine_Otsu_Gray[SEARCH_LINE_OTSU_H][SEARCH_LINE_OTSU_W] = {0};
@@ -68,14 +93,25 @@ static uint8 SearchLine_Otsu_Row_Valid[SEARCH_LINE_OTSU_H] = {0};
 static uint8 SearchLine_Otsu_Left_State[SEARCH_LINE_OTSU_H] = {0};
 /* 右边界状态。 */
 static uint8 SearchLine_Otsu_Right_State[SEARCH_LINE_OTSU_H] = {0};
+/* 19 国一圆环链依赖的第一组边界跟踪结果。 */
+static uint8 SearchLine_Otsu_Left_Boundary_First[SEARCH_LINE_OTSU_H] = {0};
+/* 19 国一圆环链依赖的第一组边界跟踪结果。 */
+static uint8 SearchLine_Otsu_Right_Boundary_First[SEARCH_LINE_OTSU_H] = {0};
+/* 19 国一圆环链依赖的第二组边界跟踪结果。 */
+static uint8 SearchLine_Otsu_Left_Boundary[SEARCH_LINE_OTSU_H] = {0};
+/* 19 国一圆环链依赖的第二组边界跟踪结果。 */
+static uint8 SearchLine_Otsu_Right_Boundary[SEARCH_LINE_OTSU_H] = {0};
 static uint8 SearchLine_Otsu_Left_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Right_Extend_Allowed = 1;
 static uint8 SearchLine_Otsu_Map_Ready = 0;
 static uint8 SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
+static uint8 SearchLine_Otsu_Offline_Boundary_Row = 5;
 /* 对齐参考代码的单边丢线计数。 */
 static uint8 SearchLine_Otsu_Left_Line = 0;
 static uint8 SearchLine_Otsu_Right_Line = 0;
 static uint8 SearchLine_Otsu_White_Line = 0;
+static uint8 SearchLine_Otsu_White_Line_Left = 0;
+static uint8 SearchLine_Otsu_White_Line_Right = 0;
 /* 对齐参考代码的前瞻行和加权中线。 */
 static uint8 SearchLine_Otsu_TowPoint_True = SEARCH_LINE_OTSU_DET_TOW_POINT;
 static uint8 SearchLine_Otsu_Det_True = SEARCH_LINE_OTSU_MIDDLE_LINE;
@@ -91,14 +127,52 @@ static float SearchLine_Otsu_Steer_Last_Error = 0.0f;
 static uint8 SearchLine_Otsu_Threshold_Raw_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
+static uint8 SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
+static uint8 SearchLine_Otsu_Cirque_Out_In = 'F';
+static uint8 SearchLine_Otsu_Cirque_Pass = 'F';
+static uint8 SearchLine_Otsu_Cirque_Out = 'F';
+static uint8 SearchLine_Otsu_Cirque_Off = 'F';
+static uint8 SearchLine_Otsu_Ring_Element = 0;
+static uint8 SearchLine_Otsu_Ring_Size = 0;
+static uint8 SearchLine_Otsu_Ring_Flag = 0;
+static uint8 SearchLine_Otsu_Ring_Bottom_Ok = 0;
+static uint16 SearchLine_Otsu_Cirque_Left_Count = 0;
+static uint16 SearchLine_Otsu_Cirque_Right_Count = 0;
+static uint16 SearchLine_Otsu_Ring_Stage_Num = 0;
+static uint16 SearchLine_Otsu_Ring_Point_Y = 0;
+static int16 SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
 static uint8 SearchLine_Preview_Label_Ready = 0;
 static uint8 SearchLine_Preview_Last_Threshold = 0xFF;
 static int16 SearchLine_Preview_Last_Offset = 32767;
 static uint8 SearchLine_Preview_Last_Command = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Element = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Flag = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Size = 0xFF;
+static uint8 SearchLine_Preview_Last_Offline_Row = 0xFF;
+static uint8 SearchLine_Preview_Last_White_Line = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Bottom_Ok = 0xFF;
+static uint16 SearchLine_Preview_Last_Cirque_Left_Count = 0xFFFF;
+static uint16 SearchLine_Preview_Last_Cirque_Right_Count = 0xFFFF;
+static uint8 SearchLine_Preview_Last_Ring_Left_Line = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Right_Line = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Left_Line_RightPanel = 0xFF;
+static uint8 SearchLine_Preview_Last_Ring_Right_Line_RightPanel = 0xFF;
+static uint16 SearchLine_Preview_Last_Ring_Stage_Num = 0xFFFF;
+static uint16 SearchLine_Preview_Last_Ring_Point_Y = 0xFFFF;
+static int16 SearchLine_Preview_Last_Ring_Straight_Judge_Tenth = 32767;
 static float SearchLine_Otsu_Det_Weight[SEARCH_LINE_OTSU_DET_WEIGHT_COUNT] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
     0.71f, 0.65f, 0.59f, 0.53f, 0.47f
+};
+static const uint8 SearchLine_Otsu_Half_Road_Wide[SEARCH_LINE_OTSU_H] =
+{
+    6, 7, 7, 8, 8, 9, 9, 9, 10, 10,
+    11, 11, 11, 11, 11, 12, 12, 13, 13, 14,
+    14, 14, 14, 15, 15, 16, 16, 16, 17, 17,
+    17, 18, 18, 19, 19, 20, 20, 20, 21, 21,
+    21, 22, 22, 23, 23, 23, 24, 24, 25, 25,
+    26, 26, 26, 26, 27, 27, 27, 28, 28, 30
 };
 
 static int32 SearchLine_Limit_Int32(int32 value, int32 limit1, int32 limit2)
@@ -180,6 +254,35 @@ static uint8 SearchLine_Get_Otsu_Gray(uint8 row, uint8 col)
     return SearchLine_Otsu_Gray[row][col];
 }
 
+static uint8 SearchLine_Get_Otsu_Binary_Pixel(int16 row, int16 col)
+{
+    if((row <= 0) || (row >= (SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW + 1)) ||
+       (col <= 0) || (col >= (SEARCH_LINE_OTSU_W - 1)))
+    {
+        return 0;
+    }
+
+    return SearchLine_Otsu_Binary[row][col];
+}
+
+/* 圆环支线缓存初始化。 */
+static void SearchLine_Clear_Otsu_BorderTraceState(void)
+{
+    uint16 row = 0;
+
+    SearchLine_Otsu_Offline_Boundary_Row = 5;
+    SearchLine_Otsu_White_Line_Left = 0;
+    SearchLine_Otsu_White_Line_Right = 0;
+
+    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
+    {
+        SearchLine_Otsu_Left_Boundary_First[row] = 0;
+        SearchLine_Otsu_Right_Boundary_First[row] = SEARCH_LINE_OTSU_W - 1;
+        SearchLine_Otsu_Left_Boundary[row] = 0;
+        SearchLine_Otsu_Right_Boundary[row] = SEARCH_LINE_OTSU_W - 1;
+    }
+}
+
 /* 底边状态初始化。 */
 static void SearchLine_Clear_Otsu_State(void)
 {
@@ -191,6 +294,13 @@ static void SearchLine_Clear_Otsu_State(void)
     SearchLine_Otsu_Left_Line = 0;
     SearchLine_Otsu_Right_Line = 0;
     SearchLine_Otsu_White_Line = 0;
+    SearchLine_Otsu_Ring_Bottom_Ok = 0;
+    SearchLine_Otsu_Cirque_Left_Count = 0;
+    SearchLine_Otsu_Cirque_Right_Count = 0;
+    SearchLine_Otsu_Ring_Stage_Num = 0;
+    SearchLine_Otsu_Ring_Point_Y = 0;
+    SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
+    SearchLine_Clear_Otsu_BorderTraceState();
 
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
@@ -200,6 +310,221 @@ static void SearchLine_Clear_Otsu_State(void)
         SearchLine_Otsu_Row_Valid[row] = 0;
         SearchLine_Otsu_Left_State[row] = SEARCH_LINE_STATE_INIT;
         SearchLine_Otsu_Right_State[row] = SEARCH_LINE_STATE_INIT;
+    }
+}
+
+/* 19 国一 Search_Border_OTSU 的边界跟踪支线。
+ * 这一支先只做观测缓存，不直接改普通赛道主链的左右边界。
+ */
+static void SearchLine_Search_Border_Otsu(void)
+{
+    uint8 bottom_row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW;
+    uint8 trace_row = 0;
+    uint8 left_y = 0;
+    uint8 left_x = 0;
+    uint8 right_y = 0;
+    uint8 right_x = 0;
+    uint8 left_direction = 0;
+    uint8 right_direction = 0;
+    uint8 left_probe_y = 0;
+    uint8 left_probe_x = 0;
+    uint8 right_probe_y = 0;
+    uint8 right_probe_x = 0;
+    uint8 row = 0;
+    uint16 guard = 0;
+    int16 next_row = 0;
+    int16 next_col = 0;
+    int16 probe_delta = 0;
+
+    if((SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW >= SEARCH_LINE_OTSU_H) ||
+       !SearchLine_Otsu_Row_Valid[bottom_row])
+    {
+        return;
+    }
+
+    left_y = bottom_row;
+    left_x = SearchLine_Otsu_Left_Border[bottom_row];
+    right_y = bottom_row;
+    right_x = SearchLine_Otsu_Right_Border[bottom_row];
+    left_probe_y = bottom_row;
+    left_probe_x = left_x;
+    right_probe_y = bottom_row;
+    right_probe_x = right_x;
+    trace_row = bottom_row;
+
+    SearchLine_Otsu_Left_Boundary_First[bottom_row] = left_x;
+    SearchLine_Otsu_Left_Boundary[bottom_row] = left_x;
+    SearchLine_Otsu_Right_Boundary_First[bottom_row] = right_x;
+    SearchLine_Otsu_Right_Boundary[bottom_row] = right_x;
+
+    while(1)
+    {
+        guard++;
+        if(guard > 400)
+        {
+            SearchLine_Otsu_Offline_Boundary_Row = trace_row;
+            break;
+        }
+
+        if((trace_row >= left_probe_y) && (trace_row >= right_probe_y))
+        {
+            if(trace_row < SearchLine_Otsu_Offline_Boundary_Row)
+            {
+                SearchLine_Otsu_Offline_Boundary_Row = trace_row;
+                break;
+            }
+            else
+            {
+                trace_row--;
+            }
+        }
+
+        if((left_probe_y > trace_row) || (trace_row == SearchLine_Otsu_Offline_Boundary_Row))
+        {
+            next_row = (int16)left_y + SearchLine_Otsu_Left_Rule[0][2 * left_direction + 1];
+            next_col = (int16)left_x + SearchLine_Otsu_Left_Rule[0][2 * left_direction];
+            left_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+            left_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+
+            if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+            {
+                if(3 == left_direction)
+                {
+                    left_direction = 0;
+                }
+                else
+                {
+                    left_direction++;
+                }
+            }
+            else
+            {
+                next_row = (int16)left_y + SearchLine_Otsu_Left_Rule[1][2 * left_direction + 1];
+                next_col = (int16)left_x + SearchLine_Otsu_Left_Rule[1][2 * left_direction];
+                left_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                left_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+
+                if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+                {
+                    left_y = (uint8)SearchLine_Limit_Int32((int16)left_y +
+                                                           SearchLine_Otsu_Left_Rule[0][2 * left_direction + 1],
+                                                           0,
+                                                           SEARCH_LINE_OTSU_H - 1);
+                    left_x = (uint8)SearchLine_Limit_Int32((int16)left_x +
+                                                           SearchLine_Otsu_Left_Rule[0][2 * left_direction],
+                                                           0,
+                                                           SEARCH_LINE_OTSU_W - 1);
+                    if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
+                    {
+                        SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
+                    }
+                    SearchLine_Otsu_Left_Boundary[left_y] = left_x;
+                }
+                else
+                {
+                    left_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                    left_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                    if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
+                    {
+                        SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
+                    }
+                    SearchLine_Otsu_Left_Boundary[left_y] = left_x;
+                    if(0 == left_direction)
+                    {
+                        left_direction = 3;
+                    }
+                    else
+                    {
+                        left_direction--;
+                    }
+                }
+            }
+        }
+
+        if((right_probe_y > trace_row) || (trace_row == SearchLine_Otsu_Offline_Boundary_Row))
+        {
+            next_row = (int16)right_y + SearchLine_Otsu_Right_Rule[0][2 * right_direction + 1];
+            next_col = (int16)right_x + SearchLine_Otsu_Right_Rule[0][2 * right_direction];
+            right_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+            right_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+
+            if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+            {
+                if(0 == right_direction)
+                {
+                    right_direction = 3;
+                }
+                else
+                {
+                    right_direction--;
+                }
+            }
+            else
+            {
+                next_row = (int16)right_y + SearchLine_Otsu_Right_Rule[1][2 * right_direction + 1];
+                next_col = (int16)right_x + SearchLine_Otsu_Right_Rule[1][2 * right_direction];
+                right_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                right_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+
+                if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+                {
+                    right_y = (uint8)SearchLine_Limit_Int32((int16)right_y +
+                                                            SearchLine_Otsu_Right_Rule[0][2 * right_direction + 1],
+                                                            0,
+                                                            SEARCH_LINE_OTSU_H - 1);
+                    right_x = (uint8)SearchLine_Limit_Int32((int16)right_x +
+                                                            SearchLine_Otsu_Right_Rule[0][2 * right_direction],
+                                                            0,
+                                                            SEARCH_LINE_OTSU_W - 1);
+                    if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
+                    {
+                        SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
+                    }
+                    SearchLine_Otsu_Right_Boundary[right_y] = right_x;
+                }
+                else
+                {
+                    right_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                    right_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                    if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
+                    {
+                        SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
+                    }
+                    SearchLine_Otsu_Right_Boundary[right_y] = right_x;
+                    if(3 == right_direction)
+                    {
+                        right_direction = 0;
+                    }
+                    else
+                    {
+                        right_direction++;
+                    }
+                }
+            }
+        }
+
+        probe_delta = (int16)right_probe_x - (int16)left_probe_x;
+        if(probe_delta < 0)
+        {
+            probe_delta = -probe_delta;
+        }
+        if(probe_delta < 3)
+        {
+            SearchLine_Otsu_Offline_Boundary_Row = trace_row;
+            break;
+        }
+    }
+
+    for(row = bottom_row; row > (uint8)(SearchLine_Otsu_Offline_Boundary_Row + 1); row--)
+    {
+        if(SearchLine_Otsu_Left_Boundary[row] < 3)
+        {
+            SearchLine_Otsu_White_Line_Left++;
+        }
+        if(SearchLine_Otsu_Right_Boundary[row] > (SEARCH_LINE_OTSU_W - 3))
+        {
+            SearchLine_Otsu_White_Line_Right++;
+        }
     }
 }
 
@@ -792,12 +1117,12 @@ static void SearchLine_DrawExtensionLine_Otsu(void)
                     slope = ((float)SearchLine_Otsu_Left_Border[ftsite] -
                              (float)SearchLine_Otsu_Left_Border[tfsite]) /
                             (float)(ftsite - tfsite);
+                    /* 圆环阶段统计依赖原始丢边标志，这里只补边界，不改丢边状态。 */
                     for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
                     {
                         SearchLine_Otsu_Left_Border[fill_row] =
                             SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
                                                                       (float)SearchLine_Otsu_Left_Border[tfsite]));
-                        SearchLine_Otsu_Left_State[fill_row] = SEARCH_LINE_STATE_FOUND;
                         SearchLine_Otsu_Row_Valid[fill_row] = 1;
                     }
                     row = ftsite;
@@ -848,12 +1173,12 @@ static void SearchLine_DrawExtensionLine_Otsu(void)
                     slope = ((float)SearchLine_Otsu_Right_Border[ftsite] -
                              (float)SearchLine_Otsu_Right_Border[tfsite]) /
                             (float)(ftsite - tfsite);
+                    /* 圆环阶段统计依赖原始丢边标志，这里只补边界，不改丢边状态。 */
                     for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
                     {
                         SearchLine_Otsu_Right_Border[fill_row] =
                             SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
                                                                       (float)SearchLine_Otsu_Right_Border[tfsite]));
-                        SearchLine_Otsu_Right_State[fill_row] = SEARCH_LINE_STATE_FOUND;
                         SearchLine_Otsu_Row_Valid[fill_row] = 1;
                     }
                     row = ftsite;
@@ -952,7 +1277,16 @@ static void SearchLine_Update_Otsu_Det(void)
         speed_gain = SEARCH_LINE_OTSU_DET_SPEED_GAIN_MIN;
     }
 
-    tow_point = (int16)((float)SEARCH_LINE_OTSU_DET_TOW_POINT - speed_gain);
+    if(((SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type) ||
+        (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type)) &&
+       ('F' == SearchLine_Otsu_Cirque_Off))
+    {
+        tow_point = 15;
+    }
+    else
+    {
+        tow_point = (int16)((float)SEARCH_LINE_OTSU_DET_TOW_POINT - speed_gain);
+    }
 
     if(tow_point < ((int16)SearchLine_Otsu_Offline_Row + 1))
     {
@@ -1062,6 +1396,892 @@ static void SearchLine_Update_Otsu_StraightAcc(void)
        (SearchLine_Otsu_Right_Line <= SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX))
     {
         SearchLine_Otsu_Straight_Acc = 1;
+    }
+}
+
+static float SearchLine_Straight_Judge_Otsu(uint8 dir, uint8 start_row, uint8 end_row)
+{
+    int16 row = 0;
+    int16 count = 0;
+    float variance = 999.0f;
+    float sum = 0.0f;
+    float err = 0.0f;
+    float slope = 0.0f;
+
+    if(start_row >= SEARCH_LINE_OTSU_H)
+    {
+        start_row = SEARCH_LINE_OTSU_H - 1;
+    }
+    if(end_row >= SEARCH_LINE_OTSU_H)
+    {
+        end_row = SEARCH_LINE_OTSU_H - 1;
+    }
+    if(start_row >= end_row)
+    {
+        return variance;
+    }
+
+    count = (int16)end_row - (int16)start_row;
+    if(0 == count)
+    {
+        return variance;
+    }
+
+    if(1 == dir)
+    {
+        slope = ((float)SearchLine_Otsu_Left_Border[start_row] -
+                 (float)SearchLine_Otsu_Left_Border[end_row]) /
+                (float)((int16)start_row - (int16)end_row);
+        for(row = 0; row < count; row++)
+        {
+            err = ((float)SearchLine_Otsu_Left_Border[start_row] +
+                   slope * (float)row -
+                   (float)SearchLine_Otsu_Left_Border[start_row + row]);
+            sum += err * err;
+        }
+    }
+    else if(2 == dir)
+    {
+        slope = ((float)SearchLine_Otsu_Right_Border[start_row] -
+                 (float)SearchLine_Otsu_Right_Border[end_row]) /
+                (float)((int16)start_row - (int16)end_row);
+        for(row = 0; row < count; row++)
+        {
+            err = ((float)SearchLine_Otsu_Right_Border[start_row] +
+                   slope * (float)row -
+                   (float)SearchLine_Otsu_Right_Border[start_row + row]);
+            sum += err * err;
+        }
+    }
+    else
+    {
+        return variance;
+    }
+
+    variance = sum / (float)count;
+    return variance;
+}
+
+static uint16 SearchLine_Cirque_Or_Cross_Otsu(uint8 type, uint8 start_row)
+{
+    uint16 num = 0;
+    uint8 row = 0;
+    uint8 end_row = 0;
+    int16 col = 0;
+
+    if(start_row >= SEARCH_LINE_OTSU_H)
+    {
+        return 0;
+    }
+
+    end_row = (uint8)SearchLine_Limit_Int32((int16)start_row + 10, 0, SEARCH_LINE_OTSU_H);
+    if(1 == type)
+    {
+        for(row = start_row; row < end_row; row++)
+        {
+            for(col = SearchLine_Otsu_Left_Border[row]; col > 1; col--)
+            {
+                if(0 != SearchLine_Get_Otsu_Binary_Pixel(row, col))
+                {
+                    num++;
+                }
+            }
+        }
+    }
+    else if(2 == type)
+    {
+        for(row = start_row; row < end_row; row++)
+        {
+            for(col = SearchLine_Otsu_Right_Border[row]; col < (SEARCH_LINE_OTSU_W - 2); col++)
+            {
+                if(0 != SearchLine_Get_Otsu_Binary_Pixel(row, col))
+                {
+                    num++;
+                }
+            }
+        }
+    }
+
+    return num;
+}
+
+static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
+{
+    uint8 ring_ysite = 3;
+    uint8 point1_y = 0;
+    uint8 point2_y = 0;
+    uint8 judge_start_y = 0;
+    uint8 row = 0;
+    uint8 ring_help_flag = 0;
+
+    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    {
+        if((int16)SearchLine_Otsu_Left_Boundary_First[row] -
+           (int16)SearchLine_Otsu_Left_Boundary_First[row - 1] > 4)
+        {
+            point1_y = row;
+            break;
+        }
+    }
+    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    {
+        if((int16)SearchLine_Otsu_Left_Boundary[row + 1] -
+           (int16)SearchLine_Otsu_Left_Boundary[row] > 4)
+        {
+            point2_y = row;
+            break;
+        }
+    }
+
+    judge_start_y = point1_y;
+    if(judge_start_y > (SEARCH_LINE_OTSU_H - 7))
+    {
+        judge_start_y = SEARCH_LINE_OTSU_H - 7;
+    }
+    for(row = judge_start_y; row > 10; row--)
+    {
+        if((SearchLine_Otsu_Left_Border[row + 6] < SearchLine_Otsu_Left_Border[row + 3]) &&
+           (SearchLine_Otsu_Left_Border[row + 5] < SearchLine_Otsu_Left_Border[row + 3]) &&
+           (SearchLine_Otsu_Left_Border[row + 3] > SearchLine_Otsu_Left_Border[row + 2]) &&
+           (SearchLine_Otsu_Left_Border[row + 3] > SearchLine_Otsu_Left_Border[row + 1]))
+        {
+            ring_help_flag = 1;
+            break;
+        }
+    }
+
+    if((point2_y > (uint8)(point1_y + 3)) && (0 == ring_help_flag))
+    {
+        if(SearchLine_Otsu_Left_Line > 6)
+        {
+            ring_help_flag = 1;
+        }
+    }
+
+    if((point2_y > (uint8)(point1_y + 3)) &&
+       (1 == ring_help_flag) &&
+       (0 == SearchLine_Otsu_Ring_Flag))
+    {
+        SearchLine_Otsu_Ring_Element = 1;
+        SearchLine_Otsu_Ring_Flag = 1;
+        SearchLine_Otsu_Ring_Size = 0;
+        SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_LEFT_CIRQUE;
+    }
+}
+
+static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
+{
+    uint8 ring_ysite = 3;
+    uint8 point1_y = 0;
+    uint8 point2_y = 0;
+    uint8 judge_start_y = 0;
+    uint8 row = 0;
+    uint8 ring_help_flag = 0;
+
+    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    {
+        if((int16)SearchLine_Otsu_Right_Boundary_First[row - 1] -
+           (int16)SearchLine_Otsu_Right_Boundary_First[row] > 4)
+        {
+            point1_y = row;
+            break;
+        }
+    }
+    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    {
+        if((int16)SearchLine_Otsu_Right_Boundary[row] -
+           (int16)SearchLine_Otsu_Right_Boundary[row + 1] > 4)
+        {
+            point2_y = row;
+            break;
+        }
+    }
+
+    judge_start_y = point1_y;
+    if(judge_start_y > (SEARCH_LINE_OTSU_H - 7))
+    {
+        judge_start_y = SEARCH_LINE_OTSU_H - 7;
+    }
+    for(row = judge_start_y; row > 10; row--)
+    {
+        if((SearchLine_Otsu_Right_Border[row + 6] > SearchLine_Otsu_Right_Border[row + 3]) &&
+           (SearchLine_Otsu_Right_Border[row + 5] > SearchLine_Otsu_Right_Border[row + 3]) &&
+           (SearchLine_Otsu_Right_Border[row + 3] < SearchLine_Otsu_Right_Border[row + 2]) &&
+           (SearchLine_Otsu_Right_Border[row + 3] < SearchLine_Otsu_Right_Border[row + 1]))
+        {
+            ring_help_flag = 1;
+            break;
+        }
+    }
+
+    if((point2_y > (uint8)(point1_y + 3)) && (0 == ring_help_flag))
+    {
+        if(SearchLine_Otsu_Right_Line > 7)
+        {
+            ring_help_flag = 1;
+        }
+    }
+
+    if((point2_y > (uint8)(point1_y + 3)) &&
+       (1 == ring_help_flag) &&
+       (0 == SearchLine_Otsu_Ring_Flag))
+    {
+        SearchLine_Otsu_Ring_Element = 2;
+        SearchLine_Otsu_Ring_Flag = 1;
+        SearchLine_Otsu_Ring_Size = 0;
+        SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_RIGHT_CIRQUE;
+    }
+}
+
+static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
+{
+    int16 num = 0;
+    int16 black = 0;
+    int16 row = 0;
+    int16 col = 0;
+    int16 point_y = 0;
+    int16 repair_x = 20;
+    int16 repair_y = 7;
+    int16 flag_x_1 = 0;
+    int16 flag_y_1 = 0;
+    int16 start_x = 0;
+    int16 end_x = 0;
+    int16 width = 0;
+    float slope_rings = 0.0f;
+
+    SearchLine_Otsu_Ring_Stage_Num = 0;
+    SearchLine_Otsu_Ring_Point_Y = 0;
+    SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
+
+    /* 参考旧分支用左侧黑列区分大小圆环。 */
+    if(0 == SearchLine_Otsu_Ring_Size)
+    {
+        black = 0;
+        for(row = 30; row > 0; row--)
+        {
+            if(0 == SearchLine_Get_Otsu_Binary_Pixel(row, 5))
+            {
+                black++;
+            }
+        }
+        if(black > 10)
+        {
+            SearchLine_Otsu_Ring_Size = 1;
+        }
+        else
+        {
+            SearchLine_Otsu_Ring_Size = 2;
+        }
+    }
+
+    for(row = 55; row > 30; row--)
+    {
+        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+        {
+            num++;
+        }
+        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 3]) &&
+           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 2]) &&
+           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 1]) &&
+           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[row]))
+        {
+            break;
+        }
+    }
+    SearchLine_Otsu_Ring_Stage_Num = (uint16)num;
+
+    if((1 == SearchLine_Otsu_Ring_Flag) && (num > 10))
+    {
+        SearchLine_Otsu_Ring_Flag = 2;
+    }
+    if((2 == SearchLine_Otsu_Ring_Flag) && (num < 8))
+    {
+        SearchLine_Otsu_Ring_Flag = 5;
+    }
+    if((5 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Right_Line > 15))
+    {
+        SearchLine_Otsu_Ring_Flag = 6;
+    }
+    if((6 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Right_Line < 4))
+    {
+        SearchLine_Otsu_Ring_Flag = 7;
+    }
+
+    if(7 == SearchLine_Otsu_Ring_Flag)
+    {
+        point_y = 0;
+        for(row = 45; row > ((int16)SearchLine_Otsu_Offline_Row + 3); row--)
+        {
+            if((SearchLine_Otsu_Right_Border[row] <= SearchLine_Otsu_Right_Border[row + 1]) &&
+               (SearchLine_Otsu_Right_Border[row] <= SearchLine_Otsu_Right_Border[row - 1]))
+            {
+                point_y = row;
+                break;
+            }
+        }
+        if(point_y > 22)
+        {
+            SearchLine_Otsu_Ring_Flag = 8;
+        }
+        SearchLine_Otsu_Ring_Point_Y = (uint16)point_y;
+    }
+
+    if(8 == SearchLine_Otsu_Ring_Flag)
+    {
+        if((SearchLine_Otsu_Right_Line < 9) &&
+           (SearchLine_Otsu_Offline_Row < 10))
+        {
+            SearchLine_Otsu_Ring_Flag = 9;
+        }
+    }
+
+    if(9 == SearchLine_Otsu_Ring_Flag)
+    {
+        num = 0;
+        for(row = 40; row > 10; row--)
+        {
+            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+            {
+                num++;
+            }
+        }
+        if(num < 5)
+        {
+            SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
+            SearchLine_Otsu_Ring_Flag = 0;
+            SearchLine_Otsu_Ring_Element = 0;
+            SearchLine_Otsu_Ring_Size = 0;
+        }
+    }
+
+    if((1 == SearchLine_Otsu_Ring_Flag) ||
+       (2 == SearchLine_Otsu_Ring_Flag) ||
+       (3 == SearchLine_Otsu_Ring_Flag) ||
+       (4 == SearchLine_Otsu_Ring_Flag))
+    {
+        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            SearchLine_Otsu_Center_Line[row] =
+                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Right_Border[row] -
+                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
+                                              0,
+                                              SEARCH_LINE_OTSU_W - 1);
+        }
+    }
+
+    if((5 == SearchLine_Otsu_Ring_Flag) || (6 == SearchLine_Otsu_Ring_Flag))
+    {
+        for(row = 55; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            for(col = (int16)SearchLine_Otsu_Left_Border[row] + 1;
+                col < (int16)SearchLine_Otsu_Right_Border[row] - 1;
+                col++)
+            {
+                if((1 == SearchLine_Get_Otsu_Binary_Pixel(row, col)) &&
+                   (0 == SearchLine_Get_Otsu_Binary_Pixel(row, col + 1)))
+                {
+                    flag_y_1 = row;
+                    flag_x_1 = col;
+                    slope_rings = (float)(79 - flag_x_1) / (float)(59 - flag_y_1);
+                    break;
+                }
+            }
+            if(0 != flag_y_1)
+            {
+                break;
+            }
+        }
+
+        if(0 == flag_y_1)
+        {
+            for(row = (int16)SearchLine_Otsu_Offline_Row + 1; row < 30; row++)
+            {
+                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[row]) &&
+                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[row + 1]) &&
+                   (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 2]) &&
+                   (SearchLine_Otsu_Left_Border[row] > SearchLine_Otsu_Left_Border[row + 2] + 10 ||
+                    SearchLine_Otsu_Left_Border[row] + 10 < SearchLine_Otsu_Left_Border[row + 2]))
+                {
+                    flag_y_1 = row;
+                    flag_x_1 = SearchLine_Otsu_Left_Border[flag_y_1];
+                    SearchLine_Otsu_Offline_Row = (uint8)row;
+                    slope_rings = (float)(79 - flag_x_1) / (float)(59 - flag_y_1);
+                    break;
+                }
+            }
+        }
+
+        if(0 != flag_y_1)
+        {
+            for(row = flag_y_1; row < SEARCH_LINE_OTSU_H; row++)
+            {
+                SearchLine_Otsu_Right_Border[row] =
+                    (uint8)SearchLine_Limit_Int32((int16)((float)flag_x_1 +
+                                                          slope_rings * (float)(row - flag_y_1)),
+                                                  0,
+                                                  SEARCH_LINE_OTSU_W - 1);
+                SearchLine_Otsu_Center_Line[row] =
+                    (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Right_Border[row] +
+                                                   (int16)SearchLine_Otsu_Left_Border[row]) / 2,
+                                                  4,
+                                                  SEARCH_LINE_OTSU_W - 1);
+            }
+
+            SearchLine_Otsu_Right_Border[flag_y_1] =
+                (uint8)SearchLine_Limit_Int32(flag_x_1, 0, SEARCH_LINE_OTSU_W - 1);
+
+            for(row = flag_y_1 - 1; row > 10; row--)
+            {
+                width = 0;
+                start_x = (int16)SearchLine_Otsu_Right_Border[row + 1] - 10;
+                end_x = (int16)SearchLine_Otsu_Right_Border[row + 1] + 2;
+                start_x = SearchLine_Clamp_Otsu_Search_Col(start_x);
+                end_x = SearchLine_Clamp_Otsu_Search_Col(end_x);
+                for(col = start_x; col <= end_x; col++)
+                {
+                    if((1 == SearchLine_Get_Otsu_Binary_Pixel(row, col)) &&
+                       (0 == SearchLine_Get_Otsu_Binary_Pixel(row, col + 1)))
+                    {
+                        SearchLine_Otsu_Right_Border[row] =
+                            (uint8)SearchLine_Limit_Int32(col, 0, SEARCH_LINE_OTSU_W - 1);
+                        SearchLine_Otsu_Center_Line[row] =
+                            (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Right_Border[row] +
+                                                           (int16)SearchLine_Otsu_Left_Border[row]) / 2,
+                                                          4,
+                                                          SEARCH_LINE_OTSU_W - 1);
+                        width = (int16)SearchLine_Otsu_Right_Border[row] -
+                                (int16)SearchLine_Otsu_Left_Border[row];
+                        break;
+                    }
+                }
+
+                if((width > 8) &&
+                   (SearchLine_Otsu_Right_Border[row] < SearchLine_Otsu_Right_Border[row + 2]))
+                {
+                    continue;
+                }
+                else
+                {
+                    SearchLine_Otsu_Offline_Row = (uint8)(row + 2);
+                    break;
+                }
+            }
+        }
+    }
+
+    if(6 == SearchLine_Otsu_Ring_Flag)
+    {
+        for(row = 57; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            SearchLine_Otsu_Center_Line[row] = 15;
+        }
+    }
+
+    if((8 == SearchLine_Otsu_Ring_Flag) && (1 == SearchLine_Otsu_Ring_Size))
+    {
+        for(row = 40; row > 5; row--)
+        {
+            if((1 == SearchLine_Get_Otsu_Binary_Pixel(row, 28)) &&
+               (0 == SearchLine_Get_Otsu_Binary_Pixel(row - 1, 28)))
+            {
+                repair_x = 28;
+                repair_y = row - 1;
+                SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                break;
+            }
+        }
+        for(row = 57; row > (repair_y - 3); row--)
+        {
+            SearchLine_Otsu_Right_Border[row] =
+                (uint8)SearchLine_Limit_Int32((((int16)SearchLine_Otsu_Right_Border[58] - repair_x) *
+                                               (row - 58)) /
+                                              (58 - repair_y) +
+                                              (int16)SearchLine_Otsu_Right_Border[58],
+                                              0,
+                                              SEARCH_LINE_OTSU_W - 1);
+            SearchLine_Otsu_Center_Line[row] =
+                (uint8)(((int16)SearchLine_Otsu_Right_Border[row] +
+                         (int16)SearchLine_Otsu_Left_Border[row]) / 2);
+        }
+    }
+
+    if((9 == SearchLine_Otsu_Ring_Flag) || (10 == SearchLine_Otsu_Ring_Flag))
+    {
+        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            SearchLine_Otsu_Center_Line[row] =
+                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Right_Border[row] -
+                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
+                                              0,
+                                              SEARCH_LINE_OTSU_W - 1);
+        }
+    }
+}
+
+static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
+{
+    int16 num = 0;
+    int16 black = 0;
+    int16 row = 0;
+    int16 col = 0;
+    int16 point_y = 0;
+    int16 repair_x = 20;
+    int16 repair_y = 7;
+    int16 flag_x_1 = 0;
+    int16 flag_y_1 = 0;
+    int16 start_x = 0;
+    int16 end_x = 0;
+    int16 width = 0;
+    float slope_right_rings = 0.0f;
+    float straight_judge = 0.0f;
+
+    SearchLine_Otsu_Ring_Stage_Num = 0;
+    SearchLine_Otsu_Ring_Point_Y = 0;
+    SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
+
+    /* 参考旧分支用右侧黑列区分大小圆环。 */
+    if(0 == SearchLine_Otsu_Ring_Size)
+    {
+        black = 0;
+        for(row = 30; row > 0; row--)
+        {
+            if(0 == SearchLine_Get_Otsu_Binary_Pixel(row, 75))
+            {
+                black++;
+            }
+        }
+        if(black > 10)
+        {
+            SearchLine_Otsu_Ring_Size = 1;
+        }
+        else
+        {
+            SearchLine_Otsu_Ring_Size = 2;
+        }
+    }
+
+    for(row = 55; row > 30; row--)
+    {
+        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+        {
+            num++;
+        }
+        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 3]) &&
+           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 2]) &&
+           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 1]) &&
+           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[row]))
+        {
+            break;
+        }
+    }
+    SearchLine_Otsu_Ring_Stage_Num = (uint16)num;
+
+    if((1 == SearchLine_Otsu_Ring_Flag) && (num > 10))
+    {
+        SearchLine_Otsu_Ring_Flag = 2;
+    }
+    if((2 == SearchLine_Otsu_Ring_Flag) && (num < 8))
+    {
+        SearchLine_Otsu_Ring_Flag = 5;
+    }
+    if((5 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Left_Line > 15))
+    {
+        SearchLine_Otsu_Ring_Flag = 6;
+    }
+    if((6 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Left_Line < 4))
+    {
+        SearchLine_Otsu_Ring_Flag = 7;
+    }
+
+    if(7 == SearchLine_Otsu_Ring_Flag)
+    {
+        point_y = 0;
+        for(row = 45; row > ((int16)SearchLine_Otsu_Offline_Row + 3); row--)
+        {
+            if((SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row + 1]) &&
+               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row - 1]))
+            {
+                point_y = row;
+                break;
+            }
+        }
+        if(point_y > 22)
+        {
+            SearchLine_Otsu_Ring_Flag = 8;
+        }
+        SearchLine_Otsu_Ring_Point_Y = (uint16)point_y;
+    }
+
+    if(8 == SearchLine_Otsu_Ring_Flag)
+    {
+        straight_judge = SearchLine_Straight_Judge_Otsu(1,
+                                                        (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Offline_Row + 10,
+                                                                                      0,
+                                                                                      SEARCH_LINE_OTSU_H - 1),
+                                                        45);
+        SearchLine_Otsu_Ring_Straight_Judge_Tenth = (int16)(straight_judge * 10.0f + 0.5f);
+        if((straight_judge < 1.0f) &&
+           (SearchLine_Otsu_Left_Line < 9) &&
+           (SearchLine_Otsu_Offline_Row < 20))
+        {
+            SearchLine_Otsu_Ring_Flag = 9;
+        }
+    }
+
+    if(9 == SearchLine_Otsu_Ring_Flag)
+    {
+        num = 0;
+        for(row = 40; row > 10; row--)
+        {
+            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+            {
+                num++;
+            }
+        }
+        if(num < 5)
+        {
+            SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
+            SearchLine_Otsu_Ring_Flag = 0;
+            SearchLine_Otsu_Ring_Element = 0;
+            SearchLine_Otsu_Ring_Size = 0;
+        }
+    }
+
+    if((1 == SearchLine_Otsu_Ring_Flag) ||
+       (2 == SearchLine_Otsu_Ring_Flag) ||
+       (3 == SearchLine_Otsu_Ring_Flag) ||
+       (4 == SearchLine_Otsu_Ring_Flag))
+    {
+        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            SearchLine_Otsu_Center_Line[row] =
+                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Left_Border[row] +
+                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
+                                              0,
+                                              SEARCH_LINE_OTSU_W - 1);
+        }
+    }
+
+    if((5 == SearchLine_Otsu_Ring_Flag) || (6 == SearchLine_Otsu_Ring_Flag))
+    {
+        for(row = 55; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            for(col = (int16)SearchLine_Otsu_Left_Border[row] + 1;
+                col < (int16)SearchLine_Otsu_Right_Border[row] - 1;
+                col++)
+            {
+                if((1 == SearchLine_Get_Otsu_Binary_Pixel(row, col)) &&
+                   (0 == SearchLine_Get_Otsu_Binary_Pixel(row, col + 1)))
+                {
+                    flag_y_1 = row;
+                    flag_x_1 = col;
+                    slope_right_rings = (float)(0 - flag_x_1) / (float)(59 - flag_y_1);
+                    break;
+                }
+            }
+            if(0 != flag_y_1)
+            {
+                break;
+            }
+        }
+
+        if(0 == flag_y_1)
+        {
+            for(row = (int16)SearchLine_Otsu_Offline_Row + 5; row < 30; row++)
+            {
+                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[row]) &&
+                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[row + 1]) &&
+                   (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 2]) &&
+                   (SearchLine_Otsu_Right_Border[row] > SearchLine_Otsu_Right_Border[row + 2] + 10 ||
+                    SearchLine_Otsu_Right_Border[row] + 10 < SearchLine_Otsu_Right_Border[row + 2]))
+                {
+                    flag_y_1 = row;
+                    flag_x_1 = SearchLine_Otsu_Right_Border[flag_y_1];
+                    SearchLine_Otsu_Offline_Row = (uint8)row;
+                    slope_right_rings = (float)(0 - flag_x_1) / (float)(59 - flag_y_1);
+                    break;
+                }
+            }
+        }
+
+        if(0 != flag_y_1)
+        {
+            for(row = flag_y_1; row < 58; row++)
+            {
+                SearchLine_Otsu_Left_Border[row] =
+                    (uint8)SearchLine_Limit_Int32((int16)((float)flag_x_1 +
+                                                          slope_right_rings * (float)(row - flag_y_1)),
+                                                  0,
+                                                  SEARCH_LINE_OTSU_W - 1);
+                SearchLine_Otsu_Center_Line[row] =
+                    (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Left_Border[row] +
+                                                   (int16)SearchLine_Otsu_Right_Border[row]) / 2,
+                                                  0,
+                                                  SEARCH_LINE_OTSU_W - 1);
+            }
+
+            SearchLine_Otsu_Left_Border[flag_y_1] =
+                (uint8)SearchLine_Limit_Int32(flag_x_1, 0, SEARCH_LINE_OTSU_W - 1);
+
+            for(row = flag_y_1 - 1; row > 10; row--)
+            {
+                width = 0;
+                start_x = (int16)SearchLine_Otsu_Left_Border[row + 1] + 8;
+                end_x = (int16)SearchLine_Otsu_Left_Border[row + 1] - 4;
+                start_x = SearchLine_Clamp_Otsu_Search_Col(start_x);
+                end_x = SearchLine_Clamp_Otsu_Search_Col(end_x);
+                for(col = start_x; col >= end_x; col--)
+                {
+                    if((1 == SearchLine_Get_Otsu_Binary_Pixel(row, col)) &&
+                       (0 == SearchLine_Get_Otsu_Binary_Pixel(row, col - 1)))
+                    {
+                        SearchLine_Otsu_Left_Border[row] =
+                            (uint8)SearchLine_Limit_Int32(col, 0, SEARCH_LINE_OTSU_W - 1);
+                        SearchLine_Otsu_Center_Line[row] =
+                            (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Left_Border[row] +
+                                                           (int16)SearchLine_Otsu_Right_Border[row]) / 2,
+                                                          5,
+                                                          SEARCH_LINE_OTSU_W - 1);
+                        width = (int16)SearchLine_Otsu_Right_Border[row] -
+                                (int16)SearchLine_Otsu_Left_Border[row];
+                        break;
+                    }
+                }
+
+                if((width > 8) &&
+                   (SearchLine_Otsu_Left_Border[row] > SearchLine_Otsu_Left_Border[row + 2]))
+                {
+                    continue;
+                }
+                else
+                {
+                    SearchLine_Otsu_Offline_Row = (uint8)(row + 2);
+                    break;
+                }
+            }
+        }
+    }
+
+    if(6 == SearchLine_Otsu_Ring_Flag)
+    {
+        for(row = 57; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            SearchLine_Otsu_Center_Line[row] = 63;
+        }
+    }
+
+    if(8 == SearchLine_Otsu_Ring_Flag)
+    {
+        for(row = 40; row > 8; row--)
+        {
+            if((1 == SearchLine_Get_Otsu_Binary_Pixel(row, 28)) &&
+               (0 == SearchLine_Get_Otsu_Binary_Pixel(row - 1, 28)))
+            {
+                repair_x = 28;
+                repair_y = row - 1;
+                SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                break;
+            }
+        }
+        for(row = 57; row > (repair_y - 3); row--)
+        {
+            SearchLine_Otsu_Left_Border[row] =
+                (uint8)SearchLine_Limit_Int32((((int16)SearchLine_Otsu_Left_Border[58] - repair_x) *
+                                               (row - 58)) /
+                                              (58 - repair_y) +
+                                              (int16)SearchLine_Otsu_Left_Border[58],
+                                              0,
+                                              SEARCH_LINE_OTSU_W - 1);
+            SearchLine_Otsu_Center_Line[row] =
+                (uint8)(((int16)SearchLine_Otsu_Left_Border[row] +
+                         (int16)SearchLine_Otsu_Right_Border[row]) / 2);
+        }
+    }
+
+    if(9 == SearchLine_Otsu_Ring_Flag)
+    {
+        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        {
+            SearchLine_Otsu_Center_Line[row] =
+                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Left_Border[row] +
+                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
+                                              0,
+                                              SEARCH_LINE_OTSU_W - 1);
+        }
+    }
+}
+
+static void SearchLine_Element_Handle(void)
+{
+    if(1 == SearchLine_Otsu_Ring_Element)
+    {
+        SearchLine_Element_Handle_Left_Rings_Otsu();
+    }
+    else if(2 == SearchLine_Otsu_Ring_Element)
+    {
+        SearchLine_Element_Handle_Right_Rings_Otsu();
+    }
+}
+
+/* 元素判断。 */
+static void SearchLine_Element_Test(void)
+{
+    uint8 bottom_ok = 0;
+    uint8 row = 0;
+
+    SearchLine_Otsu_Cirque_Left_Count =
+        SearchLine_Cirque_Or_Cross_Otsu(1, SearchLine_Otsu_Left_Line);
+    SearchLine_Otsu_Cirque_Right_Count =
+        SearchLine_Cirque_Or_Cross_Otsu(2, SearchLine_Otsu_Right_Line);
+
+    for(row = 52; row <= 58; row++)
+    {
+        if(SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[row])
+        {
+            bottom_ok++;
+        }
+    }
+    SearchLine_Otsu_Ring_Bottom_Ok = bottom_ok;
+
+    /* 非十字、非圆环时更新直道标志。 */
+    if((SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_CROSS) &&
+       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_LEFT_CIRQUE) &&
+       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_RIGHT_CIRQUE))
+    {
+        SearchLine_Update_Otsu_StraightAcc();
+    }
+    else
+    {
+        SearchLine_Otsu_Straight_Acc = 0;
+        SearchLine_Otsu_Variance_Acc = 0;
+    }
+
+    /* 圆环判断。 */
+    if((SearchLine_Otsu_Offline_Row < 5) &&
+       (SearchLine_Otsu_White_Line < 3) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[52]) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[53]) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[54]) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[55]) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[56]) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[57]) &&
+       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[58]))
+    {
+        /* 左圆环判断。 */
+        if((SearchLine_Otsu_Right_Line < 2) &&
+           (SearchLine_Otsu_Left_Line > 13) &&
+           (SearchLine_Otsu_Cirque_Left_Count > 70))
+        {
+            SearchLine_Element_Judgment_Left_Rings_Otsu();
+        }
+
+        /* 右圆环判断。 */
+        if((SearchLine_Otsu_Left_Line < 2) &&
+           (SearchLine_Otsu_Right_Line > 17) &&
+           (SearchLine_Otsu_Cirque_Right_Count > 120))
+        {
+            SearchLine_Element_Judgment_Right_Rings_Otsu();
+        }
     }
 }
 
@@ -1256,7 +2476,7 @@ static void SearchLine_Binarize_Otsu_Image(void)
     }
 }
 
-/* 图像压缩、图像二值化、底边初始化、逐行搜边、延长线补边、中线滤波。 */
+/* 图像压缩、图像二值化、底边初始化、逐行搜边、边界支线、延长线补边、中线滤波。 */
 static void SearchLine_Process_Otsu(void)
 {
     /* 行列映射表初始化。 */
@@ -1276,12 +2496,16 @@ static void SearchLine_Process_Otsu(void)
     SearchLine_Init_Otsu_BottomRows();
     /* 逐行向上搜边。 */
     SearchLine_DrawLinesProcess_Otsu();
+    /* 圆环支线先补边界跟踪缓存，后续判据和补线都依赖这一组观测量。 */
+    SearchLine_Search_Border_Otsu();
+    /* 元素判断。 */
+    SearchLine_Element_Test();
     /* 延长线补边。 */
     SearchLine_DrawExtensionLine_Otsu();
     /* 中线滤波平滑。 */
     SearchLine_RouteFilter_Otsu();
-    /* 直道方差判定。 */
-    SearchLine_Update_Otsu_StraightAcc();
+    /* 元素处理。 */
+    SearchLine_Element_Handle();
     /* 固定前瞻加权中线。 */
     SearchLine_Update_Otsu_Det();
     /* 舵机位置式 PD 预览。 */
@@ -1342,6 +2566,18 @@ static void SearchLine_DrawPreviewLabels(void)
     ips200_show_string(0, (uint16)(CAMERA_RAW_H + 4), "yu zhi");
     ips200_show_string(0, (uint16)(CAMERA_RAW_H + 20), "qian zhan pian cha");
     ips200_show_string(0, (uint16)(CAMERA_RAW_H + 36), "duo ji jiao du");
+
+    /* 圆环条件调试量。 */
+    ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 52), "yuan huan");
+    ips200_set_color(RGB565_CYAN, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 68), "ru huan");
+    ips200_set_color(RGB565_GREEN, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 84), "zuo pan");
+    ips200_set_color(RGB565_MAGENTA, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 100), "you pan");
+    ips200_set_color(RGB565_BLUE, RGB565_BLACK);
+    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 116), "jie duan");
     SearchLine_Preview_Label_Ready = 1;
 }
 
@@ -1365,6 +2601,21 @@ void SearchLine_ResetPreviewOverlay(void)
     SearchLine_Preview_Last_Threshold = 0xFF;
     SearchLine_Preview_Last_Offset = 32767;
     SearchLine_Preview_Last_Command = 0xFF;
+    SearchLine_Preview_Last_Ring_Element = 0xFF;
+    SearchLine_Preview_Last_Ring_Flag = 0xFF;
+    SearchLine_Preview_Last_Ring_Size = 0xFF;
+    SearchLine_Preview_Last_Offline_Row = 0xFF;
+    SearchLine_Preview_Last_White_Line = 0xFF;
+    SearchLine_Preview_Last_Ring_Bottom_Ok = 0xFF;
+    SearchLine_Preview_Last_Cirque_Left_Count = 0xFFFF;
+    SearchLine_Preview_Last_Cirque_Right_Count = 0xFFFF;
+    SearchLine_Preview_Last_Ring_Left_Line = 0xFF;
+    SearchLine_Preview_Last_Ring_Right_Line = 0xFF;
+    SearchLine_Preview_Last_Ring_Left_Line_RightPanel = 0xFF;
+    SearchLine_Preview_Last_Ring_Right_Line_RightPanel = 0xFF;
+    SearchLine_Preview_Last_Ring_Stage_Num = 0xFFFF;
+    SearchLine_Preview_Last_Ring_Point_Y = 0xFFFF;
+    SearchLine_Preview_Last_Ring_Straight_Judge_Tenth = 32767;
 }
 
 static void SearchLine_DrawPreview(uint8 show_raw)
@@ -1372,12 +2623,18 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     char threshold_text[4];
     char offset_text[4];
     char command_text[4];
+    char ring_text[12];
+    char gate_text[16];
+    char left_text[16];
+    char right_text[16];
+    char stage_text[16];
     uint16 x = 0;
     uint16 y = 0;
     uint8 row = 0;
     uint8 left_col = 0;
     uint8 right_col = 0;
     uint8 center_col = 0;
+    uint8 boundary_col = 0;
     uint16 offset_abs = 0;
     uint8 command_value = 0;
     /* int16 speed_goal_display = 0; */
@@ -1451,6 +2708,170 @@ static void SearchLine_DrawPreview(uint8 show_raw)
         SearchLine_Preview_Last_Command = command_value;
     }
 
+    if(1 == SearchLine_Otsu_Ring_Element)
+    {
+        ring_text[0] = 'z';
+        ring_text[1] = 'u';
+        ring_text[2] = 'o';
+    }
+    else if(2 == SearchLine_Otsu_Ring_Element)
+    {
+        ring_text[0] = 'y';
+        ring_text[1] = 'o';
+        ring_text[2] = 'u';
+    }
+    else
+    {
+        ring_text[0] = 'w';
+        ring_text[1] = 'u';
+        ring_text[2] = ' ';
+    }
+    ring_text[3] = ' ';
+    ring_text[4] = (char)('0' + (SearchLine_Otsu_Ring_Flag % 10U));
+    ring_text[5] = ' ';
+    if(1 == SearchLine_Otsu_Ring_Size)
+    {
+        ring_text[6] = 'd';
+        ring_text[7] = 'a';
+        ring_text[8] = '\0';
+    }
+    else if(2 == SearchLine_Otsu_Ring_Size)
+    {
+        ring_text[6] = 'x';
+        ring_text[7] = 'i';
+        ring_text[8] = 'a';
+        ring_text[9] = 'o';
+        ring_text[10] = '\0';
+    }
+    else
+    {
+        ring_text[6] = '-';
+        ring_text[7] = '\0';
+    }
+
+    gate_text[0] = 'o';
+    gate_text[1] = (char)('0' + (SearchLine_Otsu_Offline_Row / 10U) % 10U);
+    gate_text[2] = (char)('0' + SearchLine_Otsu_Offline_Row % 10U);
+    gate_text[3] = ' ';
+    gate_text[4] = 'w';
+    gate_text[5] = (char)('0' + (SearchLine_Otsu_White_Line / 10U) % 10U);
+    gate_text[6] = (char)('0' + SearchLine_Otsu_White_Line % 10U);
+    gate_text[7] = ' ';
+    gate_text[8] = 'k';
+    gate_text[9] = (char)('0' + SearchLine_Otsu_Ring_Bottom_Ok % 10U);
+    gate_text[10] = '\0';
+
+    left_text[0] = 'r';
+    left_text[1] = (char)('0' + (SearchLine_Otsu_Right_Line / 10U) % 10U);
+    left_text[2] = (char)('0' + SearchLine_Otsu_Right_Line % 10U);
+    left_text[3] = ' ';
+    left_text[4] = 'l';
+    left_text[5] = (char)('0' + (SearchLine_Otsu_Left_Line / 10U) % 10U);
+    left_text[6] = (char)('0' + SearchLine_Otsu_Left_Line % 10U);
+    left_text[7] = ' ';
+    left_text[8] = 'c';
+    left_text[9] = (char)('0' + (SearchLine_Otsu_Cirque_Left_Count / 100U) % 10U);
+    left_text[10] = (char)('0' + (SearchLine_Otsu_Cirque_Left_Count / 10U) % 10U);
+    left_text[11] = (char)('0' + SearchLine_Otsu_Cirque_Left_Count % 10U);
+    left_text[12] = '\0';
+
+    right_text[0] = 'l';
+    right_text[1] = (char)('0' + (SearchLine_Otsu_Left_Line / 10U) % 10U);
+    right_text[2] = (char)('0' + SearchLine_Otsu_Left_Line % 10U);
+    right_text[3] = ' ';
+    right_text[4] = 'r';
+    right_text[5] = (char)('0' + (SearchLine_Otsu_Right_Line / 10U) % 10U);
+    right_text[6] = (char)('0' + SearchLine_Otsu_Right_Line % 10U);
+    right_text[7] = ' ';
+    right_text[8] = 'c';
+    right_text[9] = (char)('0' + (SearchLine_Otsu_Cirque_Right_Count / 100U) % 10U);
+    right_text[10] = (char)('0' + (SearchLine_Otsu_Cirque_Right_Count / 10U) % 10U);
+    right_text[11] = (char)('0' + SearchLine_Otsu_Cirque_Right_Count % 10U);
+    right_text[12] = '\0';
+
+    stage_text[0] = 'n';
+    stage_text[1] = (char)('0' + (SearchLine_Otsu_Ring_Stage_Num / 10U) % 10U);
+    stage_text[2] = (char)('0' + SearchLine_Otsu_Ring_Stage_Num % 10U);
+    stage_text[3] = ' ';
+    stage_text[4] = 'p';
+    stage_text[5] = (char)('0' + (SearchLine_Otsu_Ring_Point_Y / 10U) % 10U);
+    stage_text[6] = (char)('0' + SearchLine_Otsu_Ring_Point_Y % 10U);
+    stage_text[7] = ' ';
+    stage_text[8] = 's';
+    if(SearchLine_Otsu_Ring_Straight_Judge_Tenth >= 0)
+    {
+        stage_text[9] = (char)('0' + (SearchLine_Otsu_Ring_Straight_Judge_Tenth / 10) % 10);
+        stage_text[10] = '.';
+        stage_text[11] = (char)('0' + SearchLine_Otsu_Ring_Straight_Judge_Tenth % 10);
+        stage_text[12] = '\0';
+    }
+    else
+    {
+        stage_text[9] = '-';
+        stage_text[10] = '-';
+        stage_text[11] = '\0';
+    }
+
+    ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
+    if((SearchLine_Preview_Last_Ring_Element != SearchLine_Otsu_Ring_Element) ||
+       (SearchLine_Preview_Last_Ring_Flag != SearchLine_Otsu_Ring_Flag) ||
+       (SearchLine_Preview_Last_Ring_Size != SearchLine_Otsu_Ring_Size))
+    {
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 52), "            ");
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 52), ring_text);
+        SearchLine_Preview_Last_Ring_Element = SearchLine_Otsu_Ring_Element;
+        SearchLine_Preview_Last_Ring_Flag = SearchLine_Otsu_Ring_Flag;
+        SearchLine_Preview_Last_Ring_Size = SearchLine_Otsu_Ring_Size;
+    }
+
+    ips200_set_color(RGB565_CYAN, RGB565_BLACK);
+    if((SearchLine_Preview_Last_Offline_Row != SearchLine_Otsu_Offline_Row) ||
+       (SearchLine_Preview_Last_White_Line != SearchLine_Otsu_White_Line) ||
+       (SearchLine_Preview_Last_Ring_Bottom_Ok != SearchLine_Otsu_Ring_Bottom_Ok))
+    {
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 68), "            ");
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 68), gate_text);
+        SearchLine_Preview_Last_Offline_Row = SearchLine_Otsu_Offline_Row;
+        SearchLine_Preview_Last_White_Line = SearchLine_Otsu_White_Line;
+        SearchLine_Preview_Last_Ring_Bottom_Ok = SearchLine_Otsu_Ring_Bottom_Ok;
+    }
+
+    ips200_set_color(RGB565_GREEN, RGB565_BLACK);
+    if((SearchLine_Preview_Last_Ring_Left_Line != SearchLine_Otsu_Left_Line) ||
+       (SearchLine_Preview_Last_Ring_Right_Line != SearchLine_Otsu_Right_Line) ||
+       (SearchLine_Preview_Last_Cirque_Left_Count != SearchLine_Otsu_Cirque_Left_Count))
+    {
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 84), "            ");
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 84), left_text);
+        SearchLine_Preview_Last_Cirque_Left_Count = SearchLine_Otsu_Cirque_Left_Count;
+        SearchLine_Preview_Last_Ring_Left_Line = SearchLine_Otsu_Left_Line;
+        SearchLine_Preview_Last_Ring_Right_Line = SearchLine_Otsu_Right_Line;
+    }
+
+    ips200_set_color(RGB565_MAGENTA, RGB565_BLACK);
+    if((SearchLine_Preview_Last_Ring_Left_Line_RightPanel != SearchLine_Otsu_Left_Line) ||
+       (SearchLine_Preview_Last_Ring_Right_Line_RightPanel != SearchLine_Otsu_Right_Line) ||
+       (SearchLine_Preview_Last_Cirque_Right_Count != SearchLine_Otsu_Cirque_Right_Count))
+    {
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 100), "            ");
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 100), right_text);
+        SearchLine_Preview_Last_Cirque_Right_Count = SearchLine_Otsu_Cirque_Right_Count;
+        SearchLine_Preview_Last_Ring_Left_Line_RightPanel = SearchLine_Otsu_Left_Line;
+        SearchLine_Preview_Last_Ring_Right_Line_RightPanel = SearchLine_Otsu_Right_Line;
+    }
+
+    ips200_set_color(RGB565_BLUE, RGB565_BLACK);
+    if((SearchLine_Preview_Last_Ring_Stage_Num != SearchLine_Otsu_Ring_Stage_Num) ||
+       (SearchLine_Preview_Last_Ring_Point_Y != SearchLine_Otsu_Ring_Point_Y) ||
+       (SearchLine_Preview_Last_Ring_Straight_Judge_Tenth != SearchLine_Otsu_Ring_Straight_Judge_Tenth))
+    {
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 116), "            ");
+        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 116), stage_text);
+        SearchLine_Preview_Last_Ring_Stage_Num = SearchLine_Otsu_Ring_Stage_Num;
+        SearchLine_Preview_Last_Ring_Point_Y = SearchLine_Otsu_Ring_Point_Y;
+        SearchLine_Preview_Last_Ring_Straight_Judge_Tenth = SearchLine_Otsu_Ring_Straight_Judge_Tenth;
+    }
+
     /* 暂时关闭底部速度与目标值文字显示，先只保留图像预览。 */
     /*
     speed_goal_display = (int16)(speed_goal_eff + 0.5f);
@@ -1511,6 +2932,32 @@ static void SearchLine_DrawPreview(uint8 show_raw)
                      (uint32)SEARCH_LINE_OTSU_W);
         ips200_draw_point(x, y, RGB565_RED);
         ips200_draw_point(x, (uint16)SearchLine_Limit_Int32((int32)y + 1, 0, CAMERA_RAW_H - 1), RGB565_RED);
+    }
+
+    for(row = SearchLine_Otsu_Offline_Boundary_Row; row <= SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row++)
+    {
+        y = (uint16)(((uint32)row * (uint32)CAMERA_RAW_H + (uint32)(SEARCH_LINE_OTSU_H / 2)) /
+                     (uint32)SEARCH_LINE_OTSU_H);
+
+        boundary_col = SearchLine_Otsu_Left_Boundary_First[row];
+        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
+                     (uint32)SEARCH_LINE_OTSU_W);
+        ips200_draw_point(x, y, RGB565_YELLOW);
+
+        boundary_col = SearchLine_Otsu_Right_Boundary_First[row];
+        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
+                     (uint32)SEARCH_LINE_OTSU_W);
+        ips200_draw_point(x, y, RGB565_YELLOW);
+
+        boundary_col = SearchLine_Otsu_Left_Boundary[row];
+        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
+                     (uint32)SEARCH_LINE_OTSU_W);
+        ips200_draw_point(x, y, RGB565_CYAN);
+
+        boundary_col = SearchLine_Otsu_Right_Boundary[row];
+        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
+                     (uint32)SEARCH_LINE_OTSU_W);
+        ips200_draw_point(x, y, RGB565_CYAN);
     }
 }
 

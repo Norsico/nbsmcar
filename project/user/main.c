@@ -196,8 +196,8 @@ void main(void)
                 }
                 else
                 {
-                    /* 纯运行态负压固定 20%，负压调试先按常数输出。 */
-                    bldc_motor_set_duty(20, 20);
+                    /* 纯运行态负压固定输出，负压调试先按常数输出。 */
+                    bldc_motor_set_duty(30, 30);
                 }
                 if(g_flag_encoder){
                     // 编码器
