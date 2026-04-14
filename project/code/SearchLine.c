@@ -1329,11 +1329,14 @@ static void SearchLine_Update_Otsu_Det(void)
         speed_gain = SEARCH_LINE_OTSU_DET_SPEED_GAIN_MIN;
     }
 
-    if(((SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type) ||
-        (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type)) &&
-       ('F' == SearchLine_Otsu_Cirque_Off))
+    /* 一号环岛控制前瞻更远，进环和环中都按 30 行看，避免车头过度贴外侧。 */
+    if((((SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type) ||
+         (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type)) &&
+        ('F' == SearchLine_Otsu_Cirque_Off)) ||
+       (1 == SearchLine_Otsu_Ring_Flag) ||
+       (2 == SearchLine_Otsu_Ring_Flag))
     {
-        tow_point = 15;
+        tow_point = 30;
     }
     else
     {
@@ -2005,9 +2008,12 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         SearchLine_Otsu_Ring_Flag = 2;
     }
     /* 贴边段结束。右侧连续丢线回落后，开始切到补左边界的绕环阶段。 */
-    if((2 == SearchLine_Otsu_Ring_Flag) && (num < 8))
+    if((2 == SearchLine_Otsu_Ring_Flag) && (num < 12))
     {
         SearchLine_Otsu_Ring_Flag = 5;
+        /* 右大环真正切到环内补线时再响一下，方便区分入口判到和入环稳定。 */
+        buzzer_on();
+        SearchLine_Ring_Beep_Stop_Tick = g_system_ticks + SEARCH_LINE_RING_FLAG1_BEEP_MS;
     }
     /* 左边重新露出较多有效边界，说明已经绕到环内后半段。 */
     if((5 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Left_Line > 15))
@@ -2020,14 +2026,18 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         SearchLine_Otsu_Ring_Flag = 7;
     }
 
-    /* 找左边界的局部最高点，作为出环前的转折观察点。 */
+    /* 一号右大环这里按左边界局部峰值找出环点，不再只看相邻两行。 */
     if(7 == SearchLine_Otsu_Ring_Flag)
     {
         point_y = 0;
         for(row = 45; row > ((int16)SearchLine_Otsu_Offline_Row + 3); row--)
         {
-            if((SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row + 1]) &&
-               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row - 1]))
+            if((SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row + 2]) &&
+               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row - 2]) &&
+               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row + 1]) &&
+               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row - 1]) &&
+               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row + 4]) &&
+               (SearchLine_Otsu_Left_Border[row] >= SearchLine_Otsu_Left_Border[row - 4]))
             {
                 point_y = row;
                 break;
@@ -2074,6 +2084,9 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
             SearchLine_Otsu_Ring_Flag = 0;
             SearchLine_Otsu_Ring_Element = 0;
             SearchLine_Otsu_Ring_Size = 0;
+            /* 右大环出环清状态时响一下，方便确认已经彻底回到普通赛道。 */
+            buzzer_on();
+            SearchLine_Ring_Beep_Stop_Tick = g_system_ticks + SEARCH_LINE_RING_FLAG1_BEEP_MS;
         }
     }
 
