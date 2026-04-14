@@ -1,7 +1,9 @@
 #include "SearchLine.h"
 #include "dev_flash.h"
+#include "dev_other.h"
 #include "dev_servo.h"
 #include "dev_wheel.h"
+#include "system_state.h"
 
 #define SEARCH_LINE_OTSU_W                  (80)
 #define SEARCH_LINE_OTSU_H                  (60)
@@ -38,6 +40,7 @@
 #define SEARCH_LINE_OTSU_VARIANCE_ACC_LIMIT (25)
 #define SEARCH_LINE_OTSU_STRAIGHT_OFFLINE_MAX (7)
 #define SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX (0)
+#define SEARCH_LINE_RING_FLAG1_BEEP_MS       (120)
 #define SEARCH_LINE_STEER_REF_MIDDLE_DUTY   (4880.0f)
 #define SEARCH_LINE_STEER_REF_RIGHT_DUTY    (4100.0f)
 
@@ -128,6 +131,8 @@ static uint8 SearchLine_Otsu_Threshold_Raw_Cache = SEARCH_LINE_OTSU_THRESHOLD_MI
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
 static uint8 SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
+/* 当前裁剪工程没有岔路状态源，延长线条件先按国一默认值保持关闭。 */
+static uint8 SearchLine_Otsu_Fork_Down = 0;
 static uint8 SearchLine_Otsu_Cirque_Out_In = 'F';
 static uint8 SearchLine_Otsu_Cirque_Pass = 'F';
 static uint8 SearchLine_Otsu_Cirque_Out = 'F';
@@ -135,12 +140,12 @@ static uint8 SearchLine_Otsu_Cirque_Off = 'F';
 static uint8 SearchLine_Otsu_Ring_Element = 0;
 static uint8 SearchLine_Otsu_Ring_Size = 0;
 static uint8 SearchLine_Otsu_Ring_Flag = 0;
-static uint8 SearchLine_Otsu_Ring_Bottom_Ok = 0;
-static uint16 SearchLine_Otsu_Cirque_Left_Count = 0;
-static uint16 SearchLine_Otsu_Cirque_Right_Count = 0;
+static uint8 SearchLine_Otsu_Cirque_Left_Count = 0;
+static uint8 SearchLine_Otsu_Cirque_Right_Count = 0;
 static uint16 SearchLine_Otsu_Ring_Stage_Num = 0;
 static uint16 SearchLine_Otsu_Ring_Point_Y = 0;
 static int16 SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
+static uint32 SearchLine_Ring_Beep_Stop_Tick = 0;
 static uint8 SearchLine_Preview_Label_Ready = 0;
 static uint8 SearchLine_Preview_Last_Threshold = 0xFF;
 static int16 SearchLine_Preview_Last_Offset = 32767;
@@ -150,9 +155,8 @@ static uint8 SearchLine_Preview_Last_Ring_Flag = 0xFF;
 static uint8 SearchLine_Preview_Last_Ring_Size = 0xFF;
 static uint8 SearchLine_Preview_Last_Offline_Row = 0xFF;
 static uint8 SearchLine_Preview_Last_White_Line = 0xFF;
-static uint8 SearchLine_Preview_Last_Ring_Bottom_Ok = 0xFF;
-static uint16 SearchLine_Preview_Last_Cirque_Left_Count = 0xFFFF;
-static uint16 SearchLine_Preview_Last_Cirque_Right_Count = 0xFFFF;
+static uint8 SearchLine_Preview_Last_Cirque_Left_Count = 0xFF;
+static uint8 SearchLine_Preview_Last_Cirque_Right_Count = 0xFF;
 static uint8 SearchLine_Preview_Last_Ring_Left_Line = 0xFF;
 static uint8 SearchLine_Preview_Last_Ring_Right_Line = 0xFF;
 static uint8 SearchLine_Preview_Last_Ring_Left_Line_RightPanel = 0xFF;
@@ -294,7 +298,6 @@ static void SearchLine_Clear_Otsu_State(void)
     SearchLine_Otsu_Left_Line = 0;
     SearchLine_Otsu_Right_Line = 0;
     SearchLine_Otsu_White_Line = 0;
-    SearchLine_Otsu_Ring_Bottom_Ok = 0;
     SearchLine_Otsu_Cirque_Left_Count = 0;
     SearchLine_Otsu_Cirque_Right_Count = 0;
     SearchLine_Otsu_Ring_Stage_Num = 0;
@@ -335,6 +338,8 @@ static void SearchLine_Search_Border_Otsu(void)
     int16 next_row = 0;
     int16 next_col = 0;
     int16 probe_delta = 0;
+    int16 center_col = SEARCH_LINE_OTSU_W / 2 - 1;
+    int16 col = 0;
 
     if((SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW >= SEARCH_LINE_OTSU_H) ||
        !SearchLine_Otsu_Row_Valid[bottom_row])
@@ -343,9 +348,27 @@ static void SearchLine_Search_Border_Otsu(void)
     }
 
     left_y = bottom_row;
-    left_x = SearchLine_Otsu_Left_Border[bottom_row];
     right_y = bottom_row;
-    right_x = SearchLine_Otsu_Right_Border[bottom_row];
+    left_x = 0;
+    right_x = SEARCH_LINE_OTSU_W - 1;
+    for(col = center_col - 2; col > 1; col--)
+    {
+        if((1 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col)) &&
+           (0 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col - 1)))
+        {
+            left_x = (uint8)col;
+            break;
+        }
+    }
+    for(col = center_col + 2; col < (SEARCH_LINE_OTSU_W - 1); col++)
+    {
+        if((1 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col)) &&
+           (0 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col + 1)))
+        {
+            right_x = (uint8)col;
+            break;
+        }
+    }
     left_probe_y = bottom_row;
     left_probe_x = left_x;
     right_probe_y = bottom_row;
@@ -1078,8 +1101,32 @@ static void SearchLine_DrawExtensionLine_Otsu(void)
     int16 tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
     int16 ftsite = 0;
     float slope = 0.0f;
+    uint8 allow_extension = 0;
+
+    /* 十字和特殊元素阶段先停延长线，避免把国一环岛判据依赖的原始丢边状态补掉。 */
+    if((((0 == SearchLine_Otsu_Fork_Down) &&
+         ('F' == SearchLine_Otsu_Cirque_Pass) &&
+         ('F' == SearchLine_Otsu_Cirque_Out_In) &&
+         ('F' == SearchLine_Otsu_Cirque_Out) &&
+         (SEARCH_LINE_ROAD_BARN_IN != SearchLine_Otsu_Road_Type) &&
+         (SEARCH_LINE_ROAD_RAMP != SearchLine_Otsu_Road_Type) &&
+         (SEARCH_LINE_ROAD_CROSS_TRUE != SearchLine_Otsu_Road_Type)) ||
+        ('T' == SearchLine_Otsu_Cirque_Off)))
+    {
+        allow_extension = 1;
+    }
+
+    if(!allow_extension)
+    {
+        return;
+    }
 
     if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
+    {
+        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
+    }
+    if(('T' == SearchLine_Otsu_Cirque_Off) &&
+       (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type))
     {
         tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
     }
@@ -1136,6 +1183,11 @@ static void SearchLine_DrawExtensionLine_Otsu(void)
     }
 
     if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
+    {
+        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
+    }
+    if(('T' == SearchLine_Otsu_Cirque_Off) &&
+       (SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type))
     {
         tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
     }
@@ -1462,9 +1514,9 @@ static float SearchLine_Straight_Judge_Otsu(uint8 dir, uint8 start_row, uint8 en
     return variance;
 }
 
-static uint16 SearchLine_Cirque_Or_Cross_Otsu(uint8 type, uint8 start_row)
+static uint8 SearchLine_Cirque_Or_Cross_Otsu(uint8 type, uint8 start_row)
 {
-    uint16 num = 0;
+    uint8 num = 0;
     uint8 row = 0;
     uint8 end_row = 0;
     int16 col = 0;
@@ -1510,7 +1562,6 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
     uint8 ring_ysite = 3;
     uint8 point1_y = 0;
     uint8 point2_y = 0;
-    uint8 judge_start_y = 0;
     uint8 row = 0;
     uint8 ring_help_flag = 0;
 
@@ -1533,12 +1584,7 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
         }
     }
 
-    judge_start_y = point1_y;
-    if(judge_start_y > (SEARCH_LINE_OTSU_H - 7))
-    {
-        judge_start_y = SEARCH_LINE_OTSU_H - 7;
-    }
-    for(row = judge_start_y; row > 10; row--)
+    for(row = point1_y; row > 10; row--)
     {
         if((SearchLine_Otsu_Left_Border[row + 6] < SearchLine_Otsu_Left_Border[row + 3]) &&
            (SearchLine_Otsu_Left_Border[row + 5] < SearchLine_Otsu_Left_Border[row + 3]) &&
@@ -1564,19 +1610,40 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
     {
         SearchLine_Otsu_Ring_Element = 1;
         SearchLine_Otsu_Ring_Flag = 1;
-        SearchLine_Otsu_Ring_Size = 0;
+        /* 19 国一当前启用主线入口直接按大圆环口径进入。 */
+        SearchLine_Otsu_Ring_Size = 1;
         SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_LEFT_CIRQUE;
+        /* 左环入口短响。 */
+        buzzer_on();
+        SearchLine_Ring_Beep_Stop_Tick = g_system_ticks + SEARCH_LINE_RING_FLAG1_BEEP_MS;
     }
 }
 
 static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
 {
-    uint8 ring_ysite = 3;
+    uint8 ring_ysite = 25;
     uint8 point1_y = 0;
     uint8 point2_y = 0;
-    uint8 judge_start_y = 0;
     uint8 row = 0;
     uint8 ring_help_flag = 0;
+    float straight_judge = 0.0f;
+
+    straight_judge = SearchLine_Straight_Judge_Otsu(1, 25, 45);
+    if((SearchLine_Otsu_Left_Line > 7) ||
+       (SearchLine_Otsu_Right_Line < 13) ||
+       (SearchLine_Otsu_Offline_Row > 10) ||
+       (straight_judge > 50.0f) ||
+       (SearchLine_Otsu_White_Line > 15) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[52]) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[53]) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[54]) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[55]) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[56]) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[57]) ||
+       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[58]))
+    {
+        return;
+    }
 
     for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
     {
@@ -1597,12 +1664,7 @@ static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
         }
     }
 
-    judge_start_y = point1_y;
-    if(judge_start_y > (SEARCH_LINE_OTSU_H - 7))
-    {
-        judge_start_y = SEARCH_LINE_OTSU_H - 7;
-    }
-    for(row = judge_start_y; row > 10; row--)
+    for(row = point1_y; row > 10; row--)
     {
         if((SearchLine_Otsu_Right_Border[row + 6] > SearchLine_Otsu_Right_Border[row + 3]) &&
            (SearchLine_Otsu_Right_Border[row + 5] > SearchLine_Otsu_Right_Border[row + 3]) &&
@@ -1628,15 +1690,18 @@ static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
     {
         SearchLine_Otsu_Ring_Element = 2;
         SearchLine_Otsu_Ring_Flag = 1;
-        SearchLine_Otsu_Ring_Size = 0;
+        /* 19 国一当前启用主线入口直接按大圆环口径进入。 */
+        SearchLine_Otsu_Ring_Size = 1;
         SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_RIGHT_CIRQUE;
+        /* 右环入口短响。 */
+        buzzer_on();
+        SearchLine_Ring_Beep_Stop_Tick = g_system_ticks + SEARCH_LINE_RING_FLAG1_BEEP_MS;
     }
 }
 
 static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
 {
     int16 num = 0;
-    int16 black = 0;
     int16 row = 0;
     int16 col = 0;
     int16 point_y = 0;
@@ -1652,27 +1717,6 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
     SearchLine_Otsu_Ring_Stage_Num = 0;
     SearchLine_Otsu_Ring_Point_Y = 0;
     SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
-
-    /* 参考旧分支用左侧黑列区分大小圆环。 */
-    if(0 == SearchLine_Otsu_Ring_Size)
-    {
-        black = 0;
-        for(row = 30; row > 0; row--)
-        {
-            if(0 == SearchLine_Get_Otsu_Binary_Pixel(row, 5))
-            {
-                black++;
-            }
-        }
-        if(black > 10)
-        {
-            SearchLine_Otsu_Ring_Size = 1;
-        }
-        else
-        {
-            SearchLine_Otsu_Ring_Size = 2;
-        }
-    }
 
     for(row = 55; row > 30; row--)
     {
@@ -1921,7 +1965,6 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
 static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
 {
     int16 num = 0;
-    int16 black = 0;
     int16 row = 0;
     int16 col = 0;
     int16 point_y = 0;
@@ -1939,27 +1982,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
     SearchLine_Otsu_Ring_Point_Y = 0;
     SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
 
-    /* 参考旧分支用右侧黑列区分大小圆环。 */
-    if(0 == SearchLine_Otsu_Ring_Size)
-    {
-        black = 0;
-        for(row = 30; row > 0; row--)
-        {
-            if(0 == SearchLine_Get_Otsu_Binary_Pixel(row, 75))
-            {
-                black++;
-            }
-        }
-        if(black > 10)
-        {
-            SearchLine_Otsu_Ring_Size = 1;
-        }
-        else
-        {
-            SearchLine_Otsu_Ring_Size = 2;
-        }
-    }
-
+    /* 统计右侧连续丢线段长度，国一 active 版本后续阶段切换主要看这一组量。 */
     for(row = 55; row > 30; row--)
     {
         if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
@@ -1976,23 +1999,28 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
     }
     SearchLine_Otsu_Ring_Stage_Num = (uint16)num;
 
+    /* 准备进环。右侧连续丢线足够长，说明开始贴着右大环外沿走。 */
     if((1 == SearchLine_Otsu_Ring_Flag) && (num > 10))
     {
         SearchLine_Otsu_Ring_Flag = 2;
     }
+    /* 贴边段结束。右侧连续丢线回落后，开始切到补左边界的绕环阶段。 */
     if((2 == SearchLine_Otsu_Ring_Flag) && (num < 8))
     {
         SearchLine_Otsu_Ring_Flag = 5;
     }
+    /* 左边重新露出较多有效边界，说明已经绕到环内后半段。 */
     if((5 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Left_Line > 15))
     {
         SearchLine_Otsu_Ring_Flag = 6;
     }
+    /* 左边再次变短，说明车头基本转回来，准备找出环点。 */
     if((6 == SearchLine_Otsu_Ring_Flag) && (SearchLine_Otsu_Left_Line < 4))
     {
         SearchLine_Otsu_Ring_Flag = 7;
     }
 
+    /* 找左边界的局部最高点，作为出环前的转折观察点。 */
     if(7 == SearchLine_Otsu_Ring_Flag)
     {
         point_y = 0;
@@ -2012,6 +2040,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         SearchLine_Otsu_Ring_Point_Y = (uint16)point_y;
     }
 
+    /* 出环确认。左边界足够接近直线，且前方有效视野恢复后，切到退环阶段。 */
     if(8 == SearchLine_Otsu_Ring_Flag)
     {
         straight_judge = SearchLine_Straight_Judge_Otsu(1,
@@ -2028,6 +2057,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
+    /* 退环完成后，等右侧白边计数回落，再彻底清空环岛状态。 */
     if(9 == SearchLine_Otsu_Ring_Flag)
     {
         num = 0;
@@ -2047,6 +2077,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
+    /* 1/2/3/4 阶段先按普通半路宽，从左边界直接推中线。 */
     if((1 == SearchLine_Otsu_Ring_Flag) ||
        (2 == SearchLine_Otsu_Ring_Flag) ||
        (3 == SearchLine_Otsu_Ring_Flag) ||
@@ -2062,6 +2093,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
+    /* 5/6 阶段用图内白黑跳变重建左边界，核心目的是把环内缺失的左边补出来。 */
     if((5 == SearchLine_Otsu_Ring_Flag) || (6 == SearchLine_Otsu_Ring_Flag))
     {
         for(row = 55; row > (int16)SearchLine_Otsu_Offline_Row; row--)
@@ -2162,14 +2194,9 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
-    if(6 == SearchLine_Otsu_Ring_Flag)
-    {
-        for(row = 57; row > (int16)SearchLine_Otsu_Offline_Row; row--)
-        {
-            SearchLine_Otsu_Center_Line[row] = 63;
-        }
-    }
+    /* 6 阶段继续沿用补线后的中线，避免固定竖线把当前车体直接顶向右侧。 */
 
+    /* 8 阶段在固定列重新找左边修补点，把左边界拉成一条直线，准备退出圆环。 */
     if(8 == SearchLine_Otsu_Ring_Flag)
     {
         for(row = 40; row > 8; row--)
@@ -2198,6 +2225,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
+    /* 9 阶段恢复普通赛道口径，中线重新按左边界加半路宽计算。 */
     if(9 == SearchLine_Otsu_Ring_Flag)
     {
         for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
@@ -2226,22 +2254,10 @@ static void SearchLine_Element_Handle(void)
 /* 元素判断。 */
 static void SearchLine_Element_Test(void)
 {
-    uint8 bottom_ok = 0;
-    uint8 row = 0;
-
     SearchLine_Otsu_Cirque_Left_Count =
         SearchLine_Cirque_Or_Cross_Otsu(1, SearchLine_Otsu_Left_Line);
     SearchLine_Otsu_Cirque_Right_Count =
         SearchLine_Cirque_Or_Cross_Otsu(2, SearchLine_Otsu_Right_Line);
-
-    for(row = 52; row <= 58; row++)
-    {
-        if(SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[row])
-        {
-            bottom_ok++;
-        }
-    }
-    SearchLine_Otsu_Ring_Bottom_Ok = bottom_ok;
 
     /* 非十字、非圆环时更新直道标志。 */
     if((SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_CROSS) &&
@@ -2274,14 +2290,14 @@ static void SearchLine_Element_Test(void)
         {
             SearchLine_Element_Judgment_Left_Rings_Otsu();
         }
+    }
 
-        /* 右圆环判断。 */
-        if((SearchLine_Otsu_Left_Line < 2) &&
-           (SearchLine_Otsu_Right_Line > 17) &&
-           (SearchLine_Otsu_Cirque_Right_Count > 120))
-        {
-            SearchLine_Element_Judgment_Right_Rings_Otsu();
-        }
+    /* 右圆环入口先按一号那套早退逻辑筛，再进内部形状判断。 */
+    if((SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_BARN_IN) &&
+       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_CROSS_TRUE) &&
+       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_BARN_OUT))
+    {
+        SearchLine_Element_Judgment_Right_Rings_Otsu();
     }
 }
 
@@ -2514,6 +2530,12 @@ static void SearchLine_Process_Otsu(void)
 
 void SearchLine_Process(void)
 {
+    if((0 != SearchLine_Ring_Beep_Stop_Tick) &&
+       (g_system_ticks >= SearchLine_Ring_Beep_Stop_Tick))
+    {
+        buzzer_off();
+        SearchLine_Ring_Beep_Stop_Tick = 0;
+    }
     gpio_set_level(IO_P52, 0);
     SearchLine_Process_Otsu();
     gpio_set_level(IO_P52, 1);
@@ -2606,9 +2628,8 @@ void SearchLine_ResetPreviewOverlay(void)
     SearchLine_Preview_Last_Ring_Size = 0xFF;
     SearchLine_Preview_Last_Offline_Row = 0xFF;
     SearchLine_Preview_Last_White_Line = 0xFF;
-    SearchLine_Preview_Last_Ring_Bottom_Ok = 0xFF;
-    SearchLine_Preview_Last_Cirque_Left_Count = 0xFFFF;
-    SearchLine_Preview_Last_Cirque_Right_Count = 0xFFFF;
+    SearchLine_Preview_Last_Cirque_Left_Count = 0xFF;
+    SearchLine_Preview_Last_Cirque_Right_Count = 0xFF;
     SearchLine_Preview_Last_Ring_Left_Line = 0xFF;
     SearchLine_Preview_Last_Ring_Right_Line = 0xFF;
     SearchLine_Preview_Last_Ring_Left_Line_RightPanel = 0xFF;
@@ -2756,10 +2777,7 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     gate_text[4] = 'w';
     gate_text[5] = (char)('0' + (SearchLine_Otsu_White_Line / 10U) % 10U);
     gate_text[6] = (char)('0' + SearchLine_Otsu_White_Line % 10U);
-    gate_text[7] = ' ';
-    gate_text[8] = 'k';
-    gate_text[9] = (char)('0' + SearchLine_Otsu_Ring_Bottom_Ok % 10U);
-    gate_text[10] = '\0';
+    gate_text[7] = '\0';
 
     left_text[0] = 'r';
     left_text[1] = (char)('0' + (SearchLine_Otsu_Right_Line / 10U) % 10U);
@@ -2826,14 +2844,12 @@ static void SearchLine_DrawPreview(uint8 show_raw)
 
     ips200_set_color(RGB565_CYAN, RGB565_BLACK);
     if((SearchLine_Preview_Last_Offline_Row != SearchLine_Otsu_Offline_Row) ||
-       (SearchLine_Preview_Last_White_Line != SearchLine_Otsu_White_Line) ||
-       (SearchLine_Preview_Last_Ring_Bottom_Ok != SearchLine_Otsu_Ring_Bottom_Ok))
+       (SearchLine_Preview_Last_White_Line != SearchLine_Otsu_White_Line))
     {
         ips200_show_string(104, (uint16)(CAMERA_RAW_H + 68), "            ");
         ips200_show_string(104, (uint16)(CAMERA_RAW_H + 68), gate_text);
         SearchLine_Preview_Last_Offline_Row = SearchLine_Otsu_Offline_Row;
         SearchLine_Preview_Last_White_Line = SearchLine_Otsu_White_Line;
-        SearchLine_Preview_Last_Ring_Bottom_Ok = SearchLine_Otsu_Ring_Bottom_Ok;
     }
 
     ips200_set_color(RGB565_GREEN, RGB565_BLACK);
