@@ -1,7 +1,7 @@
 /*********************************************************************************************************************
-* 在线调参模块实现
-*
-* 功能说明：按配置自动完成 WiFi 连接、参数接收和示波器发送
+ * WiFi 遥测模块实现
+ *
+ * 功能说明：按配置自动完成 WiFi 连接和示波器发送，不再接收上位机参数写入
 *
 * 修改记录
 * 日期              备注
@@ -17,18 +17,6 @@
 #include "wifi_tuning_config.h"
 
 typedef float (*tuning_param_reader_t)(void);
-typedef void (*tuning_param_writer_t)(float);
-
-typedef struct
-{
-    uint8 enabled;
-    float default_value;
-    float min_value;
-    float max_value;
-    float *direct_value;
-    tuning_param_writer_t writer;
-    tuning_param_reader_t reader;
-} tuning_param_binding_t;
 
 typedef struct
 {
@@ -37,29 +25,12 @@ typedef struct
     tuning_param_reader_t reader;
 } tuning_osc_binding_t;
 
-static tuning_param_binding_t g_param_binding[TUNING_PARAM_CHANNEL_MAX] = {0};
 static tuning_osc_binding_t g_osc_binding[TUNING_PARAM_CHANNEL_MAX] = {0};
-static void (*param_callback[TUNING_PARAM_CHANNEL_MAX])(float) = {0};
 static uint8 g_tuning_active = 0;
 static uint8 g_osc_channel_count = 0;
 static uint32 g_last_osc_ticks = 0;
 static uint32 g_last_connect_attempt_ticks = 0;
 static uint8 g_has_connect_attempt = 0;
-
-static float tuning_param_limit(float value, float min_value, float max_value)
-{
-    if(value > max_value)
-    {
-        return max_value;
-    }
-
-    if(value < min_value)
-    {
-        return min_value;
-    }
-
-    return value;
-}
 
 static void tuning_param_reset_profile(void)
 {
@@ -67,14 +38,6 @@ static void tuning_param_reset_profile(void)
 
     for(i = 0; i < TUNING_PARAM_CHANNEL_MAX; i++)
     {
-        g_param_binding[i].enabled = 0;
-        g_param_binding[i].default_value = 0.0f;
-        g_param_binding[i].min_value = 0.0f;
-        g_param_binding[i].max_value = 0.0f;
-        g_param_binding[i].direct_value = 0;
-        g_param_binding[i].writer = 0;
-        g_param_binding[i].reader = 0;
-
         g_osc_binding[i].enabled = 0;
         g_osc_binding[i].direct_value = 0;
         g_osc_binding[i].reader = 0;
@@ -87,26 +50,6 @@ static void tuning_param_reset_profile(void)
     g_last_osc_ticks = 0;
     g_last_connect_attempt_ticks = 0;
     g_has_connect_attempt = 0;
-}
-
-static void tuning_param_bind_slot(uint8 channel,
-                                   float *direct_value,
-                                   tuning_param_writer_t writer,
-                                   float default_value,
-                                   float min_value,
-                                   float max_value)
-{
-    if(channel >= TUNING_PARAM_CHANNEL_MAX)
-    {
-        return;
-    }
-
-    g_param_binding[channel].enabled = 1;
-    g_param_binding[channel].default_value = default_value;
-    g_param_binding[channel].min_value = min_value;
-    g_param_binding[channel].max_value = max_value;
-    g_param_binding[channel].direct_value = direct_value;
-    g_param_binding[channel].writer = writer;
 }
 
 static void tuning_osc_bind_slot(uint8 slot, float *direct_value, tuning_param_reader_t reader)
@@ -128,42 +71,17 @@ static void tuning_osc_bind_slot(uint8 slot, float *direct_value, tuning_param_r
 
 static void tuning_param_build_profile(void)
 {
-#define APPLY_PARAM_BINDING(channel, direct_ptr, writer_fn, default_value, min_value, max_value) \
-    tuning_param_bind_slot((channel), (direct_ptr), (tuning_param_writer_t)(writer_fn), (default_value), (min_value), (max_value));
-
 #define APPLY_OSC_BINDING(slot, direct_ptr, reader_fn) \
     tuning_osc_bind_slot((slot), (direct_ptr), (tuning_param_reader_t)(reader_fn));
 
-    WIFI_TUNING_PARAM_TABLE(APPLY_PARAM_BINDING)
     WIFI_TUNING_OSC_TABLE(APPLY_OSC_BINDING)
 
 #undef APPLY_OSC_BINDING
-#undef APPLY_PARAM_BINDING
 }
 
 static uint8 tuning_param_trigger_requested(void)
 {
     return (WIFI_TUNING_ENABLE && WIFI_TUNING_TRIGGER_ACTIVE()) ? 1 : 0;
-}
-
-static float tuning_param_read_value(uint8 channel)
-{
-    if(channel >= TUNING_PARAM_CHANNEL_MAX)
-    {
-        return 0.0f;
-    }
-
-    if(g_param_binding[channel].reader)
-    {
-        return g_param_binding[channel].reader();
-    }
-
-    if(g_param_binding[channel].direct_value)
-    {
-        return *(g_param_binding[channel].direct_value);
-    }
-
-    return seekfree_assistant_parameter[channel];
 }
 
 static float tuning_osc_read_value(uint8 slot)
@@ -186,55 +104,6 @@ static float tuning_osc_read_value(uint8 slot)
     return 0.0f;
 }
 
-static float tuning_param_apply_value(uint8 channel, float value)
-{
-    float applied_value = value;
-
-    if(channel >= TUNING_PARAM_CHANNEL_MAX)
-    {
-        return 0.0f;
-    }
-
-    if(g_param_binding[channel].enabled)
-    {
-        applied_value = tuning_param_limit(value,
-                                           g_param_binding[channel].min_value,
-                                           g_param_binding[channel].max_value);
-
-        if(g_param_binding[channel].writer)
-        {
-            g_param_binding[channel].writer(applied_value);
-        }
-        else if(g_param_binding[channel].direct_value)
-        {
-            *(g_param_binding[channel].direct_value) = applied_value;
-        }
-    }
-
-    if(param_callback[channel])
-    {
-        param_callback[channel](applied_value);
-    }
-
-    return applied_value;
-}
-
-static void tuning_param_apply_default_values(void)
-{
-    uint8 channel = 0;
-
-    for(channel = 0; channel < TUNING_PARAM_CHANNEL_MAX; channel++)
-    {
-        if(!g_param_binding[channel].enabled)
-        {
-            continue;
-        }
-
-        seekfree_assistant_parameter[channel] = tuning_param_apply_value(channel, g_param_binding[channel].default_value);
-        seekfree_assistant_parameter_update_flag[channel] = 0;
-    }
-}
-
 static void tuning_param_activate_if_needed(void)
 {
     if(g_tuning_active || !tuning_param_trigger_requested())
@@ -245,7 +114,6 @@ static void tuning_param_activate_if_needed(void)
     tuning_param_reset_profile();
     g_tuning_active = 1;
     tuning_param_build_profile();
-    tuning_param_apply_default_values();
 }
 
 static void tuning_param_send_oscilloscope(void)
@@ -318,7 +186,6 @@ void tuning_param_task(void)
         return;
     }
 
-    tuning_param_update();
     tuning_param_send_oscilloscope();
 }
 
@@ -330,25 +197,7 @@ void tuning_param_task(void)
 //-------------------------------------------------------------------------------------------------------------------
 void tuning_param_update(void)
 {
-    uint8 channel = 0;
-
-    if(!g_tuning_active || !wifi_is_initialized())
-    {
-        return;
-    }
-
-    // 解析上位机发送的参数
-    seekfree_assistant_data_analysis();
-
-    // 检查每个通道是否有参数更新
-    for(channel = 0; channel < TUNING_PARAM_CHANNEL_MAX; channel++)
-    {
-        if(seekfree_assistant_parameter_update_flag[channel])
-        {
-            seekfree_assistant_parameter[channel] = tuning_param_apply_value(channel, seekfree_assistant_parameter[channel]);
-            seekfree_assistant_parameter_update_flag[channel] = 0;
-        }
-    }
+    /* 当前 WiFi 只保留示波器上行，这里不再解析上位机参数。 */
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -359,12 +208,8 @@ void tuning_param_update(void)
 //-------------------------------------------------------------------------------------------------------------------
 float tuning_param_get(uint8 channel)
 {
-    if(channel >= TUNING_PARAM_CHANNEL_MAX)
-    {
-        return 0.0f;
-    }
-
-    return tuning_param_read_value(channel);
+    (void)channel;
+    return 0.0f;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -376,12 +221,8 @@ float tuning_param_get(uint8 channel)
 //-------------------------------------------------------------------------------------------------------------------
 void tuning_param_set_callback(uint8 channel, void (*callback)(float))
 {
-    if(channel >= TUNING_PARAM_CHANNEL_MAX)
-    {
-        return;
-    }
-
-    param_callback[channel] = callback;
+    (void)channel;
+    (void)callback;
 }
 
 uint8 tuning_param_is_active(void)

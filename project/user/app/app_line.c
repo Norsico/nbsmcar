@@ -113,10 +113,6 @@ static uint8 line_app_handle_frame(void)
     }
 
     SearchLine_Process();
-    car_wheel_set_straight_acc(SearchLine_GetStraightAcc());
-    car_wheel_set_line_observation(SearchLine_GetDetTrue(),
-                                   SearchLine_GetLeftLine(),
-                                   SearchLine_GetRightLine());
     raw_threshold = SearchLine_GetRawOtsuThreshold();
     if((SYS_RUNNING == g_system_state) && (raw_threshold < 40))
     {

@@ -70,49 +70,26 @@ static float wifi_tuning_read_straight_acc(void)
     return (float)SearchLine_GetStraightAcc();
 }
 
-/* 左轮滤波编码器镜像。 */
-static float wifi_tuning_read_left_encoder_filter(void)
+/* 当前左轮编码器脉冲。 */
+static float wifi_tuning_read_left_encoder(void)
 {
-    return (float)enc_l_f;
+    return (float)encoder_get_left();
 }
 
-/* 右轮滤波编码器镜像。 */
-static float wifi_tuning_read_right_encoder_filter(void)
+/* 当前右轮编码器脉冲。 */
+static float wifi_tuning_read_right_encoder(void)
 {
-    return (float)enc_r_f;
+    return (float)encoder_get_right();
 }
 
-/*
- * 参数下行表：上位机 -> 小车。
- *
- * APPLY(channel, direct_float_ptr, writer_fn, default_value, min_value, max_value)
- * - channel: 上位机调参通道号，范围 0~7。
- * - direct_float_ptr: 直接绑定的 float 变量地址；不用时填 0。
- * - writer_fn: 自定义写入函数；不用时填 0。
- * - default_value: 上电进入调参模式后的默认值。
- * - min_value/max_value: 通道限幅范围。
- */
-#define WIFI_TUNING_PARAM_TABLE(APPLY) \
-    APPLY(0, &wheel_pid_right.target,   0, 0.0f,  -300.0f, 300.0f) \
-    APPLY(1, &wheel_pid_right.param.kp, 0, 7.0f,     0.0f,  30.0f) \
-    APPLY(2, &wheel_pid_right.param.ki, 0, 1.16f,    0.0f,  20.0f) \
-    APPLY(3, &wheel_pid_right.param.kd, 0, 0.0f,     0.0f,  20.0f)
-
-/*
- * 示波器上行表：小车 -> 上位机。
- *
- * APPLY(slot, direct_float_ptr, reader_fn)
- * - slot: 示波器显示槽位，范围 0~7。
- * - direct_float_ptr: 直接读取的 float 变量地址；不用时填 0。
- * - reader_fn: 自定义读取函数；不用时填 0。
- */
+/* 当前 WiFi 只保留示波器上行，不再接参数下行。 */
 #define WIFI_TUNING_OSC_TABLE(APPLY) \
     APPLY(0, 0, wifi_tuning_read_det_true) \
     APPLY(1, 0, wifi_tuning_read_steer_command) \
     APPLY(2, 0, wifi_tuning_read_straight_acc) \
-    APPLY(3, &speed_goal_eff, 0) \
-    APPLY(4, 0, wifi_tuning_read_left_encoder_filter) \
-    APPLY(5, 0, wifi_tuning_read_right_encoder_filter) \
+    APPLY(3, &car_wheel_target_speed, 0) \
+    APPLY(4, 0, wifi_tuning_read_left_encoder) \
+    APPLY(5, 0, wifi_tuning_read_right_encoder) \
     APPLY(6, &ref_left_target, 0) \
     APPLY(7, &ref_right_target, 0)
 

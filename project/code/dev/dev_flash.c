@@ -120,8 +120,8 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     store_ptr->param_page.first_value_tenth = FLASH_STEER_P_DEFAULT_TENTH;
     store_ptr->param_page.second_value_tenth = FLASH_STEER_D_DEFAULT_TENTH;
     store_ptr->camera_page.auto_exp = MT9V03X_AUTO_EXP_DEF;
-    store_ptr->camera_page.exp_time = 32;
-    store_ptr->camera_page.gain = 16;
+    store_ptr->camera_page.exp_time = 75;
+    store_ptr->camera_page.gain = 36;
     store_ptr->line_tune_page.kp_tenth = FLASH_LINE_KP_DEFAULT_TENTH;
     store_ptr->line_tune_page.kd_tenth = FLASH_LINE_KD_DEFAULT_TENTH;
     store_ptr->line_tune_page.servo_min_angle = FLASH_LINE_SERVO_MIN_DEFAULT;

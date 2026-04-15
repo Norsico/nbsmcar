@@ -68,9 +68,9 @@ void car_servo_set_angle(uint8 angle)
 {
     uint8 safe_angle = 0;
 
-    safe_angle = car_servo_limit_angle(angle) + 8;
+    safe_angle = car_servo_limit_angle(angle);
     g_car_servo_current_angle = safe_angle;
-    pwm_set_duty(CAR_SERVO_PWM_PIN, CAR_SERVO_DUTY(safe_angle));
+    pwm_set_duty(CAR_SERVO_PWM_PIN, CAR_SERVO_DUTY((uint8)(safe_angle + 8)));
 }
 // 回中函数
 void car_servo_set_center(void)

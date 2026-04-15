@@ -1314,10 +1314,10 @@ static void SearchLine_Update_Otsu_Det(void)
     float speed_gain = 0.0f;
     int16 det_value = 0;
 
-    /* 当前工程没有参考那套 `nowspeed/MinSpeed` 反馈值，这里直接复用本工程已生效的 `speed_goal_eff`
+    /* 当前工程这里直接复用后轮目标速度
      * 做前瞻动态偏移，口径按参考 `GetDet()` 的增益和限幅收回。
      */
-    speed_gain = (speed_goal_eff - SEARCH_LINE_OTSU_DET_SPEED_REF) *
+    speed_gain = (car_wheel_target_speed - SEARCH_LINE_OTSU_DET_SPEED_REF) *
                  SEARCH_LINE_OTSU_DET_SPEED_GAIN +
                  SEARCH_LINE_OTSU_DET_SPEED_BIAS;
     if(speed_gain > SEARCH_LINE_OTSU_DET_SPEED_GAIN_MAX)
@@ -2903,7 +2903,7 @@ static void SearchLine_DrawPreview(uint8 show_raw)
 
     /* 暂时关闭底部速度与目标值文字显示，先只保留图像预览。 */
     /*
-    speed_goal_display = (int16)(speed_goal_eff + 0.5f);
+    speed_goal_display = (int16)(car_wheel_target_speed + 0.5f);
     if(ref_left_target >= 0.0f)
     {
         ref_left_display = (int16)(ref_left_target + 0.5f);

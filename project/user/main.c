@@ -209,7 +209,8 @@ void main(void)
                     }
                     else
                     {
-                        encoder_update(1);
+                        /* 单个 5ms 编码器周期更新后轮闭环。 */
+                        encoder_update();
                         // 更新后调用PID控制电机速度
                         car_wheel_update();
                     }

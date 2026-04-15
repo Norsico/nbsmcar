@@ -6,25 +6,11 @@
 
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
-#define CAR_WHEEL_ENCODER_FILTER_ALPHA (0.08f)   /* 编码器滤波系数，对齐国一参考 `Speed_Encoder_l_/r_`。 */
-#define CAR_WHEEL_STRAIGHT_SPEED_ADD  (20.0f)    /* 直道预览加速量，当前仅用于 `speed_goal_eff` 观察值；按 Start 页步进 10 先上抬两格。 */
 #define CAR_WHEEL_TARGET_SPEED_MAX    ((float)FLASH_START_SPEED_MAX)   /* 对齐 Start 页速度上限，当前随 `FLASH_START_SPEED_MAX` 放宽到 400。 */
 #define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 最终下发到电机的百分比速度限幅，范围 0~100；当前按用户要求放宽到 75。 */
-#define CAR_WHEEL_DIFF_MIDDLE_LINE    (39)       /* 对齐参考 `Det_True - 39` 的差速分界。 */
-#define CAR_WHEEL_DIFF_RATIO          (3.5f)     /* 对齐参考 `Dif_spd_rat` 默认量级，当前先略收小，减弱普通赛道单侧差速。 */
-#define CAR_WHEEL_DIFF_ERR_S          (0.0f)     /* 对齐参考 `err_s` 默认值，当前先不加被动差速补偿。 */
-#define CAR_WHEEL_DIFF_DUTY_MAX       (20.0f)    /* 对齐参考差速前的单侧丢线计数限幅。 */
-#define CAR_WHEEL_DIFF_SPEED_SCALE    (80.0f)    /* 对齐参考 `AcquareSpeed` 的比例换算。 */
-#define CAR_WHEEL_LONG_TURNING_ARC    (0.0067425f) /* 对齐参考 `LTA_Long_Turning_Arc`。 */
-static float g_car_wheel_speed_target = 0.0f;
-static uint8 g_car_wheel_straight_acc = 0;
-static uint8 g_car_wheel_det_true = CAR_WHEEL_DIFF_MIDDLE_LINE;
-static uint8 g_car_wheel_left_line = 0;
-static uint8 g_car_wheel_right_line = 0;
+#define CAR_WHEEL_ACKERMAN_CENTER_ANGLE ((float)CAR_SERVO_CENTER_ANGLE) /* 阿克曼输入按左负右正，当前舵机业务角度按 90 中 / 70 右 / 110 左换算。 */
+float car_wheel_target_speed = 0.0f;  // 整车目标速度
 
-int16 enc_l_f = 0;
-int16 enc_r_f = 0;
-float speed_goal_eff = 0.0f;
 float ref_left_target = 0.0f;
 float ref_right_target = 0.0f;
 
@@ -138,20 +124,15 @@ static void car_wheel_apply_target(float left_speed, float right_speed)
 
 void car_wheel_set_target(float speed)
 {
-    g_car_wheel_speed_target = speed;
-    speed_goal_eff = speed;
-}
-
-void car_wheel_set_straight_acc(uint8 straight_acc)
-{
-    g_car_wheel_straight_acc = straight_acc;
-}
-
-void car_wheel_set_line_observation(uint8 det_true, uint8 left_line, uint8 right_line)
-{
-    g_car_wheel_det_true = det_true;
-    g_car_wheel_left_line = left_line;
-    g_car_wheel_right_line = right_line;
+    if(speed > CAR_WHEEL_TARGET_SPEED_MAX)
+    {
+        speed = CAR_WHEEL_TARGET_SPEED_MAX;
+    }
+    if(speed < 0.0f)
+    {
+        speed = 0.0f;
+    }
+    car_wheel_target_speed = speed;
 }
 
 static void car_wheel_pid_reset_single(pid_control_t *pid)
@@ -163,17 +144,10 @@ static void car_wheel_pid_reset_single(pid_control_t *pid)
     pid->output = 0.0f;
 }
 
-/* 启停切换时把编码器和 PID 状态一起清掉，避免旧输出残留导致瞬时抽动。 */
+// 进入紧急情况情况，清空PID参数
 void car_wheel_control_reset(void)
 {
-    g_car_wheel_speed_target = 0.0f;
-    g_car_wheel_straight_acc = 0;
-    g_car_wheel_det_true = CAR_WHEEL_DIFF_MIDDLE_LINE;
-    g_car_wheel_left_line = 0;
-    g_car_wheel_right_line = 0;
-    enc_l_f = 0;
-    enc_r_f = 0;
-    speed_goal_eff = 0.0f;
+    car_wheel_target_speed = 0.0f;
     ref_left_target = 0.0f;
     ref_right_target = 0.0f;
     car_wheel_apply_target(0.0f, 0.0f);
@@ -183,135 +157,31 @@ void car_wheel_control_reset(void)
     car_wheel_stop_all();
 }
 
-static void car_wheel_update_reference_diff_preview(int16 current_left, int16 current_right)
+/* 按当前舵机角解算阿克曼左右轮目标。 */
+static void car_wheel_update_reference_target(void)
 {
-    float err = 0.0f;
-    float steer_turn_duty = 0.0f;
-    float steer_duty = 0.0f;
-    float acquare_speed = 0.0f;
-    float steer_turn_angle = 0.0f;
-    float error_speed = 0.0f;
-    int16 pulse_differential = 0;
+    float steer_angle = 0.0f;
 
-    err = speed_goal_eff - ((float)current_left + (float)current_right) / 2.0f;
-    if(g_car_wheel_det_true > CAR_WHEEL_DIFF_MIDDLE_LINE)
-    {
-        steer_turn_duty = (float)g_car_wheel_right_line;
-    }
-    else
-    {
-        steer_turn_duty = (float)g_car_wheel_left_line;
-    }
+    steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
+    ackerman_calc_wheel_speeds(car_wheel_target_speed, steer_angle);
+    ref_left_target = ackerman_get_left_speed();
+    ref_right_target = ackerman_get_right_speed();
 
-    steer_duty = steer_turn_duty;
-    if(steer_duty < 0.0f)
-    {
-        steer_duty = -steer_duty;
-    }
-    if(steer_duty > CAR_WHEEL_DIFF_DUTY_MAX)
-    {
-        steer_duty = CAR_WHEEL_DIFF_DUTY_MAX;
-    }
-
-    acquare_speed = (((float)enc_l_f + (float)enc_r_f) / 2.0f) * CAR_WHEEL_DIFF_SPEED_SCALE;
-    steer_turn_angle = CAR_WHEEL_DIFF_RATIO * steer_duty;
-    error_speed = CAR_WHEEL_LONG_TURNING_ARC * steer_turn_angle * acquare_speed;
-    if(error_speed >= 0.0f)
-    {
-        pulse_differential = (int16)(error_speed / CAR_WHEEL_DIFF_SPEED_SCALE + 0.5f);
-    }
-    else
-    {
-        pulse_differential = (int16)(error_speed / CAR_WHEEL_DIFF_SPEED_SCALE - 0.5f);
-    }
-
-    ref_left_target = speed_goal_eff + err * CAR_WHEEL_DIFF_ERR_S;
-    ref_right_target = speed_goal_eff + err * CAR_WHEEL_DIFF_ERR_S;
-    if(g_car_wheel_det_true > CAR_WHEEL_DIFF_MIDDLE_LINE)
-    {
-        ref_right_target -= (float)pulse_differential;
-    }
-    else if(g_car_wheel_det_true < CAR_WHEEL_DIFF_MIDDLE_LINE)
-    {
-        ref_left_target -= (float)pulse_differential;
-    }
-
-    if(ref_left_target < 0.0f)
-    {
-        ref_left_target = 0.0f;
-    }
-    if(ref_right_target < 0.0f)
-    {
-        ref_right_target = 0.0f;
-    }
 }
 
-static void car_wheel_update_reference_preview(int16 current_left, int16 current_right)
-{
-    float left_filtered = 0.0f;
-    float right_filtered = 0.0f;
-    float effective_speed = 0.0f;
-
-    left_filtered = CAR_WHEEL_ENCODER_FILTER_ALPHA * (float)current_left +
-                    (1.0f - CAR_WHEEL_ENCODER_FILTER_ALPHA) * (float)enc_l_f;
-    right_filtered = CAR_WHEEL_ENCODER_FILTER_ALPHA * (float)current_right +
-                     (1.0f - CAR_WHEEL_ENCODER_FILTER_ALPHA) * (float)enc_r_f;
-    enc_l_f = (int16)left_filtered;
-    enc_r_f = (int16)right_filtered;
-
-    effective_speed = g_car_wheel_speed_target;
-    if(g_car_wheel_straight_acc && (g_car_wheel_speed_target > 0.0f))
-    {
-        effective_speed += CAR_WHEEL_STRAIGHT_SPEED_ADD;
-    }
-
-    if(effective_speed > CAR_WHEEL_TARGET_SPEED_MAX)
-    {
-        effective_speed = CAR_WHEEL_TARGET_SPEED_MAX;
-    }
-    if(effective_speed < 0.0f)
-    {
-        effective_speed = 0.0f;
-    }
-
-    speed_goal_eff = effective_speed;
-    car_wheel_update_reference_diff_preview(current_left, current_right);
-}
-
-/* 当前后轮目标直接切到阶段 7 的参考差速结果，不再保留左右同目标。 */
+/* 当前后轮目标直接切到阿克曼固定差速结果。 */
 static void car_wheel_update_target_from_vehicle(void)
 {
-    if(g_car_wheel_speed_target <= 0.0f)
+    if(car_wheel_target_speed <= 0.0f)
     {
         car_wheel_apply_target(0.0f, 0.0f);
         return;
     }
 
-    /* 普通赛道阶段 8：后轮目标改用参考差速预览值。 */
+    /* 后轮目标按当前舵机角直接套阿克曼左右轮速度。 */
     car_wheel_apply_target(ref_left_target, ref_right_target);
 }
 
-static void car_wheel_limit_output_to_target_direction(pid_control_t *pid)
-{
-    if(pid->target > 0.0f)
-    {
-        if(pid->output < 0.0f)
-        {
-            pid->output = 0.0f;
-        }
-    }
-    else if(pid->target < 0.0f)
-    {
-        if(pid->output > 0.0f)
-        {
-            pid->output = 0.0f;
-        }
-    }
-    else
-    {
-        pid->output = 0.0f;
-    }
-}
 // 将PID计算的PWM写入电机-左轮
 static void car_wheel_update_left(void)
 {
@@ -361,18 +231,15 @@ void car_wheel_update(void)
 	int16 current_left = encoder_get_left();
 	int16 current_right = encoder_get_right();
 
-    /* 先把国一电机侧的观测前置量补出来，后轮目标仍沿用当前链路。 */
-    car_wheel_update_reference_preview(current_left, current_right);
+    /* 当前后轮目标只按目标速度和舵机角解算阿克曼差速。 */
+    car_wheel_update_reference_target();
 
     car_wheel_update_target_from_vehicle();
 
-	// 增量式pid计算
-	pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
-	pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);
-    /* 前进目标下不允许直接打反转，先把瞬时反向输出钳掉。 */
-    car_wheel_limit_output_to_target_direction(&wheel_pid_left);
-    car_wheel_limit_output_to_target_direction(&wheel_pid_right);
-	// 电机控制
-	car_wheel_update_left();
-	car_wheel_update_right();
+		// 增量式pid计算
+		pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
+		pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);
+		// 电机控制
+		car_wheel_update_left();
+		car_wheel_update_right();
 }

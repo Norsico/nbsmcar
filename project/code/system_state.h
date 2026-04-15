@@ -22,7 +22,7 @@ typedef enum {
 #define TICKS_MS 1                     // 系统tick 1ms
 #define KEY_SCAN_PERIOD 20              // 按键扫描周期 20ms (50Hz)
 #define IMU_PERIOD 10                   // IMU读取周期 10ms (100Hz)
-#define ENCODER_PERIOD 10               // 编码器采样周期 10ms (100Hz)
+#define ENCODER_PERIOD 5                // 编码器采样周期 5ms (200Hz)，对齐 19 国一电机闭环节拍。
 #define CENTER_PERIOD 20								// 搜索中心周期 20ms (50Hz)暂定
 #define DISPLAY_PERIOD 100              // 显示刷新周期 100ms (10Hz)
 #define WIFI_PERIOD 50                  // WiFi任务周期 50ms (20Hz)
@@ -60,7 +60,7 @@ extern vuint32 g_wifi_ticks;             // WiFi任务计时器
 // 任务标志位
 extern vuint8 g_flag_key;                         // 按键扫描标志
 extern vuint8 g_flag_imu;                          // IMU读取标志
-extern vuint8 g_flag_encoder;                     // 编码器待处理周期数
+extern vuint8 g_flag_encoder;                     // 编码器处理标志
 extern vuint8 g_flag_center;											// 搜索中心标志
 #if IPS_ENABLE
 extern vuint8 g_flag_display;                      // 显示刷新标志
