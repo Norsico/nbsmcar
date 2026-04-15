@@ -37,20 +37,25 @@ void encoder_update(void)
     int16 left_raw = 0;
     int16 right_raw = 0;
 
-    left_raw = - encoder_get_count(ENCODER_LEFT);
-    right_raw = encoder_get_count(ENCODER_RIGHT);
+    left_raw = encoder_get_count(ENCODER_LEFT);
+    right_raw = - encoder_get_count(ENCODER_RIGHT);
+
     if((0 == encoder_data.left) && (0 == encoder_data.right))
     {
-        /* 编码器初次更新。 */
+
         encoder_data.left = left_raw;
         encoder_data.right = right_raw;
+
+        
     }
     else
     {
+
         /* 编码器一阶滤波。 */
         encoder_data.left = (int16)(((int32)left_raw * 8 + (int32)encoder_data.left * 92) / 100);
         encoder_data.right = (int16)(((int32)right_raw * 8 + (int32)encoder_data.right * 92) / 100);
     }
+    // printf("left_raw:%d, right_raw:%d\n", encoder_data.left, encoder_data.right);
 
     encoder_clear_count(ENCODER_LEFT);                                       // 清空左轮编码器计数
     encoder_clear_count(ENCODER_RIGHT);                                      // 清空右轮编码器计数

@@ -208,9 +208,12 @@ void main(void)
                 }
 #endif
 #if WIFI_ENABLE
-                if(switch_wifi_enabled() && g_flag_wifi){
-                    // WiFi 50ms
-                    g_flag_wifi = 0;
+                if(switch_wifi_enabled()){
+                    /* WiFi 下行调参需要尽快取走收包，避免主循环忙时 50ms 标志被挤掉。 */
+                    if(g_flag_wifi)
+                    {
+                        g_flag_wifi = 0;
+                    }
                     tuning_param_task();
                 }
 #endif

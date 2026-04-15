@@ -177,7 +177,7 @@
           </Flash1>
           <bUseTDR>0</bUseTDR>
           <Flash2>BIN\STCMON251.DLL</Flash2>
-          <Flash3></Flash3>
+          <Flash3>"" ()</Flash3>
           <Flash4></Flash4>
           <pFcarmOut></pFcarmOut>
           <pFcarmGrp></pFcarmGrp>
@@ -264,7 +264,7 @@
             <uUch>0</uUch>
             <uFlt64>1</uFlt64>
             <Fuzzy>3</Fuzzy>
-            <Optim>3</Optim>
+            <Optim>0</Optim>
             <wLevel>3</wLevel>
             <SizSpd>0</SizSpd>
             <AcaOpt>0</AcaOpt>

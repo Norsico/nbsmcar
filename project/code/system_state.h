@@ -37,6 +37,8 @@ typedef enum {
 #define WIFI_ENABLE (1)
 /* 屏幕功能编译开关：打开后可通过拨码切到 UI 屏幕模式。 */
 #define IPS_ENABLE  (1)
+/* WiFi 参数下行编译开关：0 只发示波器，1 额外打开调参下行。 */
+#define WIFI_TUNING_PARAM_ENABLE (0)
 /************ 全局变量 ************/
 // 系统状态
 extern volatile system_state_t g_system_state;  // 系统当前状态

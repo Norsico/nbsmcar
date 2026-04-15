@@ -47,7 +47,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 				gpio_set_level(RIGHT_MOTOR_DIR_PIN,GPIO_HIGH);
 				duty = (uint32)(-speed) * (PWM_DUTY_MAX / 100);				
 			}
-			pwm_set_duty(RIGHT_MOTOR_PWM_PIN, duty);
+			pwm_set_duty(RIGHT_MOTOR_PWM_PIN, 0);
 		}
 		else if (wheel == LEFT_MOTOR){
 			// 左电机
@@ -59,7 +59,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 				gpio_set_level(LEFT_MOTOR_DIR_PIN,GPIO_LOW);
 				duty = (uint32)(-speed) * (PWM_DUTY_MAX / 100);				
 			}
-			pwm_set_duty(LEFT_MOTOR_PWM_PIN, duty);			
+			pwm_set_duty(LEFT_MOTOR_PWM_PIN, 0);			
 		}
 }
 
@@ -99,7 +99,7 @@ pid_control_t wheel_pid_right;
 static void wheel_pid_init_left(void)
 {
     /* 左轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_left, 1.0f, 0.16f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_left, 0.0f, 0.0f, 0.0f, 9900.0f, -9900.0f);
     pid_init(&wheel_pid_left);
 }
 
@@ -167,7 +167,8 @@ static void car_wheel_update_reference_target(void)
 {
     float steer_angle = 0.0f;
 
-    steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
+    // steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
+
     ackerman_calc_wheel_speeds(car_wheel_target_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();
     ref_right_target = ackerman_get_right_speed();
