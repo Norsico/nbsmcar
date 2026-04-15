@@ -9,6 +9,7 @@
 #include "dev_encoder.h"
 #include "dev_imu.h"
 #include "dev_flash.h"
+#include "dev_wifi.h"
 #include "ackerman.h"
 #include "tuning_param.h"
 
@@ -17,8 +18,11 @@
 #include "app_ui_display.h"
 #include "my_delay.h"
 
+/* 主循环入口。 */
 void main(void)
 {
+
+/**********************************************初始化开始***************************************************/
     // 系统初始化
     clock_init(SYSTEM_CLOCK_96M);
     debug_init();
@@ -81,14 +85,16 @@ void main(void)
     if(switch_wifi_enabled())
     {
         if(tuning_param_start_transport()){
-            // 1代表失败
+            /* WiFi 初始化失败时直接转急停，避免还没连上就进入运行态。 */
+            system_error = 1;
+            g_system_state = SYS_EMERGENCY;
         }
     }
 #endif
 #if IPS_ENABLE
     if(switch_ui_enabled())
     {
-        /* UI 模式下也提前拉起摄像头链路，进入第一页即可直接看图像。 */
+        /* UI 模式也初始化摄像头链路。 */
         line_app_init();
         display_menu_render();
     }
@@ -97,154 +103,95 @@ void main(void)
 #else
     {
 #endif
-        if(!switch_wifi_enabled() || !tuning_param_should_skip_line_init()){
-            line_app_init();
-        }
+        line_app_init();
     }
 
-    // 陀螺仪初始化并调零
-#if IPS_ENABLE
-    if(!switch_ui_enabled())
-    {
-#else
-    {
-#endif
-        if(!imu_init_with_retry()){
-            // 初始化成功
-            imu_calibrate(100); // 100 次采样计算零偏
-        }
-    }
+    /* 暂不用陀螺仪，先跳过 IMU 初始化。 */
 
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
+
+/**********************************************初始化结束***************************************************/
+
+    printf("Init OK\n");
+
     // 检查是否为初始化状态（无错误）
     if(g_system_state == SYS_INIT)
     {
-        g_system_state = display_menu_start_is_enabled() ? SYS_RUNNING : SYS_PREPARE;
-        //g_system_state = SYS_PREPARE;
+        g_system_state = SYS_RUNNING;
     }
+
+
     while(1)
     {
-        // 使用状态机进行管理，不同状态循环不同功能（可扩展）
+        // 系统错误时进入紧急状态
         if(system_error) g_system_state = SYS_EMERGENCY;
 
         switch(g_system_state){
-            case SYS_PREPARE: // 准备状态
-                /* 未启动时关闭负压，预览和调参阶段不再带风扇输出。 */
-                bldc_motor_stop();
-                if(g_flag_imu){
-                    // IMU
-                    g_flag_imu = 0;
-                }
-                if(g_flag_key){
-                    // 按键
-                    g_flag_key = 0;
-                    key_update();
-                    key_event_poll();
-                }
-                if(g_flag_encoder){
-                    /* 准备态不跑后轮闭环，直接丢掉累计采样，避免待处理周期在后台越堆越多。 */
-                    g_flag_encoder = 0;
-                    encoder_clear();
-                }
-                if(g_flag_center){
-                    // 图像处理
-                    g_flag_center = 0;
-                    if(switch_ui_enabled())
-                    {
-                        if(display_menu_in_camera_view())
-                        {
-                            /* 相机页刷新图像处理结果。 */
-                            line_app_process_frame();
-                        }
-                    }
-                    else
-                    {
-                        if(!switch_wifi_enabled() || !tuning_param_should_pause_line_app()){
-                            line_app_process_frame();
-                        }
-                    }
-                }
-#if IPS_ENABLE
-                if(switch_ui_enabled() && g_flag_display){
-                    // 屏幕
-                    g_flag_display = 0;
-                    if(display_menu_in_camera_view())
-                    {
-                        line_app_render_frame();
-                    }
-                    else
-                    {
-                        display_menu_render();
-                    }
-                }
-#endif
-#if WIFI_ENABLE
-                if(switch_wifi_enabled() && g_flag_wifi){
-                    // WiFi
-                    g_flag_wifi = 0;
-                    tuning_param_task();
-                }
-#endif
 
-                break;
-            case SYS_RUNNING: // 运行状态
+            // 正常运行
+            case SYS_RUNNING:
+            {
+
+                /****************** 预判断开始 ******************/
                 if(switch_ui_enabled())
                 {
-                    /* 开屏拨码只保留 UI 和图像链路，后轮与负压都保持关闭。 */
+                    // UI打开，电机和风扇停止
                     bldc_motor_stop();
                     car_wheel_stop_all();
+                    if(!display_menu_in_camera_view())
+                    {
+                        car_servo_set_center();
+                    }
+                }
+                else if(switch_wifi_enabled() && !wifi_is_initialized())
+                {
+                    // WIFI开启，但未连接成功时，不开启风扇、电机，舵机居中
+                    bldc_motor_stop();
+                    car_wheel_stop_all();
+                    car_servo_set_center();
                 }
                 else
                 {
-                    /* 纯运行态负压固定输出，负压调试先按常数输出。 */
+                    // 关屏打开风扇跑
                     bldc_motor_set_duty(30, 30);
                 }
-                if(g_flag_encoder){
-                    // 编码器
-                    g_flag_encoder = 0;
-                    if(switch_ui_enabled())
-                    {
-                        /* 开屏时不跑后轮闭环，避免屏幕刷新和执行器输出同时作用。 */
-                        encoder_clear();
-                    }
-                    else
-                    {
-                        /* 单个 5ms 编码器周期更新后轮闭环。 */
-                        encoder_update();
-                        // 更新后调用PID控制电机速度
-                        car_wheel_update();
-                    }
-                    //printf("left %d ; right %d\n",encoder_get_left(),encoder_get_right());
-                }
-                if(g_flag_center){
-                    // 图像处理
-                    g_flag_center = 0;
-                    if(switch_ui_enabled())
-                    {
-                        if(display_menu_in_camera_view())
-                        {
-                            line_app_process_frame();
-                        }
-                    }
-                    else
-                    {
-                        if(!switch_wifi_enabled() || !tuning_param_should_pause_line_app()){
-                            line_app_process_frame();
-                        }
-                    }
-                }
+                /****************** 预判断结束 ******************/
+
                 if(g_flag_imu){
-                    // IMU
+                    // 陀螺仪 10ms
                     g_flag_imu = 0;
                 }
                 if(g_flag_key){
-                    // 按键
+                    // 按键 20ms
                     g_flag_key = 0;
                     key_update();
                     key_event_poll();
                 }
+                if(g_flag_encoder){
+                    // 编码器 5ms
+                    g_flag_encoder = 0;
+                }
+                if(g_flag_center){
+                    // 图像处理 10ms
+                    g_flag_center = 0;
+                    if(switch_ui_enabled())
+                    {
+                        // UI界面View模式，即图像预览要处理图像
+                        if(display_menu_in_camera_view())
+                        {
+                            // 图像处理
+                            line_app_process_frame();
+                        }
+                    }
+                    else
+                    {
+                        // 关屏状态直接处理
+                        line_app_process_frame();
+                    }
+                }
 #if IPS_ENABLE
                 if(switch_ui_enabled() && g_flag_display){
+                    // 屏幕 100ms
                     g_flag_display = 0;
                     if(display_menu_in_camera_view())
                     {
@@ -258,18 +205,24 @@ void main(void)
 #endif
 #if WIFI_ENABLE
                 if(switch_wifi_enabled() && g_flag_wifi){
+                    // WiFi 50ms
                     g_flag_wifi = 0;
                     tuning_param_task();
                 }
 #endif
                 break;
-            case SYS_STOPED:
-                break;
+            }
+
+            // 紧急状态
             case SYS_EMERGENCY:
-                /* 进入急停后持续断开执行器输出，当前重新上电前不再恢复。 */
+                // 停风扇
                 bldc_motor_stop();
+                // 停直流电机
                 car_wheel_control_reset();
+                // 停舵机
                 car_servo_set_center();
+
+                // 清空标志位
                 g_flag_encoder = 0;
                 g_flag_center = 0;
 #if IPS_ENABLE
