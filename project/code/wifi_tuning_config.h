@@ -50,7 +50,7 @@
 
 #include "dev_encoder.h"
 #include "dev_wheel.h"
-#include "SearchLine.h"
+#include "searchLine.h"
 
 /* 当前加权 det。 */
 static float wifi_tuning_read_det_true(void)

@@ -1,6 +1,6 @@
 #include "app_line.h"
 
-#include "SearchLine.h"
+#include "searchLine.h"
 #include "dev_other.h"
 #include "dev_servo.h"
 #include "dev_wheel.h"
@@ -8,6 +8,7 @@
 static uint8 line_camera_ready = 0;
 static line_app_preview_mode_t g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
 
+/* 下发整页相机参数。 */
 static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
 {
     int16 config[MT9V03X_CONFIG_FINISH][2];
@@ -40,6 +41,7 @@ static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
     return (0 == mt9v03x_set_config(config)) ? 1 : 0;
 }
 
+/* 从 flash 恢复相机参数。 */
 static void line_app_apply_camera_page_from_flash(void)
 {
     flash_camera_page_t page;
@@ -48,6 +50,7 @@ static void line_app_apply_camera_page_from_flash(void)
     line_app_apply_camera_page(&page);
 }
 
+/* 从 flash 恢复舵机 PD 参数。 */
 static void line_app_apply_steer_pd_page_from_flash(void)
 {
     flash_param_page_t page;
@@ -57,6 +60,7 @@ static void line_app_apply_steer_pd_page_from_flash(void)
 }
 
 #if IPS_ENABLE
+/* 绘制相机页预览。 */
 void line_app_render_frame(void)
 {
     if(!line_camera_ready)
@@ -69,7 +73,7 @@ void line_app_render_frame(void)
         return;
     }
 
-    /* 相机页只切显示模式，搜线处理链仍按当前原图处理结果继续跑。 */
+    /* 相机页只切显示模式。 */
     if(LINE_APP_PREVIEW_RAW == g_line_preview_mode)
     {
         SearchLine_DrawRawPreview();
@@ -81,6 +85,7 @@ void line_app_render_frame(void)
 }
 #endif
 
+/* 切换相机页预览模式。 */
 void line_app_set_preview_mode(line_app_preview_mode_t mode)
 {
     if(LINE_APP_PREVIEW_RAW == mode)
@@ -93,11 +98,13 @@ void line_app_set_preview_mode(line_app_preview_mode_t mode)
     }
 }
 
+/* 读取当前预览模式。 */
 line_app_preview_mode_t line_app_get_preview_mode(void)
 {
     return g_line_preview_mode;
 }
 
+/* 处理一帧图像并更新前轮输出。 */
 static uint8 line_app_handle_frame(void)
 {
     uint8 raw_threshold = 0;
@@ -116,19 +123,20 @@ static uint8 line_app_handle_frame(void)
     raw_threshold = SearchLine_GetRawOtsuThreshold();
     if((SYS_RUNNING == g_system_state) && (raw_threshold < 40))
     {
-        /* 抓车后当前帧阈值过低，直接锁死到急停态。 */
+        /* 运行态阈值过低时转急停。 */
         system_error = 1;
         g_system_state = SYS_EMERGENCY;
     }
     if(SYS_EMERGENCY != g_system_state)
     {
-        /* 当前阶段先只把参考舵机命令接到前轮，后轮目标仍沿用现有链路。 */
+        /* 当前舵机命令直接下发到前轮。 */
         car_servo_set_angle(SearchLine_GetSteerCommand());
     }
     mt9v03x_finish_flag = 0;
     return 1;
 }
 
+/* 初始化巡线应用。 */
 void line_app_init(void)
 {
     car_servo_set_center();
@@ -164,11 +172,13 @@ void line_app_init(void)
 #endif
 }
 
+/* 处理一帧巡线图像。 */
 uint8 line_app_process_frame(void)
 {
     return line_app_handle_frame();
 }
 
+/* 修改单个相机参数并落盘。 */
 uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value)
 {
     flash_camera_page_t page;
@@ -203,6 +213,7 @@ uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value)
     return flash_store_set_camera_page(&page);
 }
 
+/* 修改舵机 PD 参数并同步到搜线模块。 */
 uint8 line_app_set_steer_pd_value_tenth(flash_param_slot_t slot, int16 value_tenth)
 {
     flash_param_page_t page;

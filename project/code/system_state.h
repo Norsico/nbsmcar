@@ -12,9 +12,7 @@
 /************ 系统状态枚举 ************/
 typedef enum {
     SYS_INIT = 0,      // 上电初始化
-    SYS_PREPARE,       // 准备就绪，可运行
-    SYS_RUNNING,       // 赛道运行
-    SYS_STOPED,        // 停止
+    SYS_RUNNING,       // 主循环运行
     SYS_EMERGENCY      // 紧急情况
 } system_state_t;
 
@@ -23,7 +21,7 @@ typedef enum {
 #define KEY_SCAN_PERIOD 20              // 按键扫描周期 20ms (50Hz)
 #define IMU_PERIOD 10                   // IMU读取周期 10ms (100Hz)
 #define ENCODER_PERIOD 5                // 编码器采样周期 5ms (200Hz)，对齐 19 国一电机闭环节拍。
-#define CENTER_PERIOD 20								// 搜索中心周期 20ms (50Hz)暂定
+#define CENTER_PERIOD 10				// 搜索中心周期 10ms (100Hz)
 #define DISPLAY_PERIOD 100              // 显示刷新周期 100ms (10Hz)
 #define WIFI_PERIOD 50                  // WiFi任务周期 50ms (20Hz)
 

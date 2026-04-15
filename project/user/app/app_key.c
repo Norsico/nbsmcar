@@ -15,9 +15,7 @@ static void key1_handler(key_state_t state){
 			display_menu_back();
 			break;
 		case KEY_LONG:
-			if(g_system_state == SYS_PREPARE){
-				g_system_state = SYS_RUNNING;
-			}
+
 			break;
 		}
 }
@@ -30,9 +28,7 @@ static void key2_handler(key_state_t state){
 			display_menu_move_up();
 			break;
 		case KEY_LONG:
-			if(g_system_state == SYS_RUNNING){
-				g_system_state = SYS_PREPARE;
-			}
+
 			break;
 	}
 }

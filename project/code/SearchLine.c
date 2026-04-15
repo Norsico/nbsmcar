@@ -1,4 +1,4 @@
-#include "SearchLine.h"
+#include "searchLine.h"
 #include "dev_flash.h"
 #include "dev_other.h"
 #include "dev_servo.h"
@@ -16,7 +16,7 @@
 /* OTSU 阈值重算周期。
  * 1 表示每帧都重算。
  * 2-20 表示隔 N 帧重算一次，中间帧直接复用上一次阈值。
- * 当前先用 10，后续可按赛道光照稳定性手调，步进 1。
+ * 当前取 10。
  */
 #define SEARCH_LINE_OTSU_THRESHOLD_INTERVAL (10)
 #define SEARCH_LINE_OTSU_PIXEL_FILTER_ENABLE (0)
@@ -27,7 +27,7 @@
 #define SEARCH_LINE_OTSU_SCAN_WINDOW        (2)
 #define SEARCH_LINE_OTSU_MIDDLE_LINE        (SEARCH_LINE_OTSU_W / 2 - 1)
 #define SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW (SEARCH_LINE_OTSU_H - 2)
-/* 普通赛道基础前瞻行，当前按参考常用值先收回到 27。 */
+/* 普通赛道基础前瞻行。 */
 #define SEARCH_LINE_OTSU_DET_TOW_POINT      (27)
 #define SEARCH_LINE_OTSU_DET_WINDOW         (5)
 #define SEARCH_LINE_OTSU_DET_TOW_POINT_MAX  (49)
@@ -131,7 +131,7 @@ static uint8 SearchLine_Otsu_Threshold_Raw_Cache = SEARCH_LINE_OTSU_THRESHOLD_MI
 static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
 static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
 static uint8 SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
-/* 当前裁剪工程没有岔路状态源，延长线条件先按国一默认值保持关闭。 */
+/* 当前工程未接岔路状态源。 */
 static uint8 SearchLine_Otsu_Fork_Down = 0;
 static uint8 SearchLine_Otsu_Cirque_Out_In = 'F';
 static uint8 SearchLine_Otsu_Cirque_Pass = 'F';
@@ -317,7 +317,7 @@ static void SearchLine_Clear_Otsu_State(void)
 }
 
 /* 19 国一 Search_Border_OTSU 的边界跟踪支线。
- * 这一支先只做观测缓存，不直接改普通赛道主链的左右边界。
+ * 这一支只更新观测缓存，不改主链左右边界。
  */
 static void SearchLine_Search_Border_Otsu(void)
 {
@@ -1314,9 +1314,7 @@ static void SearchLine_Update_Otsu_Det(void)
     float speed_gain = 0.0f;
     int16 det_value = 0;
 
-    /* 当前工程这里直接复用后轮目标速度
-     * 做前瞻动态偏移，口径按参考 `GetDet()` 的增益和限幅收回。
-     */
+    /* 动态前瞻按后轮目标速度调节。 */
     speed_gain = (car_wheel_target_speed - SEARCH_LINE_OTSU_DET_SPEED_REF) *
                  SEARCH_LINE_OTSU_DET_SPEED_GAIN +
                  SEARCH_LINE_OTSU_DET_SPEED_BIAS;
@@ -1613,7 +1611,7 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
     {
         SearchLine_Otsu_Ring_Element = 1;
         SearchLine_Otsu_Ring_Flag = 1;
-        /* 19 国一当前启用主线入口直接按大圆环口径进入。 */
+        /* 主线入口按大圆环状态进入。 */
         SearchLine_Otsu_Ring_Size = 1;
         SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_LEFT_CIRQUE;
         /* 左环入口短响。 */
@@ -1693,7 +1691,7 @@ static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
     {
         SearchLine_Otsu_Ring_Element = 2;
         SearchLine_Otsu_Ring_Flag = 1;
-        /* 19 国一当前启用主线入口直接按大圆环口径进入。 */
+        /* 主线入口按大圆环状态进入。 */
         SearchLine_Otsu_Ring_Size = 1;
         SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_RIGHT_CIRQUE;
         /* 右环入口短响。 */
@@ -1985,7 +1983,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
     SearchLine_Otsu_Ring_Point_Y = 0;
     SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
 
-    /* 统计右侧连续丢线段长度，国一 active 版本后续阶段切换主要看这一组量。 */
+    /* 统计右侧连续丢线段长度。 */
     for(row = 55; row > 30; row--)
     {
         if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
@@ -2090,7 +2088,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
-    /* 1/2/3/4 阶段先按普通半路宽，从左边界直接推中线。 */
+    /* 1/2/3/4 阶段按左边界推中线。 */
     if((1 == SearchLine_Otsu_Ring_Flag) ||
        (2 == SearchLine_Otsu_Ring_Flag) ||
        (3 == SearchLine_Otsu_Ring_Flag) ||
@@ -2207,7 +2205,7 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         }
     }
 
-    /* 6 阶段继续沿用补线后的中线，避免固定竖线把当前车体直接顶向右侧。 */
+    /* 6 阶段沿用补线后的中线。 */
 
     /* 8 阶段在固定列重新找左边修补点，把左边界拉成一条直线，准备退出圆环。 */
     if(8 == SearchLine_Otsu_Ring_Flag)
@@ -2305,7 +2303,7 @@ static void SearchLine_Element_Test(void)
         }
     }
 
-    /* 右圆环入口先按一号那套早退逻辑筛，再进内部形状判断。 */
+    /* 右圆环入口先过外层筛选。 */
     if((SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_BARN_IN) &&
        (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_CROSS_TRUE) &&
        (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_BARN_OUT))
@@ -2525,7 +2523,7 @@ static void SearchLine_Process_Otsu(void)
     SearchLine_Init_Otsu_BottomRows();
     /* 逐行向上搜边。 */
     SearchLine_DrawLinesProcess_Otsu();
-    /* 圆环支线先补边界跟踪缓存，后续判据和补线都依赖这一组观测量。 */
+    /* 圆环支线补齐边界跟踪缓存。 */
     SearchLine_Search_Border_Otsu();
     /* 元素判断。 */
     SearchLine_Element_Test();
@@ -2541,6 +2539,7 @@ static void SearchLine_Process_Otsu(void)
     SearchLine_Update_Otsu_SteerPreview();
 }
 
+/* 执行一帧搜线处理。 */
 void SearchLine_Process(void)
 {
     if((0 != SearchLine_Ring_Beep_Stop_Tick) &&
@@ -2629,9 +2628,10 @@ static void SearchLine_FormatThresholdText(char *text, uint8 threshold)
     text[3] = '\0';
 }
 
+/* 重置相机页预览缓存。 */
 void SearchLine_ResetPreviewOverlay(void)
 {
-    /* 相机页切黑底后重新补标签与数值，运行时尽量只刷变化项。 */
+    /* 相机页切黑底后重置标签和数值缓存。 */
     SearchLine_Preview_Label_Ready = 0;
     SearchLine_Preview_Last_Threshold = 0xFF;
     SearchLine_Preview_Last_Offset = 32767;
@@ -2698,7 +2698,7 @@ static void SearchLine_DrawPreview(uint8 show_raw)
                                1);
     }
 
-    /* 相机页底部显示当前 OTSU 阈值，方便边看图边确认二值门限。 */
+    /* 相机页底部显示当前 OTSU 阈值。 */
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
     if(!SearchLine_Preview_Label_Ready)
     {

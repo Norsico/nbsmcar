@@ -23,6 +23,5 @@ void display_menu_back(void);
 void display_menu_go_root(void);
 /* 主循环查询当前 UI 状态。 */
 uint8 display_menu_in_camera_view(void);
-uint8 display_menu_start_is_enabled(void);
 
 #endif /* __APP_UI_DISPLAY_H__ */

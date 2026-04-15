@@ -6,9 +6,9 @@
 
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
-#define CAR_WHEEL_TARGET_SPEED_MAX    ((float)FLASH_START_SPEED_MAX)   /* 对齐 Start 页速度上限，当前随 `FLASH_START_SPEED_MAX` 放宽到 400。 */
-#define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 最终下发到电机的百分比速度限幅，范围 0~100；当前按用户要求放宽到 75。 */
-#define CAR_WHEEL_ACKERMAN_CENTER_ANGLE ((float)CAR_SERVO_CENTER_ANGLE) /* 阿克曼输入按左负右正，当前舵机业务角度按 90 中 / 70 右 / 110 左换算。 */
+#define CAR_WHEEL_TARGET_SPEED_MAX    ((float)FLASH_START_SPEED_MAX)   /* Start 页速度上限。 */
+#define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 电机输出百分比限幅。 */
+#define CAR_WHEEL_ACKERMAN_CENTER_ANGLE ((float)CAR_SERVO_CENTER_ANGLE) /* 阿克曼角度按左负右正换算。 */
 float car_wheel_target_speed = 0.0f;  // 整车目标速度
 
 float ref_left_target = 0.0f;
@@ -31,6 +31,7 @@ static int8 car_wheel_limit_speed(int8 speed_percent)
     return speed_percent;
 }
 // 单独设置速度
+/* 设置单个后轮输出。 */
 void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 {
 		uint32 duty = 0;
@@ -63,6 +64,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 }
 
 // 设置电机占空比
+/* 同时设置左右后轮输出。 */
 void car_wheel_set_dual(int8 right_wheel_speed_percent, int8 left_wheel_speed_percent)
 {
     car_wheel_set_speed(RIGHT_MOTOR, right_wheel_speed_percent);
@@ -70,12 +72,14 @@ void car_wheel_set_dual(int8 right_wheel_speed_percent, int8 left_wheel_speed_pe
 }
 
 // 停止全部
+/* 停止左右后轮。 */
 void car_wheel_stop_all(void)
 {
     car_wheel_set_dual(0, 0);
 }
 
 // 初始化函数
+/* 初始化后轮驱动。 */
 void car_wheel_init(void)
 {
     gpio_init(RIGHT_MOTOR_DIR_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);
@@ -92,36 +96,35 @@ void car_wheel_init(void)
 pid_control_t wheel_pid_left;
 pid_control_t wheel_pid_right;
 
-static void wheel_pid_init(pid_control_t* pid){
-	// 参数结构体设置
-	pid->param.kp = 7.0f;
-	pid->param.ki = 1.16f;
-	pid->param.kd = 0.0f;
-	pid->param.max_out = 9900.0; // 电机控制百分比
-	pid->param.min_out = -9900.0;
-	pid->param.deadband = 0.0f; // 死区用于消除误差极小时的抖动，电机不设死区
-	// 控制器结构体
-	pid->target = 0;
-	pid->current = 0;
-	pid->error = 0;
-	pid->prev_error = 0;
-	pid->integral = 0;
-	pid->output = 0;
-	pid->dt = 0.01f; // 0.01s(10ms)
+static void wheel_pid_init_left(void)
+{
+    /* 左轮 PID 初始化。 */
+    pid_param_init(&wheel_pid_left, 1.0f, 0.16f, 0.0f, 9900.0f, -9900.0f);
+    pid_init(&wheel_pid_left);
 }
 
+static void wheel_pid_init_right(void)
+{
+    /* 右轮 PID 初始化。 */
+    pid_param_init(&wheel_pid_right, 0.0f, 0.0f, 0.0f, 9900.0f, -9900.0f);
+    pid_init(&wheel_pid_right);
+}
+
+/* 初始化左右轮 PID。 */
 void car_wheel_pid_init(void){
 	// 左右电机的pid结构体初始化
-	wheel_pid_init(&wheel_pid_left);
-	wheel_pid_init(&wheel_pid_right);
+	wheel_pid_init_left();
+	wheel_pid_init_right();
 }
 
+/* 更新左右轮目标值。 */
 static void car_wheel_apply_target(float left_speed, float right_speed)
 {
     wheel_pid_left.target = left_speed;
     wheel_pid_right.target = right_speed;
 }
 
+/* 设置整车基础速度。 */
 void car_wheel_set_target(float speed)
 {
     if(speed > CAR_WHEEL_TARGET_SPEED_MAX)
@@ -135,6 +138,7 @@ void car_wheel_set_target(float speed)
     car_wheel_target_speed = speed;
 }
 
+/* 清空单个 PID 累积状态。 */
 static void car_wheel_pid_reset_single(pid_control_t *pid)
 {
     pid->current = 0.0f;
@@ -145,6 +149,7 @@ static void car_wheel_pid_reset_single(pid_control_t *pid)
 }
 
 // 进入紧急情况情况，清空PID参数
+/* 清空后轮闭环状态并停轮。 */
 void car_wheel_control_reset(void)
 {
     car_wheel_target_speed = 0.0f;
@@ -169,7 +174,7 @@ static void car_wheel_update_reference_target(void)
 
 }
 
-/* 当前后轮目标直接切到阿克曼固定差速结果。 */
+/* 将阿克曼结果写入左右轮目标。 */
 static void car_wheel_update_target_from_vehicle(void)
 {
     if(car_wheel_target_speed <= 0.0f)
@@ -178,11 +183,12 @@ static void car_wheel_update_target_from_vehicle(void)
         return;
     }
 
-    /* 后轮目标按当前舵机角直接套阿克曼左右轮速度。 */
+    /* 后轮目标按当前舵机角解算。 */
     car_wheel_apply_target(ref_left_target, ref_right_target);
 }
 
 // 将PID计算的PWM写入电机-左轮
+/* 输出左轮 PWM。 */
 static void car_wheel_update_left(void)
 {
 	int16 pwm = wheel_pid_left.output;
@@ -192,7 +198,7 @@ static void car_wheel_update_left(void)
 			//正转
 			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
 			
-			// 二次限幅，可不用
+			// 二次限幅
 			if(speed_percent > CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 			// 设置速度
 		}
@@ -204,6 +210,7 @@ static void car_wheel_update_left(void)
 		car_wheel_set_speed(LEFT_MOTOR,speed_percent);
 }
 // 将PID计算的PWM写入电机-右轮
+/* 输出右轮 PWM。 */
 static void car_wheel_update_right(void)
 {
 	int16 pwm = wheel_pid_right.output;
@@ -213,7 +220,7 @@ static void car_wheel_update_right(void)
 			//正转
 			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
 			
-			// 二次限幅，可不用
+			// 二次限幅
 			if(speed_percent > CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 			// 设置速度
 		}
@@ -225,6 +232,7 @@ static void car_wheel_update_right(void)
 		car_wheel_set_speed(RIGHT_MOTOR,speed_percent);
 }
 // 车轮速度更新函数
+/* 按当前编码器结果更新后轮闭环。 */
 void car_wheel_update(void)
 {
 	// 获取当前编码器速度（编码器未移植）
@@ -236,10 +244,10 @@ void car_wheel_update(void)
 
     car_wheel_update_target_from_vehicle();
 
-		// 增量式pid计算
-		pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
-		pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);
-		// 电机控制
-		car_wheel_update_left();
-		car_wheel_update_right();
+	// 增量式pid计算
+	pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
+	pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);
+	// 电机控制
+	car_wheel_update_left();
+	car_wheel_update_right();
 }

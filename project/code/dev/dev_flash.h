@@ -3,31 +3,27 @@
 
 #include "zf_common_typedef.h"
 
-/* Steer P 当前按位置式 PD 的 P 系数保存，单位 0.1。
- * 当前工程默认值按 30.0 起步，UI 可调范围先收口到 0.0-60.0，步进 2.0。
- */
+/* Steer P，单位 0.1。 */
 #define FLASH_STEER_P_MIN_TENTH         (0)
 #define FLASH_STEER_P_MAX_TENTH         (600)
 #define FLASH_STEER_P_STEP_TENTH        (20)
-#define FLASH_STEER_P_DEFAULT_TENTH     (300)
-/* Steer D 当前按位置式 PD 的 D 系数保存，单位 0.1。
- * 参考国一普通赛道默认值先按当前工程迁移值 2.0，UI 可调范围收口到 0.0-80.0，步进 2.0。
- */
+#define FLASH_STEER_P_DEFAULT_TENTH     (0)
+/* Steer D，单位 0.1。 */
 #define FLASH_STEER_D_MIN_TENTH         (0)
 #define FLASH_STEER_D_MAX_TENTH         (800)
-#define FLASH_STEER_D_STEP_TENTH        (20)
+#define FLASH_STEER_D_STEP_TENTH        (0)
 #define FLASH_STEER_D_DEFAULT_TENTH     (20)
 
-/* 摄像头参数页按摄像头原生整数值来存，下面这些范围就是屏幕调参时实际允许调的范围。 */
+/* 摄像头参数按原生整数值存档。 */
 #define FLASH_CAMERA_AUTO_EXP_MIN       (0)     /* 自动曝光下限：0 表示关闭自动曝光。 */
 #define FLASH_CAMERA_AUTO_EXP_MAX       (63)    /* 自动曝光上限：逐飞库注释给的有效范围是 0-63。 */
 #define FLASH_CAMERA_AUTO_EXP_STEP      (1)     /* 自动曝光步进：屏幕上每次调整加减 1。 */
 #define FLASH_CAMERA_EXP_TIME_MIN       (1)     /* 曝光时间下限：工程侧收口为 1，避免出现 0 这种无意义配置。 */
-#define FLASH_CAMERA_EXP_TIME_MAX       (300)   /* 曝光时间上限：底层库没写明确数值上限，这里按默认值 50、示例值 100 和赛道调参需求，先把 UI 可调范围收口到 300。 */
-#define FLASH_CAMERA_EXP_TIME_STEP      (10)     /* 曝光时间步进：屏幕上每次调整加减 5。 */
+#define FLASH_CAMERA_EXP_TIME_MAX       (300)   /* 曝光时间上限：工程侧按当前默认值、示例值和赛道调参需求收口到 300。 */
+#define FLASH_CAMERA_EXP_TIME_STEP      (10)    /* 曝光时间步进：屏幕上每次调整加减 10。 */
 #define FLASH_CAMERA_GAIN_MIN           (16)    /* 图像增益下限：逐飞库注释给的有效范围起点。 */
 #define FLASH_CAMERA_GAIN_MAX           (64)    /* 图像增益上限：逐飞库注释给的有效范围终点。 */
-#define FLASH_CAMERA_GAIN_STEP          (10)     /* 图像增益步进：屏幕上每次调整加减 5。 */
+#define FLASH_CAMERA_GAIN_STEP          (10)    /* 图像增益步进：屏幕上每次调整加减 10。 */
 #define FLASH_LINE_KP_DEFAULT_TENTH     (12)    /* 巡线 KP 默认值 1.2，单位统一按 0.1 保存。 */
 #define FLASH_LINE_KD_DEFAULT_TENTH     (10)    /* 巡线 KD 默认值 1.0，单位统一按 0.1 保存。 */
 #define FLASH_SERVO_LIMIT_ANGLE_MIN     (50)    /* 舵机限幅页最小可调角度。 */
@@ -36,7 +32,7 @@
 #define FLASH_LINE_SERVO_MIN_DEFAULT    (70)    /* 舵机默认右限幅角。 */
 #define FLASH_LINE_SERVO_MAX_DEFAULT    (110)   /* 舵机默认左限幅角。 */
 #define FLASH_START_SPEED_MIN           (0)     /* 启动页后轮目标速度下限，0 表示静止。 */
-#define FLASH_START_SPEED_MAX           (400)   /* 启动页后轮目标速度上限，当前按用户要求放宽到 0-400。 */
+#define FLASH_START_SPEED_MAX           (400)   /* 启动页后轮目标速度上限。 */
 #define FLASH_START_SPEED_STEP          (10)    /* 启动页后轮目标速度步进。 */
 #define FLASH_START_ENABLE_MIN          (0)     /* 启动开关下限，0 表示关闭。 */
 #define FLASH_START_ENABLE_MAX          (1)     /* 启动开关上限，1 表示开启。 */
@@ -86,10 +82,10 @@ typedef struct
 {
     uint16 target_speed;    /* 后轮闭环目标速度，左右轮先共用同一个值。 */
     uint8 enable;           /* 启动开关：0 关闭，1 开启。 */
-    uint8 reserved;         /* 预留字节，后面扩状态位时继续往这里加。 */
+    uint8 reserved;         /* 预留字节。 */
 } flash_start_page_t;
 
-/* 掉电参数先按一个总结构来管，后面别的模块直接往这里扩。 */
+/* 掉电参数总结构。 */
 typedef struct
 {
     flash_param_page_t param_page;
@@ -102,7 +98,7 @@ typedef struct
 void flash_store_init(void);
 /* 读取整个掉电参数结构。 */
 void flash_store_get_data(flash_store_data_t *store_ptr);
-/* 整体覆盖掉电参数结构，适合后面多个模块一起改完再存。 */
+/* 整体覆盖掉电参数结构。 */
 uint8 flash_store_set_data(const flash_store_data_t *store_ptr);
 /* 读取当前参数页这一组参数。 */
 void flash_store_get_param_page(flash_param_page_t *page);

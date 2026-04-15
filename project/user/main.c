@@ -39,48 +39,57 @@ void main(void)
         }
     }
 
-    // ----- 正常启动 ------
-    other_init(); // 蜂鸣器激光笔、拨码开关
-    switch_update(); // 上电时锁存当前拨码模式
+    /* 先拉起基础外设，并锁存当前拨码模式。 */
+    other_init();       // 蜂鸣器激光笔、拨码开关
+    switch_update();    // 上电时锁存当前拨码模式
     flash_store_init(); // 掉电保存参数初始化
 
+    /* 底层硬件初始化。 */
 #if IPS_ENABLE
+    // 如果开关打开了UI
     if(switch_ui_enabled())
     {
+        // 初始化屏幕
         display_init();
     }
 #endif
-    key_init(); // 按键
-    power_adc_init(); // 电池电量ADC
-    car_servo_init(); // 舵机初始化并回中
-    bldc_motor_init(); // 无刷电机
-    car_wheel_init(); // 直流电机
+    key_init();          // 按键
+    power_adc_init();    // 电池电量ADC
+    car_servo_init();    // 舵机初始化并回中
+    bldc_motor_init();   // 无刷电机
+    car_wheel_init();    // 直流电机
     car_wheel_pid_init(); // 电机pid结构体初始化
-    encoder_init(); // 编码器初始化
-    key_event_init(); // 按键事件初始化
-    ackerman_init(); // 阿克曼运动学初始化
+    encoder_init();      // 编码器初始化
+    key_event_init();    // 按键事件初始化
+    ackerman_init();     // 阿克曼运动学初始化
+
+    /* WiFi 拨码打开时，先准备遥测配置。 */
 #if WIFI_ENABLE
     if(switch_wifi_enabled())
     {
         tuning_param_boot_init(); // 根据拨码结果决定是否进入WiFi调参模式
     }
 #endif
+
+    /* 上电默认先清执行器输出。 */
     bldc_motor_stop();
     car_wheel_stop_all();
     car_wheel_set_target(0.0f);
     car_servo_set_center();
-    display_menu_init(); // 无论是否开屏，都先恢复 Start 配置
+    display_menu_init(); // 屏幕参数初始化，flash初始化取值
 
-    if(power_adc_judge()){
-        // 低电量报警
-        buzzer_on();
-        my_delay_s(1);
-        buzzer_off();
-        // 启用会直接进入紧急状态
-        // g_system_state = SYS_EMERGENCY;
+    /* 相机链路统一在这里初始化。 */
+    line_app_init();
+
+    /* 开屏时补一帧初始界面。 */
+#if IPS_ENABLE
+    if(switch_ui_enabled())
+    {
+        display_menu_render();
     }
+#endif
 
-    // 调试器件初始化
+    /* WiFi 拨码打开时，继续完成连接。 */
 #if WIFI_ENABLE
     if(switch_wifi_enabled())
     {
@@ -91,23 +100,18 @@ void main(void)
         }
     }
 #endif
-#if IPS_ENABLE
-    if(switch_ui_enabled())
+
+    if(power_adc_judge())
     {
-        /* UI 模式也初始化摄像头链路。 */
-        line_app_init();
-        display_menu_render();
-    }
-    else
-    {
-#else
-    {
-#endif
-        line_app_init();
+        /* 低电量报警。 */
+        buzzer_on();
+        my_delay_s(1);
+        buzzer_off();
     }
 
     /* 暂不用陀螺仪，先跳过 IMU 初始化。 */
 
+    /* 最后打开系统节拍。 */
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
 
 /**********************************************初始化结束***************************************************/

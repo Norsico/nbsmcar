@@ -8,7 +8,7 @@
 #define FLASH_STORE_VERSION             (0x0003)
 #define FLASH_STORE_LINE_KP_MAX_TENTH   (100)
 #define FLASH_STORE_LINE_KD_MAX_TENTH   (100)
-/* 先占用用户 EEPROM 的第一个扇区，后面扩参数也从这里接着走。 */
+/* 掉电参数写在用户 EEPROM 第一个扇区。 */
 
 typedef struct
 {
@@ -21,6 +21,7 @@ typedef struct
 static flash_store_image_t g_flash_store_cache;
 static uint8 g_flash_store_ready = 0;
 
+/* 校验 Steer PD 存档范围。 */
 static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 value_tenth)
 {
     switch(slot)
@@ -59,7 +60,7 @@ static uint8 flash_store_start_enable_in_range(uint8 value)
     return (value >= FLASH_START_ENABLE_MIN && value <= FLASH_START_ENABLE_MAX) ? 1 : 0;
 }
 
-/* 这里先把 Line Tune 页做一层基础校验，防止异常页直接带进 UI。 */
+/* 校验巡线调参页。 */
 static uint8 flash_store_line_tune_page_is_valid(const flash_line_tune_page_t *page)
 {
     if(0 == page)
@@ -97,7 +98,7 @@ static uint8 flash_store_line_tune_page_is_valid(const flash_line_tune_page_t *p
     return 1;
 }
 
-/* 简单做个校验和，足够判断这块数据是不是乱了。 */
+/* 计算存档校验和。 */
 static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
 {
     const uint8 *raw_ptr = 0;
@@ -113,7 +114,7 @@ static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
     return checksum;
 }
 
-/* 默认值先收在一起，后面接正式参数时直接从这里改。 */
+/* 填充默认参数。 */
 static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
 {
     memset(store_ptr, 0, sizeof(*store_ptr));
@@ -131,7 +132,7 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     store_ptr->start_page.reserved = 0;
 }
 
-/* 默认镜像长什么样，也统一收在这里。 */
+/* 生成默认存档镜像。 */
 static void flash_store_fill_default_image(flash_store_image_t *image)
 {
     memset(image, 0, sizeof(*image));
@@ -141,7 +142,7 @@ static void flash_store_fill_default_image(flash_store_image_t *image)
     image->checksum = flash_store_calc_checksum(image);
 }
 
-/* 现在先检查已经接进来的这一组参数。 */
+/* 校验掉电参数内容。 */
 static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
 {
     if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_FIRST, store_ptr->param_page.first_value_tenth))
@@ -187,7 +188,7 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
     return 1;
 }
 
-/* 上电读出内容后，先确认头、版本和参数值都还是正常的。 */
+/* 校验整块掉电镜像。 */
 static uint8 flash_store_image_is_valid(const flash_store_image_t *image)
 {
     if(FLASH_STORE_MAGIC != image->magic)
@@ -213,19 +214,19 @@ static uint8 flash_store_image_is_valid(const flash_store_image_t *image)
     return 1;
 }
 
-/* 每次访问 IAP 前都先把接口打开。 */
+/* 打开 IAP 接口。 */
 static void flash_store_hw_begin(void)
 {
     iap_init();
 }
 
-/* IAP 用完就关掉，别一直挂着。 */
+/* 关闭 IAP 接口。 */
 static void flash_store_hw_end(void)
 {
     iap_idle();
 }
 
-/* 把 RAM 里的参数镜像整体写回去。 */
+/* 回写掉电缓存。 */
 static void flash_store_save_cache(void)
 {
     g_flash_store_cache.magic = FLASH_STORE_MAGIC;
@@ -237,7 +238,7 @@ static void flash_store_save_cache(void)
     flash_store_hw_end();
 }
 
-/* 上电先读一份缓存，读坏了就按默认值重建。 */
+/* 载入掉电缓存，异常时重建默认值。 */
 static void flash_store_load_cache(void)
 {
     flash_store_image_t image;
@@ -259,11 +260,13 @@ static void flash_store_load_cache(void)
     g_flash_store_ready = 1;
 }
 
+/* 初始化掉电参数缓存。 */
 void flash_store_init(void)
 {
     flash_store_load_cache();
 }
 
+/* 读取整块掉电参数。 */
 void flash_store_get_data(flash_store_data_t *store_ptr)
 {
     if(0 == g_flash_store_ready)
@@ -279,6 +282,7 @@ void flash_store_get_data(flash_store_data_t *store_ptr)
     memcpy(store_ptr, &g_flash_store_cache.store_data, sizeof(*store_ptr));
 }
 
+/* 整体覆盖掉电参数。 */
 uint8 flash_store_set_data(const flash_store_data_t *store_ptr)
 {
     if(0 == g_flash_store_ready)
@@ -301,6 +305,7 @@ uint8 flash_store_set_data(const flash_store_data_t *store_ptr)
     return 1;
 }
 
+/* 读取 Steer PD 页面。 */
 void flash_store_get_param_page(flash_param_page_t *page)
 {
     if(0 == g_flash_store_ready)
@@ -334,6 +339,7 @@ int16 flash_store_get_param_value_tenth(flash_param_slot_t slot)
     }
 }
 
+/* 修改单个 Steer PD 参数并落盘。 */
 uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_tenth)
 {
     int16 *target_value = 0;
@@ -373,6 +379,7 @@ uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_ten
     return 1;
 }
 
+/* 读取摄像头参数页。 */
 void flash_store_get_camera_page(flash_camera_page_t *page)
 {
     if(0 == g_flash_store_ready)
@@ -388,6 +395,7 @@ void flash_store_get_camera_page(flash_camera_page_t *page)
     memcpy(page, &g_flash_store_cache.store_data.camera_page, sizeof(*page));
 }
 
+/* 整体覆盖摄像头参数页。 */
 uint8 flash_store_set_camera_page(const flash_camera_page_t *page)
 {
     flash_store_data_t new_store_data;
@@ -490,6 +498,7 @@ uint8 flash_store_set_camera_value(flash_camera_slot_t slot, uint16 value)
     return flash_store_set_camera_page(&page);
 }
 
+/* 读取巡线调参页。 */
 void flash_store_get_line_tune_page(flash_line_tune_page_t *page)
 {
     if(0 == g_flash_store_ready)
@@ -505,7 +514,7 @@ void flash_store_get_line_tune_page(flash_line_tune_page_t *page)
     memcpy(page, &g_flash_store_cache.store_data.line_tune_page, sizeof(*page));
 }
 
-/* 巡线调参这一页整体覆盖，保持和 Camera 页一样的“改完立即落盘”语义。 */
+/* 整体覆盖巡线调参页。 */
 uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page)
 {
     if(0 == g_flash_store_ready)
@@ -528,6 +537,7 @@ uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page)
     return 1;
 }
 
+/* 读取 Start 页。 */
 void flash_store_get_start_page(flash_start_page_t *page)
 {
     if(0 == g_flash_store_ready)
@@ -543,6 +553,7 @@ void flash_store_get_start_page(flash_start_page_t *page)
     memcpy(page, &g_flash_store_cache.store_data.start_page, sizeof(*page));
 }
 
+/* 整体覆盖 Start 页。 */
 uint8 flash_store_set_start_page(const flash_start_page_t *page)
 {
     if(0 == g_flash_store_ready)
@@ -570,6 +581,7 @@ uint8 flash_store_set_start_page(const flash_start_page_t *page)
     return 1;
 }
 
+/* 恢复默认掉电参数。 */
 void flash_store_reset_data(void)
 {
     if(0 == g_flash_store_ready)

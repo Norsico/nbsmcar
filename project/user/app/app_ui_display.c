@@ -4,7 +4,7 @@
 
 #include "app_ui_display.h"
 
-#include "SearchLine.h"
+#include "searchLine.h"
 #include "app_line.h"
 #include "app_ui_flash.h"
 #include "app_ui_library.h"
@@ -48,7 +48,6 @@ typedef enum
 typedef enum
 {
     START_SLOT_SPEED = 0,
-    START_SLOT_ENABLE
 } start_slot_t;
 
 typedef enum
@@ -65,7 +64,7 @@ static const char *g_root_menu_titles[MENU_ROOT_ITEM_COUNT] =
 {
     "Camera View",
     "Param Config",
-    "Start"
+    "Car Speed"
 };
 
 static const char *g_param_menu_titles[MENU_PARAM_MENU_ITEM_COUNT] =
@@ -679,36 +678,17 @@ static void display_menu_steer_pd_adjust_by_step_mul(int8 direction, uint8 step_
 
 static const char *display_menu_get_start_label(start_slot_t slot)
 {
-    if(START_SLOT_SPEED == slot)
-    {
-        return "speed";
-    }
-
-    return "enable";
+    (void)slot;
+    return "speed";
 }
 
 static void display_menu_format_start_value(start_slot_t slot, char *text)
 {
     flash_start_page_t page;
 
+    (void)slot;
     ui_flash_get_start_page(&page);
-    if(START_SLOT_SPEED == slot)
-    {
-        ui_library_format_uint16(page.target_speed, text);
-    }
-    else if(page.enable)
-    {
-        text[0] = 'o';
-        text[1] = 'n';
-        text[2] = '\0';
-    }
-    else
-    {
-        text[0] = 'o';
-        text[1] = 'f';
-        text[2] = 'f';
-        text[3] = '\0';
-    }
+    ui_library_format_uint16(page.target_speed, text);
 }
 
 static void display_menu_draw_start_row(start_slot_t slot)
@@ -767,7 +747,7 @@ static void display_menu_draw_start_info(void)
     ips200_set_color(RGB565_BLACK, RGB565_WHITE);
     ips200_show_string(0, MENU_PARAM_INFO_Y, MENU_PARAM_INFO_CLEAR);
 
-    /* speed 项显示范围提示，enable 项显示确认键用途。 */
+    /* Car Speed 页只显示速度范围提示。 */
     if(START_SLOT_SPEED == g_start_selected)
     {
         if(!g_param_editing)
@@ -793,24 +773,17 @@ static void display_menu_draw_start_info(void)
 
         ips200_set_color(RGB565_BLUE, RGB565_WHITE);
         ips200_show_string(152, MENU_PARAM_INFO_Y, step_text);
-        return;
     }
-
-    ips200_set_color(RGB565_GRAY, RGB565_WHITE);
-    ips200_show_string(0, MENU_PARAM_INFO_Y, "ENT");
-    ips200_set_color(RGB565_BLUE, RGB565_WHITE);
-    ips200_show_string(32, MENU_PARAM_INFO_Y, "toggle");
 }
 
 static void display_menu_draw_start_page_full(void)
 {
     ips200_clear(RGB565_WHITE);
 
-    ui_library_draw_title("Start");
+    ui_library_draw_title("Car Speed");
     display_menu_draw_battery(1);
     ui_library_draw_dash_line(0, MENU_PARAM_INFO_LINE_Y, MENU_PARAM_DIVIDER_W, 10, 6, RGB565_GRAY);
     display_menu_draw_start_row(START_SLOT_SPEED);
-    display_menu_draw_start_row(START_SLOT_ENABLE);
     display_menu_draw_start_info();
 }
 
@@ -830,24 +803,12 @@ static void display_menu_refresh_start_mode(void)
 static void display_menu_refresh_start_value(void)
 {
     display_menu_draw_start_row(START_SLOT_SPEED);
-    display_menu_draw_start_row(START_SLOT_ENABLE);
     display_menu_draw_start_info();
 }
 
 static void display_menu_start_select_up(void)
 {
-    start_slot_t previous_slot = g_start_selected;
-
-    if(START_SLOT_SPEED == g_start_selected)
-    {
-        g_start_selected = START_SLOT_ENABLE;
-    }
-    else
-    {
-        g_start_selected = START_SLOT_SPEED;
-    }
-
-    display_menu_refresh_start_selection(previous_slot);
+    display_menu_refresh_start_selection(g_start_selected);
 }
 
 static void display_menu_start_select_down(void)
@@ -868,11 +829,6 @@ static void display_menu_start_adjust_speed_by_step_mul(int8 direction, uint8 st
     }
 
     ui_flash_adjust_start_speed(delta);
-}
-
-static void display_menu_start_toggle_enable(void)
-{
-    ui_flash_toggle_start_enable();
 }
 
 static void display_menu_draw_root(void)
@@ -986,10 +942,11 @@ void display_menu_init(void)
     g_steer_pd_selected = STEER_PAGE_SLOT_P;
     g_start_selected = START_SLOT_SPEED;
     g_param_editing = 0;
-    /* UI 初始化时先恢复 Start 页缓存，主流程会直接读这个结果定初始状态。 */
+    /* UI 初始化时恢复 Start 页缓存。 */
     ui_flash_init();
 }
 
+/* 按当前页面刷新 UI。 */
 void display_menu_render(void)
 {
     if(DISPLAY_PAGE_CAMERA == g_menu_page)
@@ -1035,6 +992,7 @@ void display_menu_render(void)
     g_menu_dirty = 0;
 }
 
+/* 处理上移输入。 */
 void display_menu_move_up(void)
 {
     if(DISPLAY_PAGE_CAMERA == g_menu_page)
@@ -1100,6 +1058,7 @@ void display_menu_move_up(void)
     display_menu_move_root_selection(1);
 }
 
+/* 处理下移输入。 */
 void display_menu_move_down(void)
 {
     if(DISPLAY_PAGE_CAMERA == g_menu_page)
@@ -1165,6 +1124,7 @@ void display_menu_move_down(void)
     display_menu_move_root_selection(-1);
 }
 
+/* 处理长按上移输入。 */
 void display_menu_move_up_fast(void)
 {
     if(!g_param_editing)
@@ -1190,6 +1150,7 @@ void display_menu_move_up_fast(void)
     }
 }
 
+/* 处理长按下移输入。 */
 void display_menu_move_down_fast(void)
 {
     if(!g_param_editing)
@@ -1215,21 +1176,14 @@ void display_menu_move_down_fast(void)
     }
 }
 
+/* 处理确认键。 */
 void display_menu_enter(void)
 {
-    /* 进入键同时承担翻页、进入编辑和切换启动开关三类操作。 */
+    /* 进入键同时承担翻页和进入编辑两类操作。 */
     if(DISPLAY_PAGE_START == g_menu_page)
     {
-        if(START_SLOT_SPEED == g_start_selected)
-        {
-            g_param_editing = (uint8)!g_param_editing;
-            display_menu_refresh_start_mode();
-        }
-        else
-        {
-            display_menu_start_toggle_enable();
-            display_menu_refresh_start_value();
-        }
+        g_param_editing = (uint8)!g_param_editing;
+        display_menu_refresh_start_mode();
         return;
     }
 
@@ -1291,6 +1245,7 @@ void display_menu_enter(void)
     display_menu_render();
 }
 
+/* 处理返回键。 */
 void display_menu_back(void)
 {
     if(DISPLAY_PAGE_ROOT == g_menu_page)
@@ -1351,6 +1306,7 @@ void display_menu_back(void)
     display_menu_enter_root_page();
 }
 
+/* 强制回到主菜单。 */
 void display_menu_go_root(void)
 {
     if(DISPLAY_PAGE_ROOT == g_menu_page)
@@ -1364,12 +1320,8 @@ void display_menu_go_root(void)
     display_menu_enter_root_page();
 }
 
+/* 当前是否在相机页。 */
 uint8 display_menu_in_camera_view(void)
 {
     return (DISPLAY_PAGE_CAMERA == g_menu_page) ? 1 : 0;
-}
-
-uint8 display_menu_start_is_enabled(void)
-{
-    return ui_flash_start_is_enabled();
 }

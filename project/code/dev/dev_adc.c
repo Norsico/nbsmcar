@@ -8,6 +8,7 @@ static float power_adc_calc_voltage(uint16 value)
 }
 
 // ADC初始化
+/* 初始化电池电压 ADC。 */
 void power_adc_init(void){
 	adc_init(PWOER_ADC_PIN,ADC_RESOLUTION);
 	power_adc_ready = 1;
@@ -17,11 +18,7 @@ static uint16 power_adc_update(void){
 	uint16 value = adc_mean_filter_convert(PWOER_ADC_PIN,3); // 3次采样平均
 	return value;
 }
-/**
- * @brief 判断电池电量,过低报警
- * @note 电阻分压比例 200k ：20k = 10 ：1
-	实际电压为测试值 x 11
-*/
+/* 判断电池电压是否过低。 */
 uint8 power_adc_judge(void){
 	uint8 sign = 0;
 	uint16 value = power_adc_update(); // 获取
@@ -42,6 +39,7 @@ float power_adc_get_voltage(void)
 	return power_adc_calc_voltage(power_adc_update());
 }
 
+/* 查询 ADC 是否已初始化。 */
 uint8 power_adc_is_ready(void)
 {
 	return power_adc_ready;
