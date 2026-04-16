@@ -1,7 +1,7 @@
 /*
  * motor.h
  *
- *  Created on: 2024Äê2ÔÂ27ÈÕ
+ *  Created on: 2024å¹´2æœˆ27æ—¥
  *      Author: xiaoming
  */
 
@@ -10,26 +10,26 @@
 #include "zf_common_headfile.h"
 #include "C_H.h"
 
-#define OX  (50/ 3000.0)  //±ê¶È±ä»»
+#define OX  (50/ 3000.0)  //æ ‡åº¦å˜æ¢
 
 typedef struct //PID
 {
-    long SumError;  //Îó²îÀÛ¼Æ
+    long SumError;  //è¯¯å·®ç´¯è®¡
     int LastError;    //Error[-1]
     int PrevError;    //Error[-2]
     int LastSpeed;    //Speed[-1]
-        float KP;                              //±ÈÀı³£Êı Proportional Const
-        float KI;                                //»ı·Ö³£Êı Integral Const
-        float KD;                              //Î¢·Ö³£Êı Derivative Const
+        float KP;                              //æ¯”ä¾‹å¸¸æ•° Proportional Const
+        float KI;                                //ç§¯åˆ†å¸¸æ•° Integral Const
+        float KD;                              //å¾®åˆ†å¸¸æ•° Derivative Const
 } PID;
 
 
-//void IncPID_Init(PID *sptr,float *MOTOR_PID);                      //ÔöÁ¿Ê½PID²ÎÊı³õÊ¼»¯
-//int PID_Realize(PID *sptr, int ActualSpeed, int SetSpeed);   //ÔöÁ¿Ê½PID¿ØÖÆ
-//int PID_Cascade(PID *sprt, int NowPiont, int SetPoint);      //ÔöÁ¿Ê½´®¼¶PID¿ØÖÆ
+//void IncPID_Init(PID *sptr,float *MOTOR_PID);                      //å¢é‡å¼PIDå‚æ•°åˆå§‹åŒ–
+//int PID_Realize(PID *sptr, int ActualSpeed, int SetSpeed);   //å¢é‡å¼PIDæ§åˆ¶
+//int PID_Cascade(PID *sprt, int NowPiont, int SetPoint);      //å¢é‡å¼ä¸²çº§PIDæ§åˆ¶
 //void pidinitall(void);
 void Control_Speed(void);
-//int range_protect(int duty, int min, int max);  //ÏŞ·ù
+//int range_protect(int duty, int min, int max);  //é™å¹…
 //void CS_control(void);
 void speed_measure(void);
 //void MOTOR_Control(void);
@@ -42,8 +42,8 @@ void seepd_dif(void);
 void Start_gpio_init(void);
 void seepd_dif_two(void);
 #define S3010_MID 2660
-#define S3010_LEFT 3180                 //³µÏò×ó×ª£¨¶æ»úÓÒ´ò£© ´ó
-#define S3010_RIGHT 2140                //³µÏòÓÒ×ª£¨¶æ»ú×ó´ò£© Ğ¡
+#define S3010_LEFT 3180                 //è½¦å‘å·¦è½¬ï¼ˆèˆµæœºå³æ‰“ï¼‰ å¤§
+#define S3010_RIGHT 2140                //è½¦å‘å³è½¬ï¼ˆèˆµæœºå·¦æ‰“ï¼‰ å°
 extern int S3010_Duty;
 //extern float circle_in;
 //extern float circle_out;
@@ -54,25 +54,25 @@ typedef struct {
   int LastError;  // Error[-1]
   int PrevError;  // Error[-2]
   int EC;
-  float Kdin;   //ÈëÍäD
-  float Kdout;  //³öÍäD
+  float Kdin;   //å…¥å¼¯D
+  float Kdout;  //å‡ºå¼¯D
 } PID_Datatypedef;
 
 //typedef struct {
-//  float nowspeed;     // pulse±íÊ¾nowspeed
-//  int expectspeed;    // speed±íÊ¾expectspeed
-//  int motor_duty;     //µç»úÕ¼¿Õ±È
-//  float Length;       //×ß¹ıÂ·³Ì
+//  float nowspeed;     // pulseè¡¨ç¤ºnowspeed
+//  int expectspeed;    // speedè¡¨ç¤ºexpectspeed
+//  int motor_duty;     //ç”µæœºå ç©ºæ¯”
+//  float Length;       //èµ°è¿‡è·¯ç¨‹
 //  int Circle_OUT_th;
-//  int MinSpeed;             //×îµÍËÙ¶È
-//  int MaxSpeed;             //×î¸ßËÙ¶È
-//  float expect_True_speed;  //Êµ¼ÊÆÚÍûËÙ¶È
-//  int straight_speed;       //Ö±µÀËÙ¶È
+//  int MinSpeed;             //æœ€ä½é€Ÿåº¦
+//  int MaxSpeed;             //æœ€é«˜é€Ÿåº¦
+//  float expect_True_speed;  //å®é™…æœŸæœ›é€Ÿåº¦
+//  int straight_speed;       //ç›´é“é€Ÿåº¦
 //} SpeedDatatypedef;
 extern float Speed_P_l,Speed_I_l,Speed_D_l;
 extern float Speed_P_r,Speed_I_r,Speed_D_r;
 extern float Left_Speed_Co, Right_Speed_Co;
 extern int run_flag;
 extern float Disf;
-extern PID_Datatypedef SteerPIDdata;    //¶æ»úµÄPID²ÎÊı
+extern PID_Datatypedef SteerPIDdata;    //èˆµæœºçš„PIDå‚æ•°
 #endif /* MOTOR_H_ */

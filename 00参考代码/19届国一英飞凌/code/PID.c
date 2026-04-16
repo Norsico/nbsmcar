@@ -1,7 +1,7 @@
 /*
  * PID.c
  *
- *  Created on: 2024Äê5ÔÂ5ÈÕ
+ *  Created on: 2024å¹´5æœˆ5æ—¥
  *      Author: Kurumi
  */
 #include "PID.h"
@@ -10,10 +10,10 @@
 _pid pid_Speed_r= {0,0,0        ,0,0,0      ,160,30,200    ,5000.0,   0,0,0,1000.0};         //
 _pid pid_Speed_l= {0,0,0        ,0,0,0      ,160,30,200    ,5000.0,   0,0,0,1000.0};         //
 
-void PID_Motor(_pid *p,float NowPlace)//µç»ú
+void PID_Motor(_pid *p,float NowPlace)//ç”µæœº
 {
     p->err = p->target_val - NowPlace;
-//Î»ÖÃÊ½
+//ä½ç½®å¼
     if(p->actual_val>Duty_max&&p->err<0)    p->integral += p->err  ;
     else if(p->actual_val<Duty_min&&p->err>0) p->integral += p->err;
 
@@ -33,6 +33,6 @@ void PID_Motor(_pid *p,float NowPlace)//µç»ú
 
     p->actual_val = Limit(p->actual_val,Duty_max);
 
-    p->err_previous= p->err_last;    //Îó²î´«µÝ
+    p->err_previous= p->err_last;    //è¯¯å·®ä¼ é€’
     p->err_last    = p->err;
 }
