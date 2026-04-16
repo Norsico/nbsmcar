@@ -77,6 +77,7 @@ static float tuning_param_read_reserved(void)
     return 0.0f;
 }
 
+#if WIFI_TUNING_PARAM_ENABLE
 /* WiFi 下行与 5ms 后轮闭环共用同一组运行量，写 float 时需要避开中断读半截值。 */
 static void tuning_param_apply_target_speed_atomic(float target_speed)
 {
@@ -108,6 +109,7 @@ static void tuning_param_apply_right_pid_atomic(float kp, float ki)
     wheel_pid_right.param.ki = ki;
     EA = interrupt_state;
 }
+#endif
 
 static void tuning_param_reset_profile(void)
 {
@@ -359,8 +361,15 @@ float tuning_param_get(uint8 channel)
 //-------------------------------------------------------------------------------------------------------------------
 void tuning_param_set_callback(uint8 channel, void (*callback)(float))
 {
-    (void)channel;
-    (void)callback;
+    if(channel >= TUNING_PARAM_CHANNEL_MAX)
+    {
+        return;
+    }
+
+    if(0 == callback)
+    {
+        return;
+    }
 }
 
 uint8 tuning_param_is_active(void)

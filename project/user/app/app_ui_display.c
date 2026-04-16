@@ -678,17 +678,26 @@ static void display_menu_steer_pd_adjust_by_step_mul(int8 direction, uint8 step_
 
 static const char *display_menu_get_start_label(start_slot_t slot)
 {
-    (void)slot;
-    return "speed";
+    switch(slot)
+    {
+        case START_SLOT_SPEED:
+        default:
+            return "speed";
+    }
 }
 
 static void display_menu_format_start_value(start_slot_t slot, char *text)
 {
     flash_start_page_t page;
 
-    (void)slot;
     ui_flash_get_start_page(&page);
-    ui_library_format_uint16(page.target_speed, text);
+    switch(slot)
+    {
+        case START_SLOT_SPEED:
+        default:
+            ui_library_format_uint16(page.target_speed, text);
+            break;
+    }
 }
 
 static void display_menu_draw_start_row(start_slot_t slot)

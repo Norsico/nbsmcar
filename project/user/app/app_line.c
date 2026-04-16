@@ -11,7 +11,7 @@ static line_app_preview_mode_t g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
 /* 下发整页相机参数。 */
 static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
 {
-    int16 config[MT9V03X_CONFIG_FINISH][2];
+    short int config[MT9V03X_CONFIG_FINISH][2];
 
     if(0 == page)
     {
@@ -38,7 +38,7 @@ static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
     config[8][0] = MT9V03X_GAIN;
     config[8][1] = page->gain;
 
-    return (0 == mt9v03x_set_config(config)) ? 1 : 0;
+    return (0 == mt9v03x_sccb_set_config(config)) ? 1 : 0;
 }
 
 /* 从 flash 恢复相机参数。 */
