@@ -820,14 +820,14 @@
           <GroupName>code</GroupName>
           <Files>
             <File>
-              <FileName>searchLine.c</FileName>
+              <FileName>search_line.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\searchLine.c</FilePath>
+              <FilePath>..\code\search_line.c</FilePath>
             </File>
             <File>
-              <FileName>searchLine.h</FileName>
+              <FileName>search_line.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\code\searchLine.h</FilePath>
+              <FilePath>..\code\search_line.h</FilePath>
             </File>
             <File>
               <FileName>tuning_param.c</FileName>
