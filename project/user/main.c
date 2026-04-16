@@ -198,13 +198,13 @@ void main(void)
                         if(display_menu_in_camera_view())
                         {
                             // 图像处理
-                            // line_app_process_frame();
+                            line_app_process_frame();
                         }
                     }
                     else
                     {
                         // 关屏状态直接处理
-                        // line_app_process_frame();
+                        line_app_process_frame();
                     }
                 }
 #if IPS_ENABLE
