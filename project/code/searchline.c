@@ -2485,6 +2485,9 @@ static void SearchLine_Binarize_Otsu_Image(void)
 
     threshold = SearchLine_Calc_Otsu_Threshold();
 
+    // threshold = 90;
+
+
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
         for(col = 0; col < SEARCH_LINE_OTSU_W; col++)
