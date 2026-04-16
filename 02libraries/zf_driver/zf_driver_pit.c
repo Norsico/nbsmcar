@@ -48,8 +48,8 @@ callback_function tim_irq_handlers[TIM_RESERVE] = {0};
 //  @param      pit_n      定时器通道号
 //  @param      period     周期值
 //  @return     void
-//  Sample usage:          pit_init(TIM_0, 10)
-//                         使用定时器0做周期中断，时间10ms一次。
+//  Sample usage:          pit_init(TIM_0, 10, pit_handler)
+//                         禁止使用该函数，请使用pit_ms_init或者pit_us_init
 //-------------------------------------------------------------------------------------------------------------------
 void pit_init(pit_index_enum pit_n, uint32 period, callback_function pit_handler)
 {
@@ -247,7 +247,7 @@ void pit_init(pit_index_enum pit_n, uint32 period, callback_function pit_handler
         case TIM0_PIT:
         {
             TM0PS = freq_div;	// 设置分频值
-            TMOD |= 0xF0; 		// 模式 0
+            TMOD &= 0xF0; 		// 模式 0
             TL0 = temp;
             TH0 = temp >> 8;
             TR0 = 1; 			// 启动定时器
@@ -257,7 +257,7 @@ void pit_init(pit_index_enum pit_n, uint32 period, callback_function pit_handler
         case TIM1_PIT:
         {
             TM1PS = freq_div;	// 设置分频值
-            TMOD |= 0x00; 		// 模式 0
+            TMOD &= 0x0F; 		// 模式 0
             TL1 = temp;
             TH1 = temp >> 8;
             TR1 = 1; 			// 启动定时器

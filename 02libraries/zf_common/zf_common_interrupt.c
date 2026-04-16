@@ -84,6 +84,29 @@ void interrupt_set_priority (irqn_type_enum irqn, uint8 priority)
 			case UART8_DMA_IRQn: DMA_UR8R_CFG &= ~(3<<2); DMA_UR8R_CFG |= priority << 2;break;
 
 			case LCM_DMA_IRQn:DMA_LCM_CFG &= ~(3<<2); DMA_LCM_CFG |= priority << 2;break;
+			
+			case P0_INI_IRQ: //P0到P7共用2个字节控制中断优先级
+			case P1_INI_IRQ:
+			case P2_INI_IRQ: 
+			case P3_INI_IRQ: 
+			case P4_INI_IRQ: 
+			case P5_INI_IRQ: 
+			case P6_INI_IRQ: 
+			case P7_INI_IRQ: 
+				if(priority / 2){PINIPH |= (0x01 << (irqn & 0x0f));}
+				else{PINIPH &= ~(0x01 << (irqn & 0x0f));}
+				if(priority % 2){PINIPL |= (0x01 << (irqn & 0x0f));}
+				else{PINIPL |= (0x01 << (irqn & 0x0f));}
+				break;
+			case P8_INI_IRQ: //P8到PB共用2个字节控制中断优先级
+			case P9_INI_IRQ: 
+			case PA_INI_IRQ: 
+			case PB_INI_IRQ: 
+				if(priority / 2){PIN2IPH |= (0x01 << (irqn & 0x0f));}
+				else{PIN2IPH &= ~(0x01 << (irqn & 0x0f));}
+				if(priority % 2){PIN2IPL |= (0x01 << (irqn & 0x0f));}
+				else{PIN2IPL |= (0x01 << (irqn & 0x0f));}
+				break;
 		}
 	}
 }

@@ -95,7 +95,7 @@ typedef enum                                                                    
 // 参数说明     pit_n           使用的 PIT 编号
 // 参数说明     ms              PIT 周期 ms 级别
 // 返回参数     void
-// 使用示例     pit_ms_init(TIM0_PIT, 1);
+// 使用示例     pit_ms_init(TIM0_PIT, 1, pit_handler);
 // 备注信息
 //-------------------------------------------------------------------------------------------------------------------
 #define pit_ms_init(pit_n, ms, pit_handler)  (pit_init((pit_n), (ms) * (system_clock / 1000), (pit_handler)))
@@ -105,7 +105,7 @@ typedef enum                                                                    
 // 参数说明     pit_n           使用的 PIT 编号
 // 参数说明     us              PIT 周期 us 级别
 // 返回参数     void
-// 使用示例     pit_us_init(TIM0_PIT, 100);
+// 使用示例     pit_us_init(TIM0_PIT, 100, pit_handler);
 // 备注信息
 //-------------------------------------------------------------------------------------------------------------------
 #define pit_us_init(pit_n, us, pit_handler)  (pit_init((pit_n), (us) * (system_clock / 1000000), (pit_handler)))

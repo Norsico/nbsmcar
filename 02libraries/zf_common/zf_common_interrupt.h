@@ -82,6 +82,19 @@ typedef enum
 	UART8_DMA_IRQn,
 
 	LCM_DMA_IRQn,
+	
+	P0_INI_IRQ = 0x50,
+	P1_INI_IRQ ,
+	P2_INI_IRQ ,
+	P3_INI_IRQ ,
+	P4_INI_IRQ ,
+	P5_INI_IRQ ,
+	P6_INI_IRQ ,
+	P7_INI_IRQ ,
+	P8_INI_IRQ ,
+	P9_INI_IRQ ,
+	PA_INI_IRQ ,
+	PB_INI_IRQ ,
 
 	// 其余不能设置的，中断优先级全部为最低优先级0
 	// 其余不能设置的，中断优先级全部为最低优先级0

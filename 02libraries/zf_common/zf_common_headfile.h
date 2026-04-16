@@ -65,7 +65,7 @@
 #include "zf_driver_timer.h"
 #include "zf_driver_pwm.h"
 //#include "zf_driver_flash.h"
-//#include "zf_driver_exti.h"
+#include "zf_driver_exti.h"
 #include "zf_driver_delay.h"
 #include "zf_driver_eeprom.h"
 #include "zf_driver_pit.h"
@@ -84,6 +84,7 @@
 #include "zf_device_imu660ra.h"
 #include "zf_device_imu660rb.h"
 #include "zf_device_imu963ra.h"
+#include "zf_device_imu660rc.h"
 
 ////#include "zf_device_oled.h"
 #include "zf_device_tft180.h"

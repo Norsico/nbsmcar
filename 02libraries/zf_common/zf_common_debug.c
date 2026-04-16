@@ -223,7 +223,7 @@ void debug_assert_handler (uint8 pass, char *file, int line)
 // 使用示例     debug_init();
 // 备注信息     开源库示例默认调用 但默认禁用中断接收
 //-------------------------------------------------------------------------------------------------------------------
- void debug_init (void)
+void debug_init (void)
 {
 #if(USER_USB_CDC)
     usb_cdc_init();
