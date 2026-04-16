@@ -4,7 +4,7 @@
 
 #include "app_ui_display.h"
 
-#include "searchline.h"
+#include "search_line.h"
 #include "app_line.h"
 #include "app_ui_flash.h"
 #include "app_ui_library.h"
