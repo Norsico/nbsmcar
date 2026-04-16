@@ -53,14 +53,12 @@ void ackerman_calc_wheel_speeds(float speed, float steer_angle)
 
     // 阿克曼差速因子: v_dif = (tread_width / wheelbase) * tan(δ)
     tan_delta = tan(steer_angle * 3.1415926f / 180.0f);
-    v_dif = (CAR_TREAD_WIDTH / CAR_WHEELBASE) * tan_delta;
+    v_dif = 0.5088 * tan_delta;
 
-    // 左右轮速度计算
-    // δ > 0 表示右转，此时左后轮应略快、右后轮应略慢
-    // v_left  = speed * (1 + v_dif/2)
-    // v_right = speed * (1 - v_dif/2)
-    ackerman_kinematic.left_wheel_speed = speed * (1.0f + v_dif / 2.0f);
-    ackerman_kinematic.right_wheel_speed = speed * (1.0f - v_dif / 2.0f);
+    
+    if (steer_angle>0) {ackerman_kinematic.right_wheel_speed = speed;ackerman_kinematic.left_wheel_speed = speed * (1.0f + v_dif);}
+    else {ackerman_kinematic.left_wheel_speed = speed;ackerman_kinematic.right_wheel_speed = speed * (1.0f - v_dif);}
+
 }
 
 /**

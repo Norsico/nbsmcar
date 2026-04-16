@@ -118,13 +118,13 @@ static uint8 line_app_handle_frame(void)
     {
         return 0;
     }
-
+    mt9v03x_finish_flag = 0;
     SearchLine_Process();
     raw_threshold = SearchLine_GetRawOtsuThreshold();
     if((SYS_RUNNING == g_system_state) && (raw_threshold < 40))
     {
         /* 运行态阈值过低时转急停。 */
-        system_error = 1;
+        // system_error = 1;
         g_system_state = SYS_EMERGENCY;
     }
     if(SYS_EMERGENCY != g_system_state)
@@ -132,7 +132,7 @@ static uint8 line_app_handle_frame(void)
         /* 当前舵机命令直接下发到前轮。 */
         car_servo_set_angle(SearchLine_GetSteerCommand());
     }
-    mt9v03x_finish_flag = 0;
+    
     return 1;
 }
 

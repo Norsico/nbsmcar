@@ -99,14 +99,14 @@ pid_control_t wheel_pid_right;
 static void wheel_pid_init_left(void)
 {
     /* 左轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_left, 0.0f, 0.0f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_left, 10.4f, 0.37f, 0.0f, 9900.0f, -9900.0f);
     pid_init(&wheel_pid_left);
 }
 
 static void wheel_pid_init_right(void)
 {
     /* 右轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_right, 0.0f, 0.0f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_right, 10.4f, 0.37f, 0.0f, 9900.0f, -9900.0f);
     pid_init(&wheel_pid_right);
 }
 
@@ -169,7 +169,7 @@ static void car_wheel_update_reference_target(void)
 
     steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
 
-    ackerman_calc_wheel_speeds(car_wheel_target_speed, 0);
+    ackerman_calc_wheel_speeds(car_wheel_target_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();
     ref_right_target = ackerman_get_right_speed();
 
