@@ -19,7 +19,7 @@ vuint32 g_display_ticks = 0;                          // 显示刷新计时器
 #if WIFI_ENABLE
 vuint32 g_wifi_ticks = 0;                             // WiFi任务计时器
 #endif
-
+	
 vuint8 g_flag_key = 0;                                // 按键扫描标志：1表示需要执行按键扫描
 vuint8 g_flag_imu = 0;                               // IMU读取标志：1表示需要读取IMU数据
 vuint8 g_flag_encoder = 0;														// 编码器处理标志
@@ -67,7 +67,7 @@ void system_tick_handler(void)
     }
 #endif
 #if WIFI_ENABLE
-    // WiFi任务 50ms
+    /* WiFi 调参按 10ms 节拍取包，避免下行积压过久。 */
     if(g_system_ticks - g_wifi_ticks >= WIFI_PERIOD){
         g_wifi_ticks = g_system_ticks;
         g_flag_wifi = 1;

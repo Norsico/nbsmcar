@@ -167,7 +167,7 @@ static void car_wheel_update_reference_target(void)
 {
     float steer_angle = 0.0f;
 
-    // steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
+    steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
 
     ackerman_calc_wheel_speeds(car_wheel_target_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();

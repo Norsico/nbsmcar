@@ -7,12 +7,12 @@
 #define FLASH_STEER_P_MIN_TENTH         (0)
 #define FLASH_STEER_P_MAX_TENTH         (600)
 #define FLASH_STEER_P_STEP_TENTH        (20)
-#define FLASH_STEER_P_DEFAULT_TENTH     (0)
+#define FLASH_STEER_P_DEFAULT_TENTH     (240)
 /* Steer D，单位 0.1。 */
 #define FLASH_STEER_D_MIN_TENTH         (0)
 #define FLASH_STEER_D_MAX_TENTH         (800)
-#define FLASH_STEER_D_STEP_TENTH        (0)
-#define FLASH_STEER_D_DEFAULT_TENTH     (20)
+#define FLASH_STEER_D_STEP_TENTH        (20)
+#define FLASH_STEER_D_DEFAULT_TENTH     (40)
 
 /* 摄像头参数按原生整数值存档。 */
 #define FLASH_CAMERA_AUTO_EXP_MIN       (0)     /* 自动曝光下限：0 表示关闭自动曝光。 */

@@ -23,7 +23,7 @@ typedef enum {
 #define ENCODER_PERIOD 5                // 编码器采样周期 5ms (200Hz)，对齐 19 国一电机闭环节拍。
 #define CENTER_PERIOD 10				// 搜索中心周期 10ms (100Hz)
 #define DISPLAY_PERIOD 100              // 显示刷新周期 100ms (10Hz)
-#define WIFI_PERIOD 50                  // WiFi任务周期 50ms (20Hz)
+#define WIFI_PERIOD 10                  // WiFi任务周期 10ms，调参收包按更快节拍处理。
 
 #define LED_DEBUG (IO_P52)              // 调试LED引脚
 
@@ -38,7 +38,7 @@ typedef enum {
 /* 屏幕功能编译开关：打开后可通过拨码切到 UI 屏幕模式。 */
 #define IPS_ENABLE  (1)
 /* WiFi 参数下行编译开关：0 只发示波器，1 额外打开调参下行。 */
-#define WIFI_TUNING_PARAM_ENABLE (0)
+#define WIFI_TUNING_PARAM_ENABLE (1)
 /************ 全局变量 ************/
 // 系统状态
 extern volatile system_state_t g_system_state;  // 系统当前状态
@@ -56,7 +56,6 @@ extern vuint32 g_display_ticks;          // 显示刷新计时器
 #if WIFI_ENABLE
 extern vuint32 g_wifi_ticks;             // WiFi任务计时器
 #endif
-
 // 任务标志位
 extern vuint8 g_flag_key;                         // 按键扫描标志
 extern vuint8 g_flag_imu;                          // IMU读取标志

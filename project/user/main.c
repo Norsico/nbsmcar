@@ -198,13 +198,13 @@ void main(void)
                         if(display_menu_in_camera_view())
                         {
                             // 图像处理
-                            line_app_process_frame();
+                            // line_app_process_frame();
                         }
                     }
                     else
                     {
                         // 关屏状态直接处理
-                        line_app_process_frame();
+                        // line_app_process_frame();
                     }
                 }
 #if IPS_ENABLE
@@ -223,12 +223,12 @@ void main(void)
 #endif
 #if WIFI_ENABLE
                 if(switch_wifi_enabled()){
-                    /* WiFi 下行调参需要尽快取走收包，避免主循环忙时 50ms 标志被挤掉。 */
+                    /* WiFi 任务按 10ms 节拍执行，避免主循环乱序冲掉调参口径。 */
                     if(g_flag_wifi)
                     {
                         g_flag_wifi = 0;
+                        tuning_param_task();
                     }
-                    tuning_param_task();
                 }
 #endif
                 break;
