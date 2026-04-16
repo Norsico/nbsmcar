@@ -174,6 +174,20 @@ void main(void)
                 if(g_flag_encoder){
                     // 编码器 5ms
                     g_flag_encoder = 0;
+                    if((SYS_RUNNING != g_system_state) ||
+                       switch_ui_enabled() ||
+                       (switch_wifi_enabled() && !wifi_is_initialized()))
+                    {
+                        // 屏幕打开 or WiFi没连成功不开电机
+                        encoder_clear();
+                    }
+                    else
+                    {
+                        // 更新编码器
+                        encoder_update();
+                        // 更新电机
+                        car_wheel_update();
+                    }
                 }
                 if(g_flag_center){
                     // 图像处理 10ms

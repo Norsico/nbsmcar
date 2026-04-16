@@ -47,7 +47,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 				gpio_set_level(RIGHT_MOTOR_DIR_PIN,GPIO_HIGH);
 				duty = (uint32)(-speed) * (PWM_DUTY_MAX / 100);				
 			}
-			pwm_set_duty(RIGHT_MOTOR_PWM_PIN, 0);
+			pwm_set_duty(RIGHT_MOTOR_PWM_PIN, duty);
 		}
 		else if (wheel == LEFT_MOTOR){
 			// 左电机
@@ -59,7 +59,7 @@ void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 				gpio_set_level(LEFT_MOTOR_DIR_PIN,GPIO_LOW);
 				duty = (uint32)(-speed) * (PWM_DUTY_MAX / 100);				
 			}
-			pwm_set_duty(LEFT_MOTOR_PWM_PIN, 0);			
+			pwm_set_duty(LEFT_MOTOR_PWM_PIN, duty);			
 		}
 }
 
@@ -230,6 +230,7 @@ static void car_wheel_update_right(void)
 			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
 			if(speed_percent < -CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = -CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 		}
+		
 		car_wheel_set_speed(RIGHT_MOTOR,speed_percent);
 }
 // 车轮速度更新函数
@@ -249,6 +250,7 @@ void car_wheel_update(void)
 	pid_incremental_pi(&wheel_pid_left,current_left,wheel_pid_left.target);
 	pid_incremental_pi(&wheel_pid_right,current_right,wheel_pid_right.target);
 	// 电机控制
-	car_wheel_update_left();
 	car_wheel_update_right();
+	car_wheel_update_left();
+	
 }
