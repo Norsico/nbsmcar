@@ -5,7 +5,7 @@
 #include "dev_servo.h"
 #include "dev_wheel.h"
 
-static uint8 line_camera_ready = 0;
+static uint8 line_camera_ready = 0; // 摄像头是否初始化完成
 static line_app_preview_mode_t g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
 
 /* 下发整页相机参数。 */
@@ -65,6 +65,7 @@ void line_app_render_frame(void)
 {
     if(!line_camera_ready)
     {
+        // 摄像头未初始化
         return;
     }
 
@@ -107,10 +108,9 @@ line_app_preview_mode_t line_app_get_preview_mode(void)
 /* 处理一帧图像并更新前轮输出。 */
 static uint8 line_app_handle_frame(void)
 {
-    uint8 raw_threshold = 0;
-
     if(!line_camera_ready)
     {
+        // 摄像头未初始化
         return 0;
     }
 
@@ -118,20 +118,12 @@ static uint8 line_app_handle_frame(void)
     {
         return 0;
     }
-    mt9v03x_finish_flag = 0;
+
+    // 处理图像
     SearchLine_Process();
-    raw_threshold = SearchLine_GetRawOtsuThreshold();
-    if((SYS_RUNNING == g_system_state) && (raw_threshold < 40))
-    {
-        /* 运行态阈值过低时转急停。 */
-        // system_error = 1;
-        g_system_state = SYS_EMERGENCY;
-    }
-    if(SYS_EMERGENCY != g_system_state)
-    {
-        /* 当前舵机命令直接下发到前轮。 */
-        car_servo_set_angle(SearchLine_GetSteerCommand());
-    }
+
+    /* 当前舵机命令直接下发到前轮。 */
+    car_servo_set_angle(SearchLine_GetSteerCommand());
     
     return 1;
 }
@@ -162,7 +154,7 @@ void line_app_init(void)
 
     line_app_apply_camera_page_from_flash();
     line_app_apply_steer_pd_page_from_flash();
-    line_camera_ready = 1;
+    line_camera_ready = 1; // 摄像头初始化OK
 
 #if IPS_ENABLE
     if(switch_ui_enabled())
@@ -186,6 +178,7 @@ uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value)
 
     if(!line_camera_ready)
     {
+        // 摄像头未初始化
         return 0;
     }
 

@@ -1,32 +1,17 @@
 #include "search_line.h"
 #include "dev_flash.h"
+#include "dev_encoder.h"
 #include "dev_other.h"
 #include "dev_servo.h"
 #include "dev_wheel.h"
 #include "system_state.h"
 
-#define SEARCH_LINE_OTSU_W                  (80)
-#define SEARCH_LINE_OTSU_H                  (60)
-#define SEARCH_LINE_OTSU_BOTTOM_ROW         (SEARCH_LINE_OTSU_H - 1)
-#define SEARCH_LINE_OTSU_BOTTOM_INIT_ROW    (55)
-#define SEARCH_LINE_OTSU_OFFLINE_MIN        (2)
+#define SEARCH_LINE_OTSU_W                  (LCDW)
+#define SEARCH_LINE_OTSU_H                  (LCDH)
 #define SEARCH_LINE_OTSU_THRESHOLD_MIN      (0)
 #define SEARCH_LINE_OTSU_THRESHOLD_CAP      (180)
 #define SEARCH_LINE_OTSU_THRESHOLD_STATIC   (70)
-/* OTSU 阈值重算周期。
- * 1 表示每帧都重算。
- * 2-20 表示隔 N 帧重算一次，中间帧直接复用上一次阈值。
- * 当前取 10。
- */
-#define SEARCH_LINE_OTSU_THRESHOLD_INTERVAL (10)
-#define SEARCH_LINE_OTSU_PIXEL_FILTER_ENABLE (0)
-#define SEARCH_LINE_OTSU_LEFT_COMP_END      (15)
-#define SEARCH_LINE_OTSU_RIGHT_COMP_START   (65)
-#define SEARCH_LINE_OTSU_MIN_WIDTH          (7)
-#define SEARCH_LINE_OTSU_EDGE_LIMIT         (10)
-#define SEARCH_LINE_OTSU_SCAN_WINDOW        (2)
-#define SEARCH_LINE_OTSU_MIDDLE_LINE        (SEARCH_LINE_OTSU_W / 2 - 1)
-#define SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW (SEARCH_LINE_OTSU_H - 2)
+
 /* 普通赛道基础前瞻行。 */
 #define SEARCH_LINE_OTSU_DET_TOW_POINT      (27)
 #define SEARCH_LINE_OTSU_DET_WINDOW         (5)
@@ -49,18 +34,18 @@
 #define SEARCH_LINE_STATE_FOUND             ('T') /* 找到跳变边界。 */
 #define SEARCH_LINE_STATE_WHITE             ('W') /* 扫描窗内全白，当前侧无明确边界。 */
 #define SEARCH_LINE_STATE_BLACK             ('H') /* 扫描窗内全黑，当前侧搜索失败。 */
-#define SEARCH_LINE_ROAD_NORMAL             (0)
-#define SEARCH_LINE_ROAD_STRAIGHT           (1)
-#define SEARCH_LINE_ROAD_CROSS              (2)
-#define SEARCH_LINE_ROAD_RAMP               (3)
-#define SEARCH_LINE_ROAD_LEFT_CIRQUE        (4)
-#define SEARCH_LINE_ROAD_RIGHT_CIRQUE       (5)
-#define SEARCH_LINE_ROAD_FORK_IN            (6)
-#define SEARCH_LINE_ROAD_FORK_OUT           (7)
-#define SEARCH_LINE_ROAD_BARN_OUT           (8)
-#define SEARCH_LINE_ROAD_BARN_IN            (9)
-#define SEARCH_LINE_ROAD_CROSS_TRUE         (10)
-#define SEARCH_LINE_ROAD_ZEBRA              (11)
+#define SEARCH_LINE_ROAD_NORMAL             (Normol)
+#define SEARCH_LINE_ROAD_STRAIGHT           (Straight)
+#define SEARCH_LINE_ROAD_CROSS              (Cross)
+#define SEARCH_LINE_ROAD_RAMP               (Ramp)
+#define SEARCH_LINE_ROAD_LEFT_CIRQUE        (LeftCirque)
+#define SEARCH_LINE_ROAD_RIGHT_CIRQUE       (RightCirque)
+#define SEARCH_LINE_ROAD_FORK_IN            (Forkin)
+#define SEARCH_LINE_ROAD_FORK_OUT           (Forkout)
+#define SEARCH_LINE_ROAD_BARN_OUT           (Barn_out)
+#define SEARCH_LINE_ROAD_BARN_IN            (Barn_in)
+#define SEARCH_LINE_ROAD_CROSS_TRUE         (Cross_ture)
+#define SEARCH_LINE_ROAD_ZEBRA              (Zebra_Flag)
 
 /* 边界跟踪前进规则，口径对齐 19 国一 Search_Left_and_Right_Lines。 */
 static const int8 SearchLine_Otsu_Left_Rule[2][8] =
@@ -74,77 +59,57 @@ static const int8 SearchLine_Otsu_Right_Rule[2][8] =
     {1, -1, 1, 1, -1, 1, -1, -1}
 };
 
-/* 80x60 灰度压缩图。 */
-static uint8 SearchLine_Otsu_Gray[SEARCH_LINE_OTSU_H][SEARCH_LINE_OTSU_W] = {0};
-/* 80x60 二值图。 */
-static uint8 SearchLine_Otsu_Binary[SEARCH_LINE_OTSU_H][SEARCH_LINE_OTSU_W] = {0};
-/* OTSU 直方图统计。 */
-static uint16 SearchLine_Otsu_Histogram[256] = {0};
-/* 原图到压缩图的行映射。 */
-static uint8 SearchLine_Otsu_Row_Map[SEARCH_LINE_OTSU_H] = {0};
-/* 原图到压缩图的列映射。 */
-static uint8 SearchLine_Otsu_Col_Map[SEARCH_LINE_OTSU_W] = {0};
+/* 压缩灰度图和二值图直接按国一口径导出。 */
+IFX_ALIGN(4) uint8 Image_Use[LCDH][LCDW] = {0};
+IFX_ALIGN(4) uint8 Pixle[LCDH][LCDW] = {0};
+ImageStatustypedef ImageStatus =
+{
+    SEARCH_LINE_OTSU_DET_TOW_POINT,
+    0,
+    0,
+    0,
+    SEARCH_LINE_OTSU_THRESHOLD_STATIC,
+    SEARCH_LINE_OTSU_THRESHOLD_CAP
+};
+ImageDealDatatypedef ImageDeal[LCDH] = {0};
+int ImageScanInterval = 2;
+int ImageScanInterval_Cross = 2;
 /* 底部初始化后的左边界。 */
 static uint8 SearchLine_Otsu_Left_Border[SEARCH_LINE_OTSU_H] = {0};
 /* 底部初始化后的右边界。 */
 static uint8 SearchLine_Otsu_Right_Border[SEARCH_LINE_OTSU_H] = {0};
-/* 底部初始化后的中线。 */
-static uint8 SearchLine_Otsu_Center_Line[SEARCH_LINE_OTSU_H] = {0};
 /* 当前行是否已经完成底边初始化。 */
 static uint8 SearchLine_Otsu_Row_Valid[SEARCH_LINE_OTSU_H] = {0};
-/* 左边界状态。 */
-static uint8 SearchLine_Otsu_Left_State[SEARCH_LINE_OTSU_H] = {0};
-/* 右边界状态。 */
-static uint8 SearchLine_Otsu_Right_State[SEARCH_LINE_OTSU_H] = {0};
-/* 19 国一圆环链依赖的第一组边界跟踪结果。 */
-static uint8 SearchLine_Otsu_Left_Boundary_First[SEARCH_LINE_OTSU_H] = {0};
-/* 19 国一圆环链依赖的第一组边界跟踪结果。 */
-static uint8 SearchLine_Otsu_Right_Boundary_First[SEARCH_LINE_OTSU_H] = {0};
-/* 19 国一圆环链依赖的第二组边界跟踪结果。 */
-static uint8 SearchLine_Otsu_Left_Boundary[SEARCH_LINE_OTSU_H] = {0};
-/* 19 国一圆环链依赖的第二组边界跟踪结果。 */
-static uint8 SearchLine_Otsu_Right_Boundary[SEARCH_LINE_OTSU_H] = {0};
-static uint8 SearchLine_Otsu_Left_Extend_Allowed = 1;
-static uint8 SearchLine_Otsu_Right_Extend_Allowed = 1;
-static uint8 SearchLine_Otsu_Map_Ready = 0;
-static uint8 SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
-static uint8 SearchLine_Otsu_Offline_Boundary_Row = 5;
-/* 对齐参考代码的单边丢线计数。 */
-static uint8 SearchLine_Otsu_Left_Line = 0;
-static uint8 SearchLine_Otsu_Right_Line = 0;
-static uint8 SearchLine_Otsu_White_Line = 0;
-static uint8 SearchLine_Otsu_White_Line_Left = 0;
-static uint8 SearchLine_Otsu_White_Line_Right = 0;
-/* 对齐参考代码的前瞻行和加权中线。 */
-static uint8 SearchLine_Otsu_TowPoint_True = SEARCH_LINE_OTSU_DET_TOW_POINT;
-static uint8 SearchLine_Otsu_Det_True = SEARCH_LINE_OTSU_MIDDLE_LINE;
-/* 对齐参考代码的直道判定结果。 */
-static uint8 SearchLine_Otsu_Straight_Acc = 0;
-static uint16 SearchLine_Otsu_Variance_Acc = 0;
+static int Ysite = 0, Xsite = 0;
+static uint8 *PicTemp = 0;
+static int IntervalLow = 0, IntervalHigh = 0;
+static int ytemp = 0;
+static int TFSite = 0, FTSite = 0;
+static float DetR = 0, DetL = 0;
+static int BottomBorderRight = 79, BottomBorderLeft = 0, BottomCenter = 0;
+/* 当前阶段先把边界观测缓存名收回到国一口径。 */
+static uint8 LeftBoundary_First[SEARCH_LINE_OTSU_H] = {0};
+static uint8 RightBoundary_First[SEARCH_LINE_OTSU_H] = {0};
+static uint8 LeftBoundary[SEARCH_LINE_OTSU_H] = {0};
+static uint8 RightBoundary[SEARCH_LINE_OTSU_H] = {0};
+static uint8 ExtenLFlag = 0;
+static uint8 ExtenRFlag = 0;
 /* 对齐参考代码的舵机位置式 PD 预览量。 */
 static int16 SearchLine_Otsu_Steer_Offset = 0;
 static uint8 SearchLine_Otsu_Steer_Command = CAR_SERVO_CENTER_ANGLE;
 static uint16 SearchLine_Otsu_Steer_P_Tenth = FLASH_STEER_P_DEFAULT_TENTH;
 static uint16 SearchLine_Otsu_Steer_D_Tenth = FLASH_STEER_D_DEFAULT_TENTH;
 static float SearchLine_Otsu_Steer_Last_Error = 0.0f;
-static uint8 SearchLine_Otsu_Threshold_Raw_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
-static uint8 SearchLine_Otsu_Threshold_Cache = SEARCH_LINE_OTSU_THRESHOLD_MIN;
-static uint8 SearchLine_Otsu_Threshold_Frame_Count = 0;
-static uint8 SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
 /* 当前工程未接岔路状态源。 */
 static uint8 SearchLine_Otsu_Fork_Down = 0;
-static uint8 SearchLine_Otsu_Cirque_Out_In = 'F';
-static uint8 SearchLine_Otsu_Cirque_Pass = 'F';
-static uint8 SearchLine_Otsu_Cirque_Out = 'F';
-static uint8 SearchLine_Otsu_Cirque_Off = 'F';
 static uint8 SearchLine_Otsu_Ring_Element = 0;
 static uint8 SearchLine_Otsu_Ring_Size = 0;
 static uint8 SearchLine_Otsu_Ring_Flag = 0;
-static uint8 SearchLine_Otsu_Cirque_Left_Count = 0;
-static uint8 SearchLine_Otsu_Cirque_Right_Count = 0;
-static uint16 SearchLine_Otsu_Ring_Stage_Num = 0;
-static uint16 SearchLine_Otsu_Ring_Point_Y = 0;
-static int16 SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
+static uint8 Cirque_Left_Count = 0;
+static uint8 Cirque_Right_Count = 0;
+static uint16 Ring_Stage_Num = 0;
+static uint16 Ring_Point_Y = 0;
+static int16 Ring_Straight_Judge_Tenth = -1;
 static uint32 SearchLine_Ring_Beep_Stop_Tick = 0;
 static uint8 SearchLine_Preview_Label_Ready = 0;
 static uint8 SearchLine_Preview_Last_Threshold = 0xFF;
@@ -164,12 +129,35 @@ static uint8 SearchLine_Preview_Last_Ring_Right_Line_RightPanel = 0xFF;
 static uint16 SearchLine_Preview_Last_Ring_Stage_Num = 0xFFFF;
 static uint16 SearchLine_Preview_Last_Ring_Point_Y = 0xFFFF;
 static int16 SearchLine_Preview_Last_Ring_Straight_Judge_Tenth = 32767;
-static float SearchLine_Otsu_Det_Weight[SEARCH_LINE_OTSU_DET_WEIGHT_COUNT] =
+float Det = 0;
+float Mh = MT9V03X_H;
+float Lh = LCDH;
+float Mw = MT9V03X_W;
+float Lw = LCDW;
+
+#define SearchLine_Otsu_Left_Boundary_First LeftBoundary_First
+#define SearchLine_Otsu_Right_Boundary_First RightBoundary_First
+#define SearchLine_Otsu_Left_Boundary LeftBoundary
+#define SearchLine_Otsu_Right_Boundary RightBoundary
+#define SearchLine_Otsu_Offline_Row ImageStatus.OFFLine
+#define SearchLine_Otsu_Left_Line ImageStatus.Left_Line
+#define SearchLine_Otsu_Right_Line ImageStatus.Right_Line
+#define SearchLine_Otsu_White_Line ImageStatus.WhiteLine
+#define SearchLine_Otsu_White_Line_Left ImageStatus.WhiteLine_L
+#define SearchLine_Otsu_White_Line_Right ImageStatus.WhiteLine_R
+#define SearchLine_Otsu_TowPoint_True ImageStatus.TowPoint_True
+#define SearchLine_Otsu_Det_True ImageStatus.Det_True
+#define SearchLine_Otsu_Cirque_Left_Count Cirque_Left_Count
+#define SearchLine_Otsu_Cirque_Right_Count Cirque_Right_Count
+#define SearchLine_Otsu_Ring_Stage_Num Ring_Stage_Num
+#define SearchLine_Otsu_Ring_Point_Y Ring_Point_Y
+#define SearchLine_Otsu_Ring_Straight_Judge_Tenth Ring_Straight_Judge_Tenth
+static float Weighting[SEARCH_LINE_OTSU_DET_WEIGHT_COUNT] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
     0.71f, 0.65f, 0.59f, 0.53f, 0.47f
 };
-static const uint8 SearchLine_Otsu_Half_Road_Wide[SEARCH_LINE_OTSU_H] =
+static const uint8 Half_Road_Wide[SEARCH_LINE_OTSU_H] =
 {
     6, 7, 7, 8, 8, 9, 9, 9, 10, 10,
     11, 11, 11, 11, 11, 12, 12, 13, 13, 14,
@@ -179,94 +167,56 @@ static const uint8 SearchLine_Otsu_Half_Road_Wide[SEARCH_LINE_OTSU_H] =
     26, 26, 26, 26, 27, 27, 27, 28, 28, 30
 };
 
-static int32 SearchLine_Limit_Int32(int32 value, int32 limit1, int32 limit2)
+static int Limit(int value, int numH, int numL)
 {
-    int32 temp = 0;
+    int temp = 0;
 
-    if(limit1 > limit2)
+    if(numH < numL)
     {
-        temp = limit1;
-        limit1 = limit2;
-        limit2 = temp;
+        temp = numH;
+        numH = numL;
+        numL = temp;
     }
 
-    if(value < limit1)
+    if(value > numH)
     {
-        return limit1;
+        value = numH;
     }
-
-    if(value > limit2)
+    if(value < numL)
     {
-        return limit2;
+        value = numL;
     }
-
     return value;
 }
 
-/* 行列映射表初始化。 */
-static void SearchLine_Init_Otsu_Map(void)
+/* 当前先按整幅相机图压缩，处理口径直接对齐国一。 */
+void compressimage(void)
 {
-    uint16 row = 0;
-    uint16 col = 0;
-    uint32 scaled_value = 0;
-    float row_scale = 0.0f;
-    float col_scale = 0.0f;
+    int i, j, row, line;
+    const float div_h = Mh / Lh, div_w = Mw / Lw;
 
-    if(SearchLine_Otsu_Map_Ready)
+    for(i = 0; i < LCDH; i++)
     {
-        return;
-    }
+        row = i * div_h + 0.5f;
 
-    row_scale = (float)CAMERA_RAW_H / (float)SEARCH_LINE_OTSU_H;
-    col_scale = (float)CAMERA_RAW_W / (float)SEARCH_LINE_OTSU_W;
-
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
-    {
-        scaled_value = (uint32)((float)row * row_scale + 0.5f);
-        SearchLine_Otsu_Row_Map[row] =
-            (uint8)SearchLine_Limit_Int32((int32)scaled_value, 0, CAMERA_RAW_H - 1);
-    }
-
-    for(col = 0; col < SEARCH_LINE_OTSU_W; col++)
-    {
-        scaled_value = (uint32)((float)col * col_scale + 0.5f);
-        SearchLine_Otsu_Col_Map[col] =
-            (uint8)SearchLine_Limit_Int32((int32)scaled_value, 0, CAMERA_LAST_VALID_COL);
-    }
-
-    SearchLine_Otsu_Map_Ready = 1;
-}
-
-/* 图像压缩。 */
-static void SearchLine_Compress_Otsu_Image(void)
-{
-    uint16 row = 0;
-    uint16 col = 0;
-
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
-    {
-        for(col = 0; col < SEARCH_LINE_OTSU_W; col++)
+        for(j = 0; j < LCDW; j++)
         {
-            SearchLine_Otsu_Gray[row][col] =
-                mt9v03x_image[SearchLine_Otsu_Row_Map[row]][SearchLine_Otsu_Col_Map[col]];
+            line = j * div_w + 0.5f;
+            Image_Use[i][j] = mt9v03x_image[row][line];
         }
     }
-}
-
-static uint8 SearchLine_Get_Otsu_Gray(uint8 row, uint8 col)
-{
-    return SearchLine_Otsu_Gray[row][col];
+    mt9v03x_finish_flag = 0;  /* 使用完一帧 DMA 图像后允许下一帧继续搬运。 */
 }
 
 static uint8 SearchLine_Get_Otsu_Binary_Pixel(int16 row, int16 col)
 {
-    if((row <= 0) || (row >= (SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW + 1)) ||
+    if((row <= 0) || (row >= (59)) ||
        (col <= 0) || (col >= (SEARCH_LINE_OTSU_W - 1)))
     {
         return 0;
     }
 
-    return SearchLine_Otsu_Binary[row][col];
+    return Pixle[row][col];
 }
 
 /* 圆环支线缓存初始化。 */
@@ -274,9 +224,7 @@ static void SearchLine_Clear_Otsu_BorderTraceState(void)
 {
     uint16 row = 0;
 
-    SearchLine_Otsu_Offline_Boundary_Row = 5;
-    SearchLine_Otsu_White_Line_Left = 0;
-    SearchLine_Otsu_White_Line_Right = 0;
+    ImageStatus.OFFLineBoundary = 5;
 
     for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
     {
@@ -287,41 +235,12 @@ static void SearchLine_Clear_Otsu_BorderTraceState(void)
     }
 }
 
-/* 底边状态初始化。 */
-static void SearchLine_Clear_Otsu_State(void)
-{
-    uint16 row = 0;
-
-    SearchLine_Otsu_Offline_Row = SEARCH_LINE_OTSU_OFFLINE_MIN;
-    SearchLine_Otsu_Left_Extend_Allowed = 1;
-    SearchLine_Otsu_Right_Extend_Allowed = 1;
-    SearchLine_Otsu_Left_Line = 0;
-    SearchLine_Otsu_Right_Line = 0;
-    SearchLine_Otsu_White_Line = 0;
-    SearchLine_Otsu_Cirque_Left_Count = 0;
-    SearchLine_Otsu_Cirque_Right_Count = 0;
-    SearchLine_Otsu_Ring_Stage_Num = 0;
-    SearchLine_Otsu_Ring_Point_Y = 0;
-    SearchLine_Otsu_Ring_Straight_Judge_Tenth = -1;
-    SearchLine_Clear_Otsu_BorderTraceState();
-
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
-    {
-        SearchLine_Otsu_Left_Border[row] = 0;
-        SearchLine_Otsu_Right_Border[row] = SEARCH_LINE_OTSU_W - 1;
-        SearchLine_Otsu_Center_Line[row] = SEARCH_LINE_OTSU_MIDDLE_LINE;
-        SearchLine_Otsu_Row_Valid[row] = 0;
-        SearchLine_Otsu_Left_State[row] = SEARCH_LINE_STATE_INIT;
-        SearchLine_Otsu_Right_State[row] = SEARCH_LINE_STATE_INIT;
-    }
-}
-
 /* 19 国一 Search_Border_OTSU 的边界跟踪支线。
  * 这一支只更新观测缓存，不改主链左右边界。
  */
-static void SearchLine_Search_Border_Otsu(void)
+static void Search_Border_OTSU(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
 {
-    uint8 bottom_row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW;
+    uint8 bottom_row = 58;
     uint8 trace_row = 0;
     uint8 left_y = 0;
     uint8 left_x = 0;
@@ -338,11 +257,19 @@ static void SearchLine_Search_Border_Otsu(void)
     int16 next_row = 0;
     int16 next_col = 0;
     int16 probe_delta = 0;
-    int16 center_col = SEARCH_LINE_OTSU_W / 2 - 1;
+    int16 center_col = ImageSensorMid;
     int16 col = 0;
 
-    if((SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW >= SEARCH_LINE_OTSU_H) ||
-       !SearchLine_Otsu_Row_Valid[bottom_row])
+    (void)imageInput;
+    (void)Row;
+    (void)Col;
+    bottom_row = Bottonline;
+
+    SearchLine_Otsu_White_Line_Left = 0;
+    SearchLine_Otsu_White_Line_Right = 0;
+    SearchLine_Clear_Otsu_BorderTraceState();
+
+    if(!SearchLine_Otsu_Row_Valid[bottom_row])
     {
         return;
     }
@@ -385,15 +312,15 @@ static void SearchLine_Search_Border_Otsu(void)
         guard++;
         if(guard > 400)
         {
-            SearchLine_Otsu_Offline_Boundary_Row = trace_row;
+            ImageStatus.OFFLineBoundary = trace_row;
             break;
         }
 
         if((trace_row >= left_probe_y) && (trace_row >= right_probe_y))
         {
-            if(trace_row < SearchLine_Otsu_Offline_Boundary_Row)
+            if(trace_row < ImageStatus.OFFLineBoundary)
             {
-                SearchLine_Otsu_Offline_Boundary_Row = trace_row;
+                ImageStatus.OFFLineBoundary = trace_row;
                 break;
             }
             else
@@ -402,12 +329,12 @@ static void SearchLine_Search_Border_Otsu(void)
             }
         }
 
-        if((left_probe_y > trace_row) || (trace_row == SearchLine_Otsu_Offline_Boundary_Row))
+        if((left_probe_y > trace_row) || (trace_row == ImageStatus.OFFLineBoundary))
         {
             next_row = (int16)left_y + SearchLine_Otsu_Left_Rule[0][2 * left_direction + 1];
             next_col = (int16)left_x + SearchLine_Otsu_Left_Rule[0][2 * left_direction];
-            left_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-            left_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+            left_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+            left_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
 
             if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
             {
@@ -424,16 +351,16 @@ static void SearchLine_Search_Border_Otsu(void)
             {
                 next_row = (int16)left_y + SearchLine_Otsu_Left_Rule[1][2 * left_direction + 1];
                 next_col = (int16)left_x + SearchLine_Otsu_Left_Rule[1][2 * left_direction];
-                left_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                left_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                left_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                left_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
 
                 if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
                 {
-                    left_y = (uint8)SearchLine_Limit_Int32((int16)left_y +
+                    left_y = (uint8)Limit((int16)left_y +
                                                            SearchLine_Otsu_Left_Rule[0][2 * left_direction + 1],
                                                            0,
                                                            SEARCH_LINE_OTSU_H - 1);
-                    left_x = (uint8)SearchLine_Limit_Int32((int16)left_x +
+                    left_x = (uint8)Limit((int16)left_x +
                                                            SearchLine_Otsu_Left_Rule[0][2 * left_direction],
                                                            0,
                                                            SEARCH_LINE_OTSU_W - 1);
@@ -445,8 +372,8 @@ static void SearchLine_Search_Border_Otsu(void)
                 }
                 else
                 {
-                    left_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                    left_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                    left_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                    left_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
                     if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
                     {
                         SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
@@ -464,12 +391,12 @@ static void SearchLine_Search_Border_Otsu(void)
             }
         }
 
-        if((right_probe_y > trace_row) || (trace_row == SearchLine_Otsu_Offline_Boundary_Row))
+        if((right_probe_y > trace_row) || (trace_row == ImageStatus.OFFLineBoundary))
         {
             next_row = (int16)right_y + SearchLine_Otsu_Right_Rule[0][2 * right_direction + 1];
             next_col = (int16)right_x + SearchLine_Otsu_Right_Rule[0][2 * right_direction];
-            right_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-            right_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+            right_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+            right_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
 
             if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
             {
@@ -486,16 +413,16 @@ static void SearchLine_Search_Border_Otsu(void)
             {
                 next_row = (int16)right_y + SearchLine_Otsu_Right_Rule[1][2 * right_direction + 1];
                 next_col = (int16)right_x + SearchLine_Otsu_Right_Rule[1][2 * right_direction];
-                right_probe_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                right_probe_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                right_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                right_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
 
                 if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
                 {
-                    right_y = (uint8)SearchLine_Limit_Int32((int16)right_y +
+                    right_y = (uint8)Limit((int16)right_y +
                                                             SearchLine_Otsu_Right_Rule[0][2 * right_direction + 1],
                                                             0,
                                                             SEARCH_LINE_OTSU_H - 1);
-                    right_x = (uint8)SearchLine_Limit_Int32((int16)right_x +
+                    right_x = (uint8)Limit((int16)right_x +
                                                             SearchLine_Otsu_Right_Rule[0][2 * right_direction],
                                                             0,
                                                             SEARCH_LINE_OTSU_W - 1);
@@ -507,8 +434,8 @@ static void SearchLine_Search_Border_Otsu(void)
                 }
                 else
                 {
-                    right_y = (uint8)SearchLine_Limit_Int32(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                    right_x = (uint8)SearchLine_Limit_Int32(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                    right_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
+                    right_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
                     if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
                     {
                         SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
@@ -533,12 +460,12 @@ static void SearchLine_Search_Border_Otsu(void)
         }
         if(probe_delta < 3)
         {
-            SearchLine_Otsu_Offline_Boundary_Row = trace_row;
+            ImageStatus.OFFLineBoundary = trace_row;
             break;
         }
     }
 
-    for(row = bottom_row; row > (uint8)(SearchLine_Otsu_Offline_Boundary_Row + 1); row--)
+    for(row = bottom_row; row > (uint8)(ImageStatus.OFFLineBoundary + 1); row--)
     {
         if(SearchLine_Otsu_Left_Boundary[row] < 3)
         {
@@ -553,706 +480,604 @@ static void SearchLine_Search_Border_Otsu(void)
 
 static uint8 SearchLine_Clamp_Otsu_Search_Col(int16 value)
 {
-    return (uint8)SearchLine_Limit_Int32(value, 1, SEARCH_LINE_OTSU_W - 2);
+    return (uint8)Limit(value, 1, SEARCH_LINE_OTSU_W - 2);
 }
-
-/* 一行边界结果写入缓存。 */
-static void SearchLine_Set_Otsu_Row(uint8 row, int16 left_border, int16 right_border)
-{
-    left_border = SearchLine_Limit_Int32(left_border, 0, SEARCH_LINE_OTSU_W - 1);
-    right_border = SearchLine_Limit_Int32(right_border, 0, SEARCH_LINE_OTSU_W - 1);
-
-    if(right_border < left_border)
-    {
-        left_border = 0;
-        right_border = SEARCH_LINE_OTSU_W - 1;
-    }
-
-    SearchLine_Otsu_Left_Border[row] = (uint8)left_border;
-    SearchLine_Otsu_Right_Border[row] = (uint8)right_border;
-    SearchLine_Otsu_Center_Line[row] = (uint8)(((uint16)left_border + (uint16)right_border) / 2);
-    SearchLine_Otsu_Row_Valid[row] = 1;
-    SearchLine_Otsu_Left_State[row] = SEARCH_LINE_STATE_FOUND;
-    SearchLine_Otsu_Right_State[row] = SEARCH_LINE_STATE_FOUND;
-}
-
-/* 参考 Pixle_Filter 的噪点补白，当前默认不上主链。 */
-static void SearchLine_Pixle_Filter_Otsu(void)
-{
-    int16 row = 0;
-    int16 col = 0;
-
-    for(row = 10; row < 40; row++)
-    {
-        for(col = 10; col < 70; col++)
-        {
-            if((0 == SearchLine_Otsu_Binary[row][col]) &&
-               ((SearchLine_Otsu_Binary[row - 1][col] +
-                 SearchLine_Otsu_Binary[row + 1][col] +
-                 SearchLine_Otsu_Binary[row][col - 1] +
-                 SearchLine_Otsu_Binary[row][col + 1]) >= 3))
-            {
-                SearchLine_Otsu_Binary[row][col] = 1;
-            }
-        }
-    }
-}
-
 
 /* 底边初始化。 */
-static void SearchLine_Init_Otsu_BottomRows(void)
+static uint8 DrawLinesFirst(void)
 {
-    const uint8 *row_data = 0;
-    int16 row = 0;
-    int16 col = 0;
-    int16 center_col = SEARCH_LINE_OTSU_W / 2 - 1;
-    int16 left_border = 0;
-    int16 right_border = SEARCH_LINE_OTSU_W - 1;
-    int16 offset = 0;
-    uint8 current_row = 0;
-
-    row_data = SearchLine_Otsu_Binary[SEARCH_LINE_OTSU_BOTTOM_ROW];
-    if(0 == row_data[center_col])
+    PicTemp = Pixle[59];
+    if(*(PicTemp + ImageSensorMid) == 0)                 //如果底边图像中点为黑，异常情况
     {
-        for(offset = 0; offset < center_col; offset++)
+        for(Xsite = 0; Xsite < ImageSensorMid; Xsite++)  //找左右边线
         {
-            if(0 != row_data[center_col - offset])
-            {
+            if(*(PicTemp + ImageSensorMid - Xsite) != 0) //一旦找到左或右赛道到中心距离，就break
+                break;                                   //并且记录Xsite
+            if(*(PicTemp + ImageSensorMid + Xsite) != 0)
                 break;
-            }
-
-            if(0 != row_data[center_col + offset])
-            {
-                break;
-            }
         }
 
-        if(0 != row_data[center_col - offset])
+        if(*(PicTemp + ImageSensorMid - Xsite) != 0)     //赛道如果在左边的话
         {
-            right_border = center_col - offset + 1;
-            for(col = right_border; col > 0; col--)
+            BottomBorderRight = ImageSensorMid - Xsite + 1;    //59行右边线有啦
+            for(Xsite = BottomBorderRight; Xsite > 0; Xsite--) //开始找59行左边线
             {
-                if((0 == row_data[col]) && (0 == row_data[col - 1]))
+                if(*(PicTemp + Xsite) == 0 &&
+                   *(PicTemp + Xsite - 1) == 0)                //连续两个黑点，滤波
                 {
-                    left_border = col;
+                    BottomBorderLeft = Xsite;                  //左边线找到
                     break;
                 }
-                else if(1 == col)
+                else if(Xsite == 1)
                 {
-                    left_border = 0;
+                    BottomBorderLeft = 0;                      //搜索到最后了，看不到左边线，左边线认为是0
                     break;
                 }
             }
         }
-        else if(0 != row_data[center_col + offset])
+        else if(*(PicTemp + ImageSensorMid + Xsite) != 0)     //赛道如果在右边的话
         {
-            left_border = center_col + offset - 1;
-            for(col = left_border; col < SEARCH_LINE_OTSU_W - 1; col++)
+            BottomBorderLeft = ImageSensorMid + Xsite - 1;     //59行左边线有啦
+            for(Xsite = BottomBorderLeft; Xsite < 79; Xsite++) //开始找59行右边线
             {
-                if((0 == row_data[col]) && (0 == row_data[col + 1]))
+                if(*(PicTemp + Xsite) == 0 &&
+                   *(PicTemp + Xsite + 1) == 0)                //连续两个黑点，滤波
                 {
-                    right_border = col;
+                    BottomBorderRight = Xsite;                 //右边线找到
                     break;
                 }
-                else if(col == SEARCH_LINE_OTSU_W - 2)
+                else if(Xsite == 78)
                 {
-                    right_border = SEARCH_LINE_OTSU_W - 1;
+                    BottomBorderRight = 79;                    //搜索到最后了，看不到右边线，右边线认为是79
                     break;
                 }
             }
         }
     }
-    else
+    else                                                     //中点是白的，比较正常的情况
     {
-        for(col = SEARCH_LINE_OTSU_W - 1; col > center_col; col--)
+        for(Xsite = 79; Xsite > ImageSensorMid; Xsite--)     //一个点一个点地搜索右边线
         {
-            if((1 == row_data[col]) && (1 == row_data[col - 1]))
+            if(*(PicTemp + Xsite) == 1 &&
+               *(PicTemp + Xsite - 1) == 1)                  //连续两个白点，滤波
             {
-                right_border = col;
+                BottomBorderRight = Xsite;                   //找到就记录
                 break;
             }
-            else if(col == center_col + 1)
+            else if(Xsite == 40)
             {
-                right_border = center_col;
+                BottomBorderRight = 39;                      //找不到认为39
                 break;
             }
         }
-
-        for(col = 0; col < center_col; col++)
+        for(Xsite = 0; Xsite < ImageSensorMid; Xsite++)      //一个点一个点地搜索左边线
         {
-            if((1 == row_data[col]) && (1 == row_data[col + 1]))
+            if(*(PicTemp + Xsite) == 1 &&
+               *(PicTemp + Xsite + 1) == 1)                  //连续两个白点，滤波
             {
-                left_border = col;
+                BottomBorderLeft = Xsite;                    //找到就记录
                 break;
             }
-            else if(col == center_col - 1)
+            else if(Xsite == 38)
             {
-                left_border = center_col;
+                BottomBorderLeft = 39;                       //找不到认为39
                 break;
             }
         }
     }
 
-    SearchLine_Set_Otsu_Row(SEARCH_LINE_OTSU_BOTTOM_ROW, left_border, right_border);
+    BottomCenter = (BottomBorderLeft + BottomBorderRight) / 2;   //59行中点直接取平均
+    ImageDeal[59].LeftBorder = BottomBorderLeft;                 //在数组里面记录一下信息，第一行特殊一点而已
+    ImageDeal[59].RightBorder = BottomBorderRight;
+    ImageDeal[59].Center = BottomCenter;                         //确定最底边
+    ImageDeal[59].Wide = BottomBorderRight - BottomBorderLeft;   //存储宽度信息
+    ImageDeal[59].IsLeftFind = 'T';
+    ImageDeal[59].IsRightFind = 'T';
+    SearchLine_Otsu_Left_Border[59] = (uint8)ImageDeal[59].LeftBorder;
+    SearchLine_Otsu_Right_Border[59] = (uint8)ImageDeal[59].RightBorder;
+    SearchLine_Otsu_Row_Valid[59] = 1;
 
-    for(row = SEARCH_LINE_OTSU_BOTTOM_ROW - 1; row >= SEARCH_LINE_OTSU_BOTTOM_INIT_ROW; row--)
+    for(Ysite = 58; Ysite > 54; Ysite--)                        //由中间向两边确定底边五行
     {
-        current_row = (uint8)row;
-        row_data = SearchLine_Otsu_Binary[current_row];
-
-        for(col = SEARCH_LINE_OTSU_W - 1; col > SearchLine_Otsu_Center_Line[current_row + 1]; col--)
+        PicTemp = Pixle[Ysite];
+        for(Xsite = 79; Xsite > ImageDeal[Ysite + 1].Center; Xsite--)  //和前面一样的搜索
         {
-            if((1 == row_data[col]) && (1 == row_data[col - 1]))
+            if(*(PicTemp + Xsite) == 1 && *(PicTemp + Xsite - 1) == 1)
             {
-                right_border = col;
+                ImageDeal[Ysite].RightBorder = Xsite;
                 break;
             }
-            else if(col == (int16)SearchLine_Otsu_Center_Line[current_row + 1] + 1)
+            else if(Xsite == (ImageDeal[Ysite + 1].Center + 1))
             {
-                right_border = SearchLine_Otsu_Center_Line[current_row + 1];
+                ImageDeal[Ysite].RightBorder = ImageDeal[Ysite + 1].Center;
                 break;
             }
         }
-
-        for(col = 0; col < SearchLine_Otsu_Center_Line[current_row + 1]; col++)
+        for(Xsite = 0; Xsite < ImageDeal[Ysite + 1].Center; Xsite++)   //和前面一样的搜索
         {
-            if((1 == row_data[col]) && (1 == row_data[col + 1]))
+            if(*(PicTemp + Xsite) == 1 && *(PicTemp + Xsite + 1) == 1)
             {
-                left_border = col;
+                ImageDeal[Ysite].LeftBorder = Xsite;
                 break;
             }
-            else if(col == (int16)SearchLine_Otsu_Center_Line[current_row + 1] - 1)
+            else if(Xsite == (ImageDeal[Ysite + 1].Center - 1))
             {
-                left_border = SearchLine_Otsu_Center_Line[current_row + 1];
+                ImageDeal[Ysite].LeftBorder = ImageDeal[Ysite + 1].Center;
                 break;
             }
         }
-
-        SearchLine_Set_Otsu_Row(current_row, left_border, right_border);
+        ImageDeal[Ysite].IsLeftFind = 'T';                          //这些信息存储到数组里
+        ImageDeal[Ysite].IsRightFind = 'T';
+        ImageDeal[Ysite].Center =
+            (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2; //存储中点
+        ImageDeal[Ysite].Wide =
+            ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;       //存储宽度
+        SearchLine_Otsu_Left_Border[Ysite] = (uint8)ImageDeal[Ysite].LeftBorder;
+        SearchLine_Otsu_Right_Border[Ysite] = (uint8)ImageDeal[Ysite].RightBorder;
+        SearchLine_Otsu_Row_Valid[Ysite] = 1;
     }
+    return 'T';
 }
 
-static uint8 SearchLine_Find_Otsu_JumpPoint(const uint8 *row_data, uint8 search_left, int16 low, int16 high, uint8 *point)
+void GetJumpPointFromDet(uint8 *p, uint8 type, int L, int H, JumpPointtypedef *Q)
 {
-    int16 col = 0;
-    int16 mid = 0;
+    int i = 0;
 
-    if(0 == row_data || 0 == point)
+    if(type == 'L')
     {
-        return SEARCH_LINE_STATE_INIT;
-    }
-
-    low = SearchLine_Limit_Int32(low, 1, SEARCH_LINE_OTSU_W - 2);
-    high = SearchLine_Limit_Int32(high, 1, SEARCH_LINE_OTSU_W - 2);
-    if(low > high)
-    {
-        col = low;
-        low = high;
-        high = col;
-    }
-
-    mid = (low + high) / 2;
-    if(search_left)
-    {
-        for(col = high; col >= low; col--)
+        for(i = H; i >= L; i--)
         {
-            if((1 == row_data[col]) && (0 == row_data[col - 1]))
+            if(*(p + i) == 1 && *(p + i - 1) != 1)
             {
-                *point = (uint8)col;
-                return SEARCH_LINE_STATE_FOUND;
+                Q->point = i;
+                Q->type = 'T';
+                break;
             }
-            else if(col == (low + 1))
+            else if(i == (L + 1))
             {
-                if(0 != row_data[mid])
+                if(*(p + (L + H) / 2) != 0)
                 {
-                    *point = (uint8)mid;
-                    return SEARCH_LINE_STATE_WHITE;
+                    Q->point = (L + H) / 2;
+                    Q->type = 'W';
+                    break;
                 }
-
-                *point = (uint8)high;
-                return SEARCH_LINE_STATE_BLACK;
-            }
-        }
-    }
-    else
-    {
-        for(col = low; col <= high; col++)
-        {
-            if((1 == row_data[col]) && (0 == row_data[col + 1]))
-            {
-                *point = (uint8)col;
-                return SEARCH_LINE_STATE_FOUND;
-            }
-            else if(col == (high - 1))
-            {
-                if(0 != row_data[mid])
+                else
                 {
-                    *point = (uint8)mid;
-                    return SEARCH_LINE_STATE_WHITE;
+                    Q->point = H;
+                    Q->type = 'H';
+                    break;
                 }
-
-                *point = (uint8)low;
-                return SEARCH_LINE_STATE_BLACK;
             }
         }
     }
-
-    *point = (uint8)mid;
-    return SEARCH_LINE_STATE_INIT;
+    else if(type == 'R')
+    {
+        for(i = L; i <= H; i++)
+        {
+            if(*(p + i) == 1 && *(p + i + 1) != 1)
+            {
+                Q->point = i;
+                Q->type = 'T';
+                break;
+            }
+            else if(i == (H - 1))
+            {
+                if(*(p + (L + H) / 2) != 0)
+                {
+                    Q->point = (L + H) / 2;
+                    Q->type = 'W';
+                    break;
+                }
+                else
+                {
+                    Q->point = L;
+                    Q->type = 'H';
+                    break;
+                }
+            }
+        }
+    }
 }
 
-static uint8 SearchLine_Rescue_Otsu_LeftBorder(const uint8 *row_data, uint8 left_border, uint8 right_border, uint8 *point)
+/*边线追逐大致得到全部边线*/
+static void DrawLinesProcess(void)
 {
-    int16 col = 0;
+    uint8 L_Found_T = 'F';
+    uint8 Get_L_line = 'F';
+    uint8 R_Found_T = 'F';
+    uint8 Get_R_line = 'F';
+    float D_L = 0;
+    float D_R = 0;
+    int ytemp_W_L = 0;
+    int ytemp_W_R = 0;
+    int ysite = 0;
+    uint8 L_found_point = 0;
+    uint8 R_found_point = 0;
+    JumpPointtypedef JumpPoint[2];
 
-    if(0 == row_data || 0 == point)
+    ExtenRFlag = 0;
+    ExtenLFlag = 0;
+    ImageStatus.Left_Line = 0;
+    ImageStatus.WhiteLine = 0;
+    ImageStatus.Right_Line = 0;
+    for(Ysite = 54; Ysite > ImageStatus.OFFLine; Ysite--)
     {
-        return SEARCH_LINE_STATE_INIT;
-    }
+        PicTemp = Pixle[Ysite];
 
-    for(col = (int16)left_border + 1; col <= (int16)right_border - 1; col++)
-    {
-        if((0 == row_data[col]) && (0 != row_data[col + 1]))
+        if(ImageStatus.Road_type != Cross_ture)
         {
-            *point = (uint8)col;
-            return SEARCH_LINE_STATE_FOUND;
-        }
-        else if(0 != row_data[col])
-        {
-            break;
-        }
-        else if(col == (int16)right_border - 1)
-        {
-            *point = left_border;
-            return SEARCH_LINE_STATE_FOUND;
-        }
-    }
-
-    return SEARCH_LINE_STATE_WHITE;
-}
-
-static uint8 SearchLine_Rescue_Otsu_RightBorder(const uint8 *row_data, uint8 left_border, uint8 right_border, uint8 *point)
-{
-    int16 col = 0;
-
-    if(0 == row_data || 0 == point)
-    {
-        return SEARCH_LINE_STATE_INIT;
-    }
-
-    for(col = (int16)right_border - 1; col >= (int16)left_border + 1; col--)
-    {
-        if((0 == row_data[col]) && (0 != row_data[col - 1]))
-        {
-            *point = (uint8)col;
-            return SEARCH_LINE_STATE_FOUND;
-        }
-        else if(0 != row_data[col])
-        {
-            break;
-        }
-        else if(col == (int16)left_border + 1)
-        {
-            *point = (uint8)col;
-            return SEARCH_LINE_STATE_FOUND;
-        }
-    }
-
-    return SEARCH_LINE_STATE_WHITE;
-}
-
-/* 逐行向上搜边。 */
-static void SearchLine_DrawLinesProcess_Otsu(void)
-{
-    const uint8 *row_data = 0;
-    int16 row = 0;
-    int16 low = 0;
-    int16 high = 0;
-    int16 search_row = 0;
-    uint8 left_point = 0;
-    uint8 right_point = 0;
-    uint8 left_state = 0;
-    uint8 right_state = 0;
-    int16 left_border = 0;
-    int16 right_border = 0;
-    uint8 left_slope_checked = 0;
-    uint8 right_slope_checked = 0;
-    uint8 left_slope_ready = 0;
-    uint8 right_slope_ready = 0;
-    uint8 left_found_count = 0;
-    uint8 right_found_count = 0;
-    uint8 left_anchor_row = 0;
-    uint8 right_anchor_row = 0;
-    float left_slope = 0.0f;
-    float right_slope = 0.0f;
-
-    SearchLine_Otsu_Left_Line = 0;
-    SearchLine_Otsu_Right_Line = 0;
-    SearchLine_Otsu_White_Line = 0;
-
-    for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row > SearchLine_Otsu_Offline_Row; row--)
-    {
-        row_data = SearchLine_Otsu_Binary[row];
-        low = (int16)SearchLine_Otsu_Right_Border[row + 1] - SEARCH_LINE_OTSU_SCAN_WINDOW;
-        high = (int16)SearchLine_Otsu_Right_Border[row + 1] + SEARCH_LINE_OTSU_SCAN_WINDOW;
-        low = SearchLine_Clamp_Otsu_Search_Col(low);
-        high = SearchLine_Clamp_Otsu_Search_Col(high);
-        right_state = SearchLine_Find_Otsu_JumpPoint(row_data, 0, low, high, &right_point);
-
-        low = (int16)SearchLine_Otsu_Left_Border[row + 1] - SEARCH_LINE_OTSU_SCAN_WINDOW;
-        high = (int16)SearchLine_Otsu_Left_Border[row + 1] + SEARCH_LINE_OTSU_SCAN_WINDOW;
-        low = SearchLine_Clamp_Otsu_Search_Col(low);
-        high = SearchLine_Clamp_Otsu_Search_Col(high);
-        left_state = SearchLine_Find_Otsu_JumpPoint(row_data, 1, low, high, &left_point);
-
-        if(SEARCH_LINE_STATE_WHITE == left_state)
-        {
-            left_border = SearchLine_Otsu_Left_Border[row + 1];
+            IntervalLow = ImageDeal[Ysite + 1].RightBorder - ImageScanInterval;
+            IntervalHigh = ImageDeal[Ysite + 1].RightBorder + ImageScanInterval;
         }
         else
         {
-            left_border = left_point;
+            IntervalLow = ImageDeal[Ysite + 1].RightBorder - ImageScanInterval_Cross;
+            IntervalHigh = ImageDeal[Ysite + 1].RightBorder + ImageScanInterval_Cross;
         }
 
-        if(SEARCH_LINE_STATE_WHITE == right_state)
+        LimitL(IntervalLow);
+        LimitH(IntervalHigh);
+        GetJumpPointFromDet(PicTemp, 'R', IntervalLow, IntervalHigh, &JumpPoint[1]);
+
+        IntervalLow = ImageDeal[Ysite + 1].LeftBorder - ImageScanInterval;
+        IntervalHigh = ImageDeal[Ysite + 1].LeftBorder + ImageScanInterval;
+
+        LimitL(IntervalLow);
+        LimitH(IntervalHigh);
+        GetJumpPointFromDet(PicTemp, 'L', IntervalLow, IntervalHigh, &JumpPoint[0]);
+
+        if(JumpPoint[0].type == 'W')
         {
-            right_border = SearchLine_Otsu_Right_Border[row + 1];
+            ImageDeal[Ysite].LeftBorder = ImageDeal[Ysite + 1].LeftBorder;
         }
         else
         {
-            right_border = right_point;
+            ImageDeal[Ysite].LeftBorder = JumpPoint[0].point;
         }
 
-        SearchLine_Otsu_Left_State[row] = left_state;
-        SearchLine_Otsu_Right_State[row] = right_state;
-        SearchLine_Otsu_Left_Border[row] = (uint8)SearchLine_Limit_Int32(left_border, 0, SEARCH_LINE_OTSU_W - 1);
-        SearchLine_Otsu_Right_Border[row] = (uint8)SearchLine_Limit_Int32(right_border, 0, SEARCH_LINE_OTSU_W - 1);
-
-        if((SEARCH_LINE_STATE_BLACK == left_state) || (SEARCH_LINE_STATE_BLACK == right_state))
+        if(JumpPoint[1].type == 'W')
         {
-            if(SEARCH_LINE_STATE_BLACK == left_state)
+            ImageDeal[Ysite].RightBorder = ImageDeal[Ysite + 1].RightBorder;
+        }
+        else
+        {
+            ImageDeal[Ysite].RightBorder = JumpPoint[1].point;
+        }
+
+        ImageDeal[Ysite].IsLeftFind = JumpPoint[0].type;
+        ImageDeal[Ysite].IsRightFind = JumpPoint[1].type;
+
+        if((ImageDeal[Ysite].IsLeftFind == 'H') ||
+           (ImageDeal[Ysite].IsRightFind == 'H'))
+        {
+            if(ImageDeal[Ysite].IsLeftFind == 'H')
             {
-                left_state = SearchLine_Rescue_Otsu_LeftBorder(row_data,
-                                                               SearchLine_Otsu_Left_Border[row],
-                                                               SearchLine_Otsu_Right_Border[row],
-                                                               &left_point);
-                SearchLine_Otsu_Left_State[row] = left_state;
-                if(SEARCH_LINE_STATE_FOUND == left_state)
+                for(Xsite = (ImageDeal[Ysite].LeftBorder + 1);
+                    Xsite <= (ImageDeal[Ysite].RightBorder - 1);
+                    Xsite++)
                 {
-                    SearchLine_Otsu_Left_Border[row] = left_point;
+                    if((*(PicTemp + Xsite) == 0) && (*(PicTemp + Xsite + 1) != 0))
+                    {
+                        ImageDeal[Ysite].LeftBorder = Xsite;
+                        ImageDeal[Ysite].IsLeftFind = 'T';
+                        break;
+                    }
+                    else if(*(PicTemp + Xsite) != 0)
+                    {
+                        break;
+                    }
+                    else if(Xsite == (ImageDeal[Ysite].RightBorder - 1))
+                    {
+                        ImageDeal[Ysite].IsLeftFind = 'T';
+                        break;
+                    }
                 }
             }
 
-            if(((int16)SearchLine_Otsu_Right_Border[row] - (int16)SearchLine_Otsu_Left_Border[row]) <= SEARCH_LINE_OTSU_MIN_WIDTH)
+            if((ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder) <= 7)
             {
-                SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+                ImageStatus.OFFLine = Ysite + 1;
                 break;
             }
 
-            if(SEARCH_LINE_STATE_BLACK == right_state)
+            if(ImageDeal[Ysite].IsRightFind == 'H')
             {
-                right_state = SearchLine_Rescue_Otsu_RightBorder(row_data,
-                                                                 SearchLine_Otsu_Left_Border[row],
-                                                                 SearchLine_Otsu_Right_Border[row],
-                                                                 &right_point);
-                SearchLine_Otsu_Right_State[row] = right_state;
-                if(SEARCH_LINE_STATE_FOUND == right_state)
+                for(Xsite = (ImageDeal[Ysite].RightBorder - 1);
+                    Xsite >= (ImageDeal[Ysite].LeftBorder + 1);
+                    Xsite--)
                 {
-                    SearchLine_Otsu_Right_Border[row] = right_point;
+                    if((*(PicTemp + Xsite) == 0) && (*(PicTemp + Xsite - 1) != 0))
+                    {
+                        ImageDeal[Ysite].RightBorder = Xsite;
+                        ImageDeal[Ysite].IsRightFind = 'T';
+                        break;
+                    }
+                    else if(*(PicTemp + Xsite) != 0)
+                    {
+                        break;
+                    }
+                    else if(Xsite == (ImageDeal[Ysite].LeftBorder + 1))
+                    {
+                        ImageDeal[Ysite].RightBorder = Xsite;
+                        ImageDeal[Ysite].IsRightFind = 'T';
+                        break;
+                    }
                 }
             }
         }
 
-        /* 单边丢线时，先按参考斜率补当前行边界。 */
-        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row]) &&
-           (row > 10) &&
-           (row < 50))
+        if(ImageStatus.Road_type != Ramp)
         {
-            if(!right_slope_checked)
+            if(ImageDeal[Ysite].IsRightFind == 'W' &&
+               Ysite > 10 &&
+               Ysite < 50 &&
+               ImageStatus.Road_type != Barn_in)
             {
-                right_slope_checked = 1;
-                right_anchor_row = (uint8)(row + 2);
-                right_found_count = 0;
-                for(search_row = row + 1;
-                    (search_row < SEARCH_LINE_OTSU_H) && (search_row < row + 15);
-                    search_row++)
+                if(Get_R_line == 'F')
                 {
-                    if(SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[search_row])
+                    Get_R_line = 'T';
+                    ytemp_W_R = Ysite + 2;
+                    for(ysite = Ysite + 1; ysite < Ysite + 15 && ysite < LCDH; ysite++)
                     {
-                        right_found_count++;
-                    }
-                }
-
-                if(right_found_count > 8)
-                {
-                    right_slope =
-                        ((float)SearchLine_Otsu_Right_Border[row + right_found_count] -
-                         (float)SearchLine_Otsu_Right_Border[row + 3]) /
-                        (float)(right_found_count - 3);
-                    if(right_slope > 0.0f)
-                    {
-                        right_slope_ready = 1;
-                    }
-                    else
-                    {
-                        right_slope_ready = 0;
-                        if(right_slope < 0.0f)
+                        if(ImageDeal[ysite].IsRightFind == 'T')
                         {
-                            SearchLine_Otsu_Right_Extend_Allowed = 0;
+                            R_found_point++;
+                        }
+                    }
+                    if(R_found_point > 8)
+                    {
+                        D_R =
+                            ((float)(ImageDeal[Ysite + R_found_point].RightBorder -
+                                     ImageDeal[Ysite + 3].RightBorder)) /
+                            ((float)(R_found_point - 3));
+                        if(D_R > 0)
+                        {
+                            R_Found_T = 'T';
+                        }
+                        else
+                        {
+                            R_Found_T = 'F';
+                            if(D_R < 0)
+                            {
+                                ExtenRFlag = 'F';
+                            }
                         }
                     }
                 }
-            }
-
-            if(right_slope_ready)
-            {
-                SearchLine_Otsu_Right_Border[row] =
-                    SearchLine_Clamp_Otsu_Search_Col((int16)((float)SearchLine_Otsu_Right_Border[right_anchor_row] -
-                                                             right_slope * (float)(right_anchor_row - row)));
-            }
-        }
-
-        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row]) &&
-           (row > 10) &&
-           (row < 50))
-        {
-            if(!left_slope_checked)
-            {
-                left_slope_checked = 1;
-                left_anchor_row = (uint8)(row + 2);
-                left_found_count = 0;
-                for(search_row = row + 1;
-                    (search_row < SEARCH_LINE_OTSU_H) && (search_row < row + 15);
-                    search_row++)
+                if(R_Found_T == 'T')
                 {
-                    if(SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[search_row])
-                    {
-                        left_found_count++;
-                    }
+                    ImageDeal[Ysite].RightBorder =
+                        ImageDeal[ytemp_W_R].RightBorder - D_R * (ytemp_W_R - Ysite);
                 }
 
-                if(left_found_count > 8)
+                LimitL(ImageDeal[Ysite].RightBorder);
+                LimitH(ImageDeal[Ysite].RightBorder);
+            }
+
+            if(ImageDeal[Ysite].IsLeftFind == 'W' &&
+               Ysite > 10 &&
+               Ysite < 50 &&
+               ImageStatus.Road_type != Barn_in)
+            {
+                if(Get_L_line == 'F')
                 {
-                    left_slope =
-                        ((float)SearchLine_Otsu_Left_Border[row + 3] -
-                         (float)SearchLine_Otsu_Left_Border[row + left_found_count]) /
-                        (float)(left_found_count - 3);
-                    if(left_slope > 0.0f)
+                    Get_L_line = 'T';
+                    ytemp_W_L = Ysite + 2;
+                    for(ysite = Ysite + 1; ysite < Ysite + 15 && ysite < LCDH; ysite++)
                     {
-                        left_slope_ready = 1;
-                    }
-                    else
-                    {
-                        left_slope_ready = 0;
-                        if(left_slope < 0.0f)
+                        if(ImageDeal[ysite].IsLeftFind == 'T')
                         {
-                            SearchLine_Otsu_Left_Extend_Allowed = 0;
+                            L_found_point++;
+                        }
+                    }
+                    if(L_found_point > 8)
+                    {
+                        D_L =
+                            ((float)(ImageDeal[Ysite + 3].LeftBorder -
+                                     ImageDeal[Ysite + L_found_point].LeftBorder)) /
+                            ((float)(L_found_point - 3));
+                        if(D_L > 0)
+                        {
+                            L_Found_T = 'T';
+                        }
+                        else
+                        {
+                            L_Found_T = 'F';
+                            if(D_L < 0)
+                            {
+                                ExtenLFlag = 'F';
+                            }
                         }
                     }
                 }
+
+                if(L_Found_T == 'T')
+                {
+                    ImageDeal[Ysite].LeftBorder =
+                        ImageDeal[ytemp_W_L].LeftBorder + D_L * (ytemp_W_L - Ysite);
+                }
+
+                LimitL(ImageDeal[Ysite].LeftBorder);
+                LimitH(ImageDeal[Ysite].LeftBorder);
             }
-
-            if(left_slope_ready)
-            {
-                SearchLine_Otsu_Left_Border[row] =
-                    SearchLine_Clamp_Otsu_Search_Col((int16)((float)SearchLine_Otsu_Left_Border[left_anchor_row] +
-                                                             left_slope * (float)(left_anchor_row - row)));
-            }
         }
 
-        SearchLine_Otsu_Center_Line[row] =
-            (uint8)(((uint16)SearchLine_Otsu_Left_Border[row] + (uint16)SearchLine_Otsu_Right_Border[row]) / 2);
-        SearchLine_Otsu_Row_Valid[row] = 1;
-        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+        if(ImageDeal[Ysite].IsLeftFind == 'W' &&
+           ImageDeal[Ysite].IsRightFind == 'W')
         {
-            SearchLine_Otsu_Left_Line++;
+            ImageStatus.WhiteLine++;
         }
-        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+        if(ImageDeal[Ysite].IsLeftFind == 'W' && Ysite < 55)
         {
-            SearchLine_Otsu_Right_Line++;
+            ImageStatus.Left_Line++;
         }
-        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row]))
+        if(ImageDeal[Ysite].IsRightFind == 'W' && Ysite < 55)
         {
-            SearchLine_Otsu_White_Line++;
+            ImageStatus.Right_Line++;
         }
 
-        if(((int16)SearchLine_Otsu_Right_Border[row] - (int16)SearchLine_Otsu_Left_Border[row]) <= SEARCH_LINE_OTSU_MIN_WIDTH)
+        LimitL(ImageDeal[Ysite].LeftBorder);
+        LimitH(ImageDeal[Ysite].LeftBorder);
+        LimitL(ImageDeal[Ysite].RightBorder);
+        LimitH(ImageDeal[Ysite].RightBorder);
+
+        ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
+        ImageDeal[Ysite].Center =
+            (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
+        ImageDeal[Ysite].LeftTemp = ImageDeal[Ysite].LeftBorder;
+        ImageDeal[Ysite].RightTemp = ImageDeal[Ysite].RightBorder;
+        ImageDeal[Ysite].close_LeftBorder = ImageDeal[Ysite].LeftBorder;
+        ImageDeal[Ysite].close_RightBorder = ImageDeal[Ysite].RightBorder;
+
+        SearchLine_Otsu_Left_Border[Ysite] = (uint8)ImageDeal[Ysite].LeftBorder;
+        SearchLine_Otsu_Right_Border[Ysite] = (uint8)ImageDeal[Ysite].RightBorder;
+        SearchLine_Otsu_Row_Valid[Ysite] = 1;
+
+        if(ImageDeal[Ysite].Wide <= 7)
         {
-            SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+            ImageStatus.OFFLine = Ysite + 1;
             break;
         }
-
-        if((SearchLine_Otsu_Right_Border[row] <= SEARCH_LINE_OTSU_EDGE_LIMIT) ||
-           (SearchLine_Otsu_Left_Border[row] >= (SEARCH_LINE_OTSU_W - 1 - SEARCH_LINE_OTSU_EDGE_LIMIT)))
+        else if(ImageDeal[Ysite].RightBorder <= 10 ||
+                ImageDeal[Ysite].LeftBorder >= 70)
         {
-            SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
+            ImageStatus.OFFLine = Ysite + 1;
             break;
         }
     }
+
+    return;
 }
 
-/* 延长线补边。 */
-static void SearchLine_DrawExtensionLine_Otsu(void)
+//延长线绘制，理论上来说是很准确的
+static void DrawExtensionLine(void)        //绘制延长线并重新确定中线 ，把补线补成斜线
 {
-    int16 row = 0;
-    int16 scan_row = 0;
-    int16 fill_row = 0;
-    int16 tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    int16 ftsite = 0;
-    float slope = 0.0f;
-    uint8 allow_extension = 0;
-
-    /* 十字和特殊元素阶段先停延长线，避免把国一环岛判据依赖的原始丢边状态补掉。 */
-    if((((0 == SearchLine_Otsu_Fork_Down) &&
-         ('F' == SearchLine_Otsu_Cirque_Pass) &&
-         ('F' == SearchLine_Otsu_Cirque_Out_In) &&
-         ('F' == SearchLine_Otsu_Cirque_Out) &&
-         (SEARCH_LINE_ROAD_BARN_IN != SearchLine_Otsu_Road_Type) &&
-         (SEARCH_LINE_ROAD_RAMP != SearchLine_Otsu_Road_Type) &&
-         (SEARCH_LINE_ROAD_CROSS_TRUE != SearchLine_Otsu_Road_Type)) ||
-        ('T' == SearchLine_Otsu_Cirque_Off)))
+    if(
+        (SearchLine_Otsu_Fork_Down == 0
+         &&ImageStatus.CirquePass == 'F'
+         &&ImageStatus.IsCinqueOutIn == 'F'
+         &&ImageStatus.CirqueOut == 'F'
+         &&ImageStatus.Road_type != Barn_in
+         &&ImageStatus.Road_type != Ramp)
+        &&ImageStatus.Road_type != Cross_ture
+        ||ImageStatus.CirqueOff == 'T')
     {
-        allow_extension = 1;
-    }
-
-    if(!allow_extension)
-    {
-        return;
-    }
-
-    if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
-    {
-        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    }
-    if(('T' == SearchLine_Otsu_Cirque_Off) &&
-       (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type))
-    {
-        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    }
-
-    if(SearchLine_Otsu_Left_Extend_Allowed)
-    {
-        for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
-        {
-            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+        if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+            TFSite = 55;
+        if(ImageStatus.CirqueOff == 'T' && ImageStatus.Road_type == LeftCirque)
+            TFSite = 55;
+        if(ExtenLFlag != 'F')
+            for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
             {
-                if(SearchLine_Otsu_Left_Border[row + 1] >= 70)
+                PicTemp = Pixle[Ysite];
+                if(ImageDeal[Ysite].IsLeftFind == 'W')
                 {
-                    SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
-                    break;
-                }
-
-                scan_row = row;
-                ftsite = 0;
-                while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
-                {
-                    scan_row--;
-                    if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row]) &&
-                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 1]) &&
-                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[scan_row - 2]) &&
-                       (SearchLine_Otsu_Left_Border[scan_row - 2] > 0) &&
-                       (SearchLine_Otsu_Left_Border[scan_row - 2] < 70))
+                    if(ImageDeal[Ysite + 1].LeftBorder >= 70)
                     {
-                        ftsite = scan_row - 2;
+                        ImageStatus.OFFLine = Ysite + 1;
                         break;
                     }
-                }
 
-                if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
-                {
-                    slope = ((float)SearchLine_Otsu_Left_Border[ftsite] -
-                             (float)SearchLine_Otsu_Left_Border[tfsite]) /
-                            (float)(ftsite - tfsite);
-                    /* 圆环阶段统计依赖原始丢边标志，这里只补边界，不改丢边状态。 */
-                    for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                    while(Ysite >= (ImageStatus.OFFLine + 4))
                     {
-                        SearchLine_Otsu_Left_Border[fill_row] =
-                            SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
-                                                                      (float)SearchLine_Otsu_Left_Border[tfsite]));
-                        SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                        Ysite--;
+                        if(ImageDeal[Ysite].IsLeftFind == 'T' &&
+                           ImageDeal[Ysite - 1].IsLeftFind == 'T' &&
+                           ImageDeal[Ysite - 2].IsLeftFind == 'T' &&
+                           ImageDeal[Ysite - 2].LeftBorder > 0 &&
+                           ImageDeal[Ysite - 2].LeftBorder < 70)
+                        {
+                            FTSite = Ysite - 2;
+                            break;
+                        }
                     }
-                    row = ftsite;
-                }
-            }
-            else
-            {
-                tfsite = row + 2;
-            }
-        }
-    }
 
-    if(SearchLine_Otsu_White_Line >= (uint8)(SearchLine_Otsu_TowPoint_True - 15))
-    {
-        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    }
-    if(('T' == SearchLine_Otsu_Cirque_Off) &&
-       (SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type))
-    {
-        tfsite = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW;
-    }
-
-    if(SearchLine_Otsu_Right_Extend_Allowed)
-    {
-        for(row = SEARCH_LINE_OTSU_BOTTOM_INIT_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 4; row--)
-        {
-            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
-            {
-                if(SearchLine_Otsu_Right_Border[row + 1] <= 10)
-                {
-                    SearchLine_Otsu_Offline_Row = (uint8)(row + 1);
-                    break;
-                }
-
-                scan_row = row;
-                ftsite = 0;
-                while(scan_row >= (int16)SearchLine_Otsu_Offline_Row + 4)
-                {
-                    scan_row--;
-                    if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row]) &&
-                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 1]) &&
-                       (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[scan_row - 2]) &&
-                       (SearchLine_Otsu_Right_Border[scan_row - 2] < 70) &&
-                       (SearchLine_Otsu_Right_Border[scan_row - 2] > 10))
+                    if(FTSite > ImageStatus.OFFLine)
                     {
-                        ftsite = scan_row - 2;
+                        DetL =
+                            ((float)(ImageDeal[FTSite].LeftBorder -
+                                     ImageDeal[TFSite].LeftBorder)) /
+                            ((float)(FTSite - TFSite));
+                        for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                        {
+                            ImageDeal[ytemp].LeftBorder =
+                                (int)(DetL * ((float)(ytemp - TFSite))) +
+                                ImageDeal[TFSite].LeftBorder;
+                        }
+                    }
+                }
+                else
+                {
+                    TFSite = Ysite + 2;
+                }
+            }
+
+        if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+            TFSite = 55;
+        if(ImageStatus.CirqueOff == 'T' && ImageStatus.Road_type == RightCirque)
+            TFSite = 55;
+        if(ExtenRFlag != 'F')
+            for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
+            {
+                PicTemp = Pixle[Ysite];
+
+                if(ImageDeal[Ysite].IsRightFind == 'W')
+                {
+                    if(ImageDeal[Ysite + 1].RightBorder <= 10)
+                    {
+                        ImageStatus.OFFLine = Ysite + 1;
                         break;
                     }
-                }
-
-                if((0 != ftsite) && (ftsite > SearchLine_Otsu_Offline_Row))
-                {
-                    slope = ((float)SearchLine_Otsu_Right_Border[ftsite] -
-                             (float)SearchLine_Otsu_Right_Border[tfsite]) /
-                            (float)(ftsite - tfsite);
-                    /* 圆环阶段统计依赖原始丢边标志，这里只补边界，不改丢边状态。 */
-                    for(fill_row = tfsite; fill_row >= ftsite; fill_row--)
+                    while(Ysite >= (ImageStatus.OFFLine + 4))
                     {
-                        SearchLine_Otsu_Right_Border[fill_row] =
-                            SearchLine_Clamp_Otsu_Search_Col((int16)(slope * (float)(fill_row - tfsite) +
-                                                                      (float)SearchLine_Otsu_Right_Border[tfsite]));
-                        SearchLine_Otsu_Row_Valid[fill_row] = 1;
+                        Ysite--;
+                        if(ImageDeal[Ysite].IsRightFind == 'T' &&
+                           ImageDeal[Ysite - 1].IsRightFind == 'T' &&
+                           ImageDeal[Ysite - 2].IsRightFind == 'T' &&
+                           ImageDeal[Ysite - 2].RightBorder < 70 &&
+                           ImageDeal[Ysite - 2].RightBorder > 10)
+                        {
+                            FTSite = Ysite - 2;
+                            break;
+                        }
                     }
-                    row = ftsite;
+
+                    if(FTSite > ImageStatus.OFFLine)
+                    {
+                        DetR =
+                            ((float)(ImageDeal[FTSite].RightBorder -
+                                     ImageDeal[TFSite].RightBorder)) /
+                            ((float)(FTSite - TFSite));
+                        for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                        {
+                            ImageDeal[ytemp].RightBorder =
+                                (int)(DetR * ((float)(ytemp - TFSite))) +
+                                ImageDeal[TFSite].RightBorder;
+                        }
+                    }
+                }
+                else
+                {
+                    TFSite = Ysite + 2;
                 }
             }
-            else
-            {
-                tfsite = row + 2;
-            }
-        }
     }
-
-    for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row >= SearchLine_Otsu_Offline_Row; row--)
+    for(Ysite = 59; Ysite >= ImageStatus.OFFLine; Ysite--)
     {
-        SearchLine_Otsu_Center_Line[row] =
-            (uint8)(((uint16)SearchLine_Otsu_Left_Border[row] + (uint16)SearchLine_Otsu_Right_Border[row]) / 2);
-        SearchLine_Otsu_Row_Valid[row] = 1;
+        LimitL(ImageDeal[Ysite].LeftBorder);
+        LimitH(ImageDeal[Ysite].LeftBorder);
+        LimitL(ImageDeal[Ysite].RightBorder);
+        LimitH(ImageDeal[Ysite].RightBorder);
+        ImageDeal[Ysite].Center = (ImageDeal[Ysite].LeftBorder + ImageDeal[Ysite].RightBorder) / 2;
+        ImageDeal[Ysite].Wide = -ImageDeal[Ysite].LeftBorder + ImageDeal[Ysite].RightBorder;
+        SearchLine_Otsu_Left_Border[Ysite] = (uint8)ImageDeal[Ysite].LeftBorder;
+        SearchLine_Otsu_Right_Border[Ysite] = (uint8)ImageDeal[Ysite].RightBorder;
+        SearchLine_Otsu_Row_Valid[Ysite] = 1;
     }
 }
 
 /* 中线滤波平滑。 */
-static void SearchLine_RouteFilter_Otsu(void)
+static void RouteFilter(void)
 {
     int16 row = 0;
     int16 search_row = 0;
@@ -1261,33 +1086,33 @@ static void SearchLine_RouteFilter_Otsu(void)
     int16 line_temp = 0;
     float center_slope = 0.0f;
 
-    for(row = SEARCH_LINE_OTSU_BOTTOM_ROW - 1; row >= (int16)SearchLine_Otsu_Offline_Row + 5; row--)
+    for(row = 58; row >= (int16)SearchLine_Otsu_Offline_Row + 5; row--)
     {
-        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row]) &&
+        if((SEARCH_LINE_STATE_WHITE == ImageDeal[row].IsLeftFind) &&
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row].IsRightFind) &&
            (row <= 45) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row - 1]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row - 1]))
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row - 1].IsLeftFind) &&
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row - 1].IsRightFind))
         {
             search_row = row;
             while(search_row >= (int16)SearchLine_Otsu_Offline_Row + 5)
             {
                 search_row--;
-                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[search_row]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[search_row]))
+                if((SEARCH_LINE_STATE_FOUND == ImageDeal[search_row].IsLeftFind) &&
+                   (SEARCH_LINE_STATE_FOUND == ImageDeal[search_row].IsRightFind))
                 {
-                    center_slope = ((float)SearchLine_Otsu_Center_Line[search_row - 1] -
-                                    (float)SearchLine_Otsu_Center_Line[row + 2]) /
+                    center_slope = ((float)ImageDeal[search_row - 1].Center -
+                                    (float)ImageDeal[row + 2].Center) /
                                    (float)((search_row - 1) - (row + 2));
-                    center_temp = SearchLine_Otsu_Center_Line[row + 2];
+                    center_temp = ImageDeal[row + 2].Center;
                     line_temp = row + 2;
                     for(fill_row = row; fill_row >= search_row; fill_row--)
                     {
-                        SearchLine_Otsu_Center_Line[fill_row] =
-                            (uint8)SearchLine_Limit_Int32((int16)((float)center_temp +
-                                                                   center_slope * (float)(fill_row - line_temp)),
-                                                          0,
-                                                          SEARCH_LINE_OTSU_W - 1);
+                        ImageDeal[fill_row].Center =
+                            Limit((int16)((float)center_temp +
+                                          center_slope * (float)(fill_row - line_temp)),
+                                  0,
+                                  SEARCH_LINE_OTSU_W - 1);
                         SearchLine_Otsu_Row_Valid[fill_row] = 1;
                     }
                     row = search_row - 1;
@@ -1296,26 +1121,31 @@ static void SearchLine_RouteFilter_Otsu(void)
             }
         }
 
-        SearchLine_Otsu_Center_Line[row] =
-            (uint8)((SearchLine_Otsu_Center_Line[row - 1] +
-                     2 * SearchLine_Otsu_Center_Line[row]) / 3);
+        ImageDeal[row].Center =
+            (ImageDeal[row - 1].Center + 2 * ImageDeal[row].Center) / 3;
         SearchLine_Otsu_Row_Valid[row] = 1;
     }
 }
 
 /* 固定前瞻加权中线。 */
-static void SearchLine_Update_Otsu_Det(void)
+static void GetDet(void)
 {
     int16 tow_point = 0;
     int16 row = 0;
     int16 weight_index = 0;
+    int16 left_speed = 0;
+    int16 right_speed = 0;
     float det_temp = 0.0f;
     float unit_all = 0.0f;
     float speed_gain = 0.0f;
+    float current_speed = 0.0f;
     int16 det_value = 0;
 
-    /* 动态前瞻按后轮目标速度调节。 */
-    speed_gain = (car_wheel_target_speed - SEARCH_LINE_OTSU_DET_SPEED_REF) *
+    /* 动态前瞻按左右后轮滤波编码器均值调节。 */
+    left_speed = encoder_get_left();
+    right_speed = encoder_get_right();
+    current_speed = ((float)left_speed + (float)right_speed) * 0.5f;
+    speed_gain = (current_speed - SEARCH_LINE_OTSU_DET_SPEED_REF) *
                  SEARCH_LINE_OTSU_DET_SPEED_GAIN +
                  SEARCH_LINE_OTSU_DET_SPEED_BIAS;
     if(speed_gain > SEARCH_LINE_OTSU_DET_SPEED_GAIN_MAX)
@@ -1327,18 +1157,18 @@ static void SearchLine_Update_Otsu_Det(void)
         speed_gain = SEARCH_LINE_OTSU_DET_SPEED_GAIN_MIN;
     }
 
-    /* 一号环岛控制前瞻更远，进环和环中都按 30 行看，避免车头过度贴外侧。 */
-    if((((SEARCH_LINE_ROAD_RIGHT_CIRQUE == SearchLine_Otsu_Road_Type) ||
-         (SEARCH_LINE_ROAD_LEFT_CIRQUE == SearchLine_Otsu_Road_Type)) &&
-        ('F' == SearchLine_Otsu_Cirque_Off)) ||
+    /* 圆环沿用 19 国一口径，进环和环中都按 15 行看。 */
+    if((((SEARCH_LINE_ROAD_RIGHT_CIRQUE == ImageStatus.Road_type) ||
+         (SEARCH_LINE_ROAD_LEFT_CIRQUE == ImageStatus.Road_type)) &&
+        ('F' == ImageStatus.CirqueOff)) ||
        (1 == SearchLine_Otsu_Ring_Flag) ||
        (2 == SearchLine_Otsu_Ring_Flag))
     {
-        tow_point = 30;
+        tow_point = 15;
     }
     else
     {
-        tow_point = (int16)((float)SEARCH_LINE_OTSU_DET_TOW_POINT - speed_gain);
+        tow_point = (int16)((float)ImageStatus.TowPoint - speed_gain);
     }
 
     if(tow_point < ((int16)SearchLine_Otsu_Offline_Row + 1))
@@ -1357,36 +1187,36 @@ static void SearchLine_Update_Otsu_Det(void)
         for(row = tow_point - SEARCH_LINE_OTSU_DET_WINDOW; row < tow_point; row++)
         {
             weight_index = tow_point - row - 1;
-            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
-            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+            det_temp += Weighting[weight_index] * (float)ImageDeal[row].Center;
+            unit_all += Weighting[weight_index];
         }
 
         for(row = tow_point + SEARCH_LINE_OTSU_DET_WINDOW; row > tow_point; row--)
         {
             weight_index = row - tow_point - 1;
-            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
-            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+            det_temp += Weighting[weight_index] * (float)ImageDeal[row].Center;
+            unit_all += Weighting[weight_index];
         }
 
-        det_temp = ((float)SearchLine_Otsu_Center_Line[tow_point] + det_temp) / (unit_all + 1.0f);
+        det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
     }
     else if(tow_point > (int16)SearchLine_Otsu_Offline_Row)
     {
         for(row = (int16)SearchLine_Otsu_Offline_Row; row < tow_point; row++)
         {
             weight_index = tow_point - row - 1;
-            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
-            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+            det_temp += Weighting[weight_index] * (float)ImageDeal[row].Center;
+            unit_all += Weighting[weight_index];
         }
 
         for(row = tow_point + tow_point - (int16)SearchLine_Otsu_Offline_Row; row > tow_point; row--)
         {
             weight_index = row - tow_point - 1;
-            det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
-            unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+            det_temp += Weighting[weight_index] * (float)ImageDeal[row].Center;
+            unit_all += Weighting[weight_index];
         }
 
-        det_temp = ((float)SearchLine_Otsu_Center_Line[tow_point] + det_temp) / (unit_all + 1.0f);
+        det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
     }
     else if(SearchLine_Otsu_Offline_Row < SEARCH_LINE_OTSU_DET_TOW_POINT_MAX)
     {
@@ -1395,12 +1225,12 @@ static void SearchLine_Update_Otsu_Det(void)
             weight_index = row - tow_point - 1;
             if((weight_index >= 0) && (weight_index < SEARCH_LINE_OTSU_DET_WEIGHT_COUNT))
             {
-                det_temp += SearchLine_Otsu_Det_Weight[weight_index] * (float)SearchLine_Otsu_Center_Line[row];
-                unit_all += SearchLine_Otsu_Det_Weight[weight_index];
+                det_temp += Weighting[weight_index] * (float)ImageDeal[row].Center;
+                unit_all += Weighting[weight_index];
             }
         }
 
-        det_temp = ((float)SearchLine_Otsu_Center_Line[SearchLine_Otsu_Offline_Row] + det_temp) /
+        det_temp = ((float)ImageDeal[SearchLine_Otsu_Offline_Row].Center + det_temp) /
                    (unit_all + 1.0f);
     }
     else
@@ -1408,12 +1238,13 @@ static void SearchLine_Update_Otsu_Det(void)
         det_temp = (float)SearchLine_Otsu_Det_True;
     }
 
-    det_value = (int16)(det_temp + 0.5f);
-    SearchLine_Otsu_Det_True = (uint8)SearchLine_Limit_Int32(det_value, 0, SEARCH_LINE_OTSU_W - 1);
+    Det = det_temp;
+    det_value = (int16)(Det + 0.5f);
+    SearchLine_Otsu_Det_True = (uint8)Limit(det_value, 0, SEARCH_LINE_OTSU_W - 1);
 }
 
-/* 直道方差判定。 */
-static void SearchLine_Update_Otsu_StraightAcc(void)
+/* 当前工程这里只保留国一 straight_speed 的直道判定部分。 */
+static void straight_speed(void)
 {
     int16 row = 0;
     int16 delta = 0;
@@ -1421,8 +1252,15 @@ static void SearchLine_Update_Otsu_StraightAcc(void)
     uint32 sum = 0;
     float variance_acc = 0.0f;
 
-    SearchLine_Otsu_Straight_Acc = 0;
-    SearchLine_Otsu_Variance_Acc = 0;
+    ImageStatus.straight_acc = 0;
+    ImageStatus.variance_acc = 0;
+
+    if((ImageStatus.Road_type == SEARCH_LINE_ROAD_CROSS) ||
+       (ImageStatus.Road_type == SEARCH_LINE_ROAD_LEFT_CIRQUE) ||
+       (ImageStatus.Road_type == SEARCH_LINE_ROAD_RIGHT_CIRQUE))
+    {
+        return;
+    }
 
     if(SearchLine_Otsu_Offline_Row >= 54)
     {
@@ -1431,7 +1269,7 @@ static void SearchLine_Update_Otsu_StraightAcc(void)
 
     for(row = 55; row > ((int16)SearchLine_Otsu_Offline_Row + 1); row--)
     {
-        delta = (int16)SearchLine_Otsu_Center_Line[row] - SEARCH_LINE_OTSU_MIDDLE_LINE;
+        delta = ImageDeal[row].Center - ImageSensorMid;
         sum += (uint32)(delta * delta);
         valid_count++;
     }
@@ -1442,17 +1280,17 @@ static void SearchLine_Update_Otsu_StraightAcc(void)
     }
 
     variance_acc = (float)sum / (float)valid_count;
-    SearchLine_Otsu_Variance_Acc = (uint16)(variance_acc + 0.5f);
+    ImageStatus.variance_acc = (uint16)(variance_acc + 0.5f);
     if((variance_acc < (float)SEARCH_LINE_OTSU_VARIANCE_ACC_LIMIT) &&
        (SearchLine_Otsu_Offline_Row <= SEARCH_LINE_OTSU_STRAIGHT_OFFLINE_MAX) &&
        (SearchLine_Otsu_Left_Line <= SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX) &&
        (SearchLine_Otsu_Right_Line <= SEARCH_LINE_OTSU_STRAIGHT_LOST_LINE_MAX))
     {
-        SearchLine_Otsu_Straight_Acc = 1;
+        ImageStatus.straight_acc = 1;
     }
 }
 
-static float SearchLine_Straight_Judge_Otsu(uint8 dir, uint8 start_row, uint8 end_row)
+static float Straight_Judge(uint8 dir, uint8 start_row, uint8 end_row)
 {
     int16 row = 0;
     int16 count = 0;
@@ -1515,7 +1353,7 @@ static float SearchLine_Straight_Judge_Otsu(uint8 dir, uint8 start_row, uint8 en
     return variance;
 }
 
-static uint8 SearchLine_Cirque_Or_Cross_Otsu(uint8 type, uint8 start_row)
+static uint8 Cirque_Or_Cross(uint8 type, uint8 start_row)
 {
     uint8 num = 0;
     uint8 row = 0;
@@ -1527,7 +1365,7 @@ static uint8 SearchLine_Cirque_Or_Cross_Otsu(uint8 type, uint8 start_row)
         return 0;
     }
 
-    end_row = (uint8)SearchLine_Limit_Int32((int16)start_row + 10, 0, SEARCH_LINE_OTSU_H);
+    end_row = (uint8)Limit((int16)start_row + 10, 0, SEARCH_LINE_OTSU_H);
     if(1 == type)
     {
         for(row = start_row; row < end_row; row++)
@@ -1558,7 +1396,7 @@ static uint8 SearchLine_Cirque_Or_Cross_Otsu(uint8 type, uint8 start_row)
     return num;
 }
 
-static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
+static void Element_Judgment_Left_Rings(void)
 {
     uint8 ring_ysite = 3;
     uint8 point1_y = 0;
@@ -1566,7 +1404,7 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
     uint8 row = 0;
     uint8 ring_help_flag = 0;
 
-    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    for(row = 58; row > ring_ysite; row--)
     {
         if((int16)SearchLine_Otsu_Left_Boundary_First[row] -
            (int16)SearchLine_Otsu_Left_Boundary_First[row - 1] > 4)
@@ -1575,7 +1413,7 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
             break;
         }
     }
-    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    for(row = 58; row > ring_ysite; row--)
     {
         if((int16)SearchLine_Otsu_Left_Boundary[row + 1] -
            (int16)SearchLine_Otsu_Left_Boundary[row] > 4)
@@ -1613,14 +1451,14 @@ static void SearchLine_Element_Judgment_Left_Rings_Otsu(void)
         SearchLine_Otsu_Ring_Flag = 1;
         /* 主线入口按大圆环状态进入。 */
         SearchLine_Otsu_Ring_Size = 1;
-        SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_LEFT_CIRQUE;
+        ImageStatus.Road_type = SEARCH_LINE_ROAD_LEFT_CIRQUE;
         /* 左环入口短响。 */
         buzzer_on();
         SearchLine_Ring_Beep_Stop_Tick = g_system_ticks + SEARCH_LINE_RING_FLAG1_BEEP_MS;
     }
 }
 
-static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
+static void Element_Judgment_Right_Rings(void)
 {
     uint8 ring_ysite = 25;
     uint8 point1_y = 0;
@@ -1629,24 +1467,24 @@ static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
     uint8 ring_help_flag = 0;
     float straight_judge = 0.0f;
 
-    straight_judge = SearchLine_Straight_Judge_Otsu(1, 25, 45);
+    straight_judge = Straight_Judge(1, 25, 45);
     if((SearchLine_Otsu_Left_Line > 7) ||
        (SearchLine_Otsu_Right_Line < 13) ||
        (SearchLine_Otsu_Offline_Row > 10) ||
        (straight_judge > 50.0f) ||
        (SearchLine_Otsu_White_Line > 15) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[52]) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[53]) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[54]) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[55]) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[56]) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[57]) ||
-       (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[58]))
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[52].IsRightFind) ||
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[53].IsRightFind) ||
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[54].IsRightFind) ||
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[55].IsRightFind) ||
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[56].IsRightFind) ||
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[57].IsRightFind) ||
+       (SEARCH_LINE_STATE_WHITE == ImageDeal[58].IsRightFind))
     {
         return;
     }
 
-    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    for(row = 58; row > ring_ysite; row--)
     {
         if((int16)SearchLine_Otsu_Right_Boundary_First[row - 1] -
            (int16)SearchLine_Otsu_Right_Boundary_First[row] > 4)
@@ -1655,7 +1493,7 @@ static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
             break;
         }
     }
-    for(row = SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row > ring_ysite; row--)
+    for(row = 58; row > ring_ysite; row--)
     {
         if((int16)SearchLine_Otsu_Right_Boundary[row] -
            (int16)SearchLine_Otsu_Right_Boundary[row + 1] > 4)
@@ -1693,14 +1531,14 @@ static void SearchLine_Element_Judgment_Right_Rings_Otsu(void)
         SearchLine_Otsu_Ring_Flag = 1;
         /* 主线入口按大圆环状态进入。 */
         SearchLine_Otsu_Ring_Size = 1;
-        SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_RIGHT_CIRQUE;
+        ImageStatus.Road_type = SEARCH_LINE_ROAD_RIGHT_CIRQUE;
         /* 右环入口短响。 */
         buzzer_on();
         SearchLine_Ring_Beep_Stop_Tick = g_system_ticks + SEARCH_LINE_RING_FLAG1_BEEP_MS;
     }
 }
 
-static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
+static void Element_Handle_Left_Rings(void)
 {
     int16 num = 0;
     int16 row = 0;
@@ -1721,14 +1559,14 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
 
     for(row = 55; row > 30; row--)
     {
-        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+        if(SEARCH_LINE_STATE_WHITE == ImageDeal[row].IsLeftFind)
         {
             num++;
         }
-        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 3]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 2]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 1]) &&
-           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[row]))
+        if((SEARCH_LINE_STATE_WHITE == ImageDeal[row + 3].IsLeftFind) &&
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row + 2].IsLeftFind) &&
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row + 1].IsLeftFind) &&
+           (SEARCH_LINE_STATE_FOUND == ImageDeal[row].IsLeftFind))
         {
             break;
         }
@@ -1785,14 +1623,14 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
         num = 0;
         for(row = 40; row > 10; row--)
         {
-            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row])
+            if(SEARCH_LINE_STATE_WHITE == ImageDeal[row].IsLeftFind)
             {
                 num++;
             }
         }
         if(num < 5)
         {
-            SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
+            ImageStatus.Road_type = SEARCH_LINE_ROAD_NORMAL;
             SearchLine_Otsu_Ring_Flag = 0;
             SearchLine_Otsu_Ring_Element = 0;
             SearchLine_Otsu_Ring_Size = 0;
@@ -1804,13 +1642,13 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
        (3 == SearchLine_Otsu_Ring_Flag) ||
        (4 == SearchLine_Otsu_Ring_Flag))
     {
-        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        for(row = 59; row > (int16)SearchLine_Otsu_Offline_Row; row--)
         {
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Right_Border[row] -
-                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
-                                              0,
-                                              SEARCH_LINE_OTSU_W - 1);
+            ImageDeal[row].Center =
+                Limit((int16)SearchLine_Otsu_Right_Border[row] -
+                      (int16)Half_Road_Wide[row],
+                      0,
+                      SEARCH_LINE_OTSU_W - 1);
         }
     }
 
@@ -1841,9 +1679,9 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
         {
             for(row = (int16)SearchLine_Otsu_Offline_Row + 1; row < 30; row++)
             {
-                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[row]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Left_State[row + 1]) &&
-                   (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Left_State[row + 2]) &&
+                if((SEARCH_LINE_STATE_FOUND == ImageDeal[row].IsLeftFind) &&
+                   (SEARCH_LINE_STATE_FOUND == ImageDeal[row + 1].IsLeftFind) &&
+                   (SEARCH_LINE_STATE_WHITE == ImageDeal[row + 2].IsLeftFind) &&
                    (SearchLine_Otsu_Left_Border[row] > SearchLine_Otsu_Left_Border[row + 2] + 10 ||
                     SearchLine_Otsu_Left_Border[row] + 10 < SearchLine_Otsu_Left_Border[row + 2]))
                 {
@@ -1861,19 +1699,19 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
             for(row = flag_y_1; row < SEARCH_LINE_OTSU_H; row++)
             {
                 SearchLine_Otsu_Right_Border[row] =
-                    (uint8)SearchLine_Limit_Int32((int16)((float)flag_x_1 +
+                    (uint8)Limit((int16)((float)flag_x_1 +
                                                           slope_rings * (float)(row - flag_y_1)),
                                                   0,
                                                   SEARCH_LINE_OTSU_W - 1);
-                SearchLine_Otsu_Center_Line[row] =
-                    (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Right_Border[row] +
-                                                   (int16)SearchLine_Otsu_Left_Border[row]) / 2,
-                                                  4,
-                                                  SEARCH_LINE_OTSU_W - 1);
+                ImageDeal[row].Center =
+                    Limit(((int16)SearchLine_Otsu_Right_Border[row] +
+                           (int16)SearchLine_Otsu_Left_Border[row]) / 2,
+                          4,
+                          SEARCH_LINE_OTSU_W - 1);
             }
 
             SearchLine_Otsu_Right_Border[flag_y_1] =
-                (uint8)SearchLine_Limit_Int32(flag_x_1, 0, SEARCH_LINE_OTSU_W - 1);
+                (uint8)Limit(flag_x_1, 0, SEARCH_LINE_OTSU_W - 1);
 
             for(row = flag_y_1 - 1; row > 10; row--)
             {
@@ -1888,12 +1726,12 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
                        (0 == SearchLine_Get_Otsu_Binary_Pixel(row, col + 1)))
                     {
                         SearchLine_Otsu_Right_Border[row] =
-                            (uint8)SearchLine_Limit_Int32(col, 0, SEARCH_LINE_OTSU_W - 1);
-                        SearchLine_Otsu_Center_Line[row] =
-                            (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Right_Border[row] +
-                                                           (int16)SearchLine_Otsu_Left_Border[row]) / 2,
-                                                          4,
-                                                          SEARCH_LINE_OTSU_W - 1);
+                            (uint8)Limit(col, 0, SEARCH_LINE_OTSU_W - 1);
+                        ImageDeal[row].Center =
+                            Limit(((int16)SearchLine_Otsu_Right_Border[row] +
+                                   (int16)SearchLine_Otsu_Left_Border[row]) / 2,
+                                  4,
+                                  SEARCH_LINE_OTSU_W - 1);
                         width = (int16)SearchLine_Otsu_Right_Border[row] -
                                 (int16)SearchLine_Otsu_Left_Border[row];
                         break;
@@ -1918,7 +1756,7 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
     {
         for(row = 57; row > (int16)SearchLine_Otsu_Offline_Row; row--)
         {
-            SearchLine_Otsu_Center_Line[row] = 15;
+            ImageDeal[row].Center = 15;
         }
     }
 
@@ -1938,32 +1776,32 @@ static void SearchLine_Element_Handle_Left_Rings_Otsu(void)
         for(row = 57; row > (repair_y - 3); row--)
         {
             SearchLine_Otsu_Right_Border[row] =
-                (uint8)SearchLine_Limit_Int32((((int16)SearchLine_Otsu_Right_Border[58] - repair_x) *
+                (uint8)Limit((((int16)SearchLine_Otsu_Right_Border[58] - repair_x) *
                                                (row - 58)) /
                                               (58 - repair_y) +
                                               (int16)SearchLine_Otsu_Right_Border[58],
                                               0,
                                               SEARCH_LINE_OTSU_W - 1);
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)(((int16)SearchLine_Otsu_Right_Border[row] +
-                         (int16)SearchLine_Otsu_Left_Border[row]) / 2);
+            ImageDeal[row].Center =
+                ((int16)SearchLine_Otsu_Right_Border[row] +
+                 (int16)SearchLine_Otsu_Left_Border[row]) / 2;
         }
     }
 
     if((9 == SearchLine_Otsu_Ring_Flag) || (10 == SearchLine_Otsu_Ring_Flag))
     {
-        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        for(row = 59; row > (int16)SearchLine_Otsu_Offline_Row; row--)
         {
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Right_Border[row] -
-                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
-                                              0,
-                                              SEARCH_LINE_OTSU_W - 1);
+            ImageDeal[row].Center =
+                Limit((int16)SearchLine_Otsu_Right_Border[row] -
+                      (int16)Half_Road_Wide[row],
+                      0,
+                      SEARCH_LINE_OTSU_W - 1);
         }
     }
 }
 
-static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
+static void Element_Handle_Right_Rings(void)
 {
     int16 num = 0;
     int16 row = 0;
@@ -1986,14 +1824,14 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
     /* 统计右侧连续丢线段长度。 */
     for(row = 55; row > 30; row--)
     {
-        if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+        if(SEARCH_LINE_STATE_WHITE == ImageDeal[row].IsRightFind)
         {
             num++;
         }
-        if((SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 3]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 2]) &&
-           (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 1]) &&
-           (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[row]))
+        if((SEARCH_LINE_STATE_WHITE == ImageDeal[row + 3].IsRightFind) &&
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row + 2].IsRightFind) &&
+           (SEARCH_LINE_STATE_WHITE == ImageDeal[row + 1].IsRightFind) &&
+           (SEARCH_LINE_STATE_FOUND == ImageDeal[row].IsRightFind))
         {
             break;
         }
@@ -2051,8 +1889,8 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
     /* 出环确认。左边界足够接近直线，且前方有效视野恢复后，切到退环阶段。 */
     if(8 == SearchLine_Otsu_Ring_Flag)
     {
-        straight_judge = SearchLine_Straight_Judge_Otsu(1,
-                                                        (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Offline_Row + 10,
+        straight_judge = Straight_Judge(1,
+                                                        (uint8)Limit((int16)SearchLine_Otsu_Offline_Row + 10,
                                                                                       0,
                                                                                       SEARCH_LINE_OTSU_H - 1),
                                                         45);
@@ -2071,14 +1909,14 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         num = 0;
         for(row = 40; row > 10; row--)
         {
-            if(SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row])
+            if(SEARCH_LINE_STATE_WHITE == ImageDeal[row].IsRightFind)
             {
                 num++;
             }
         }
         if(num < 5)
         {
-            SearchLine_Otsu_Road_Type = SEARCH_LINE_ROAD_NORMAL;
+            ImageStatus.Road_type = SEARCH_LINE_ROAD_NORMAL;
             SearchLine_Otsu_Ring_Flag = 0;
             SearchLine_Otsu_Ring_Element = 0;
             SearchLine_Otsu_Ring_Size = 0;
@@ -2094,13 +1932,13 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
        (3 == SearchLine_Otsu_Ring_Flag) ||
        (4 == SearchLine_Otsu_Ring_Flag))
     {
-        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        for(row = 59; row > (int16)SearchLine_Otsu_Offline_Row; row--)
         {
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Left_Border[row] +
-                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
-                                              0,
-                                              SEARCH_LINE_OTSU_W - 1);
+            ImageDeal[row].Center =
+                Limit((int16)SearchLine_Otsu_Left_Border[row] +
+                      (int16)Half_Road_Wide[row],
+                      0,
+                      SEARCH_LINE_OTSU_W - 1);
         }
     }
 
@@ -2132,9 +1970,9 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         {
             for(row = (int16)SearchLine_Otsu_Offline_Row + 5; row < 30; row++)
             {
-                if((SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[row]) &&
-                   (SEARCH_LINE_STATE_FOUND == SearchLine_Otsu_Right_State[row + 1]) &&
-                   (SEARCH_LINE_STATE_WHITE == SearchLine_Otsu_Right_State[row + 2]) &&
+                if((SEARCH_LINE_STATE_FOUND == ImageDeal[row].IsRightFind) &&
+                   (SEARCH_LINE_STATE_FOUND == ImageDeal[row + 1].IsRightFind) &&
+                   (SEARCH_LINE_STATE_WHITE == ImageDeal[row + 2].IsRightFind) &&
                    (SearchLine_Otsu_Right_Border[row] > SearchLine_Otsu_Right_Border[row + 2] + 10 ||
                     SearchLine_Otsu_Right_Border[row] + 10 < SearchLine_Otsu_Right_Border[row + 2]))
                 {
@@ -2152,19 +1990,19 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
             for(row = flag_y_1; row < 58; row++)
             {
                 SearchLine_Otsu_Left_Border[row] =
-                    (uint8)SearchLine_Limit_Int32((int16)((float)flag_x_1 +
+                    (uint8)Limit((int16)((float)flag_x_1 +
                                                           slope_right_rings * (float)(row - flag_y_1)),
                                                   0,
                                                   SEARCH_LINE_OTSU_W - 1);
-                SearchLine_Otsu_Center_Line[row] =
-                    (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Left_Border[row] +
-                                                   (int16)SearchLine_Otsu_Right_Border[row]) / 2,
-                                                  0,
-                                                  SEARCH_LINE_OTSU_W - 1);
+                ImageDeal[row].Center =
+                    Limit(((int16)SearchLine_Otsu_Left_Border[row] +
+                           (int16)SearchLine_Otsu_Right_Border[row]) / 2,
+                          0,
+                          SEARCH_LINE_OTSU_W - 1);
             }
 
             SearchLine_Otsu_Left_Border[flag_y_1] =
-                (uint8)SearchLine_Limit_Int32(flag_x_1, 0, SEARCH_LINE_OTSU_W - 1);
+                (uint8)Limit(flag_x_1, 0, SEARCH_LINE_OTSU_W - 1);
 
             for(row = flag_y_1 - 1; row > 10; row--)
             {
@@ -2179,12 +2017,12 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
                        (0 == SearchLine_Get_Otsu_Binary_Pixel(row, col - 1)))
                     {
                         SearchLine_Otsu_Left_Border[row] =
-                            (uint8)SearchLine_Limit_Int32(col, 0, SEARCH_LINE_OTSU_W - 1);
-                        SearchLine_Otsu_Center_Line[row] =
-                            (uint8)SearchLine_Limit_Int32(((int16)SearchLine_Otsu_Left_Border[row] +
-                                                           (int16)SearchLine_Otsu_Right_Border[row]) / 2,
-                                                          5,
-                                                          SEARCH_LINE_OTSU_W - 1);
+                            (uint8)Limit(col, 0, SEARCH_LINE_OTSU_W - 1);
+                        ImageDeal[row].Center =
+                            Limit(((int16)SearchLine_Otsu_Left_Border[row] +
+                                   (int16)SearchLine_Otsu_Right_Border[row]) / 2,
+                                  5,
+                                  SEARCH_LINE_OTSU_W - 1);
                         width = (int16)SearchLine_Otsu_Right_Border[row] -
                                 (int16)SearchLine_Otsu_Left_Border[row];
                         break;
@@ -2224,91 +2062,78 @@ static void SearchLine_Element_Handle_Right_Rings_Otsu(void)
         for(row = 57; row > (repair_y - 3); row--)
         {
             SearchLine_Otsu_Left_Border[row] =
-                (uint8)SearchLine_Limit_Int32((((int16)SearchLine_Otsu_Left_Border[58] - repair_x) *
+                (uint8)Limit((((int16)SearchLine_Otsu_Left_Border[58] - repair_x) *
                                                (row - 58)) /
                                               (58 - repair_y) +
                                               (int16)SearchLine_Otsu_Left_Border[58],
                                               0,
                                               SEARCH_LINE_OTSU_W - 1);
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)(((int16)SearchLine_Otsu_Left_Border[row] +
-                         (int16)SearchLine_Otsu_Right_Border[row]) / 2);
+            ImageDeal[row].Center =
+                ((int16)SearchLine_Otsu_Left_Border[row] +
+                 (int16)SearchLine_Otsu_Right_Border[row]) / 2;
         }
     }
 
     /* 9 阶段恢复普通赛道口径，中线重新按左边界加半路宽计算。 */
     if(9 == SearchLine_Otsu_Ring_Flag)
     {
-        for(row = SEARCH_LINE_OTSU_BOTTOM_ROW; row > (int16)SearchLine_Otsu_Offline_Row; row--)
+        for(row = 59; row > (int16)SearchLine_Otsu_Offline_Row; row--)
         {
-            SearchLine_Otsu_Center_Line[row] =
-                (uint8)SearchLine_Limit_Int32((int16)SearchLine_Otsu_Left_Border[row] +
-                                              (int16)SearchLine_Otsu_Half_Road_Wide[row],
-                                              0,
-                                              SEARCH_LINE_OTSU_W - 1);
+            ImageDeal[row].Center =
+                Limit((int16)SearchLine_Otsu_Left_Border[row] +
+                      (int16)Half_Road_Wide[row],
+                      0,
+                      SEARCH_LINE_OTSU_W - 1);
         }
     }
 }
 
-static void SearchLine_Element_Handle(void)
+static void Element_Handle(void)
 {
     if(1 == SearchLine_Otsu_Ring_Element)
     {
-        SearchLine_Element_Handle_Left_Rings_Otsu();
+        Element_Handle_Left_Rings();
     }
     else if(2 == SearchLine_Otsu_Ring_Element)
     {
-        SearchLine_Element_Handle_Right_Rings_Otsu();
+        Element_Handle_Right_Rings();
     }
 }
 
 /* 元素判断。 */
-static void SearchLine_Element_Test(void)
+static void Element_Test(void)
 {
     SearchLine_Otsu_Cirque_Left_Count =
-        SearchLine_Cirque_Or_Cross_Otsu(1, SearchLine_Otsu_Left_Line);
+        Cirque_Or_Cross(1, SearchLine_Otsu_Left_Line);
     SearchLine_Otsu_Cirque_Right_Count =
-        SearchLine_Cirque_Or_Cross_Otsu(2, SearchLine_Otsu_Right_Line);
-
-    /* 非十字、非圆环时更新直道标志。 */
-    if((SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_CROSS) &&
-       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_LEFT_CIRQUE) &&
-       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_RIGHT_CIRQUE))
-    {
-        SearchLine_Update_Otsu_StraightAcc();
-    }
-    else
-    {
-        SearchLine_Otsu_Straight_Acc = 0;
-        SearchLine_Otsu_Variance_Acc = 0;
-    }
+        Cirque_Or_Cross(2, SearchLine_Otsu_Right_Line);
 
     /* 圆环判断。 */
     if((SearchLine_Otsu_Offline_Row < 5) &&
        (SearchLine_Otsu_White_Line < 3) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[52]) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[53]) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[54]) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[55]) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[56]) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[57]) &&
-       (SEARCH_LINE_STATE_WHITE != SearchLine_Otsu_Left_State[58]))
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[52].IsLeftFind) &&
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[53].IsLeftFind) &&
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[54].IsLeftFind) &&
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[55].IsLeftFind) &&
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[56].IsLeftFind) &&
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[57].IsLeftFind) &&
+       (SEARCH_LINE_STATE_WHITE != ImageDeal[58].IsLeftFind))
     {
         /* 左圆环判断。 */
         if((SearchLine_Otsu_Right_Line < 2) &&
            (SearchLine_Otsu_Left_Line > 13) &&
            (SearchLine_Otsu_Cirque_Left_Count > 70))
         {
-            SearchLine_Element_Judgment_Left_Rings_Otsu();
+            Element_Judgment_Left_Rings();
         }
     }
 
     /* 右圆环入口先过外层筛选。 */
-    if((SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_BARN_IN) &&
-       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_CROSS_TRUE) &&
-       (SearchLine_Otsu_Road_Type != SEARCH_LINE_ROAD_BARN_OUT))
+    if((ImageStatus.Road_type != SEARCH_LINE_ROAD_BARN_IN) &&
+       (ImageStatus.Road_type != SEARCH_LINE_ROAD_CROSS_TRUE) &&
+       (ImageStatus.Road_type != SEARCH_LINE_ROAD_BARN_OUT))
     {
-        SearchLine_Element_Judgment_Right_Rings_Otsu();
+        Element_Judgment_Right_Rings();
     }
 }
 
@@ -2327,7 +2152,7 @@ static void SearchLine_Update_Otsu_SteerPreview(void)
     float steer_p = 0.0f;
     float steer_d = 0.0f;
 
-    SearchLine_Otsu_Steer_Offset = (int16)SearchLine_Otsu_Det_True - SEARCH_LINE_OTSU_MIDDLE_LINE;
+    SearchLine_Otsu_Steer_Offset = (int16)SearchLine_Otsu_Det_True - ImageSensorMid;
     i_error = (float)SearchLine_Otsu_Steer_Offset;
     steer_p = (float)SearchLine_Otsu_Steer_P_Tenth / 10.0f;
     steer_d = (float)SearchLine_Otsu_Steer_D_Tenth / 10.0f;
@@ -2379,166 +2204,187 @@ static void SearchLine_Update_Otsu_SteerPreview(void)
     }
 
     command_angle = (int16)(angle + 0.5f);
-    SearchLine_Otsu_Steer_Command = (uint8)SearchLine_Limit_Int32(command_angle,
+    SearchLine_Otsu_Steer_Command = (uint8)Limit(command_angle,
                                                                    (int16)min_angle,
                                                                    (int16)max_angle);
 }
 
-static uint8 SearchLine_Calc_Otsu_Threshold(void)
+/* @brief      优化的大津法。
+ * @param      image  图像数组。
+ * @param      col    宽。
+ * @param      row    高。
+ * @param      pixel_threshold 阈值分离。
+ * @return     uint8
+ */
+uint8 Threshold_deal(uint8* image,
+                     uint16 col,
+                     uint16 row,
+                     uint32 pixel_threshold)
 {
-    uint16 row = 0;
-    uint16 col = 0;
-    uint16 gray = 0;
-    uint16 total_pixels = SEARCH_LINE_OTSU_W * SEARCH_LINE_OTSU_H;
-    uint16 bg_weight = 0;
-    uint16 fg_weight = 0;
+    uint16 width = col;
+    uint16 height = row;
+    int pixelCount[256];
+    float pixelPro[256];
+    int i = 0;
+    int j = 0;
+    int pixelSum = width * height;
+    uint8 threshold = 0;
+    uint8* data = image;  /* 指向像素数据的指针。 */
     uint32 gray_sum = 0;
-    uint32 bg_sum = 0;
-    uint8 raw_threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
-    uint8 threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
-    float best_score = -1.0f;
-    float mean_bg = 0.0f;
-    float mean_fg = 0.0f;
-    float score = 0.0f;
-    float delta = 0.0f;
+    float w0 = 0.0f;
+    float w1 = 0.0f;
+    float u0tmp = 0.0f;
+    float u1tmp = 0.0f;
+    float u0 = 0.0f;
+    float u1 = 0.0f;
+    float u = 0.0f;
+    float deltaTmp = 0.0f;
+    float deltaMax = 0.0f;
 
-    if(SEARCH_LINE_OTSU_THRESHOLD_INTERVAL > 1)
+    for(i = 0; i < 256; i++)
     {
-        if((0 != SearchLine_Otsu_Threshold_Frame_Count) &&
-           (SearchLine_Otsu_Threshold_Frame_Count < SEARCH_LINE_OTSU_THRESHOLD_INTERVAL))
+        pixelCount[i] = 0;
+        pixelPro[i] = 0.0f;
+    }
+
+    /* 统计灰度级中每个像素在整幅图像中的个数。 */
+    for(i = 0; i < height; i++)
+    {
+        for(j = 0; j < width; j++)
         {
-            SearchLine_Otsu_Threshold_Frame_Count++;
-            return SearchLine_Otsu_Threshold_Cache;
+            pixelCount[(int)data[i * width + j]]++;  /* 将当前点的像素值作为计数数组下标。 */
+            gray_sum += (int)data[i * width + j];    /* 灰度值总和。 */
         }
     }
 
-    for(gray = 0; gray < 256; gray++)
+    /* 计算每个像素值在整幅图像中的比例。 */
+    for(i = 0; i < 256; i++)
     {
-        SearchLine_Otsu_Histogram[gray] = 0;
+        pixelPro[i] = (float)pixelCount[i] / pixelSum;
     }
 
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
+    /* 遍历灰度级 [0, pixel_threshold) 。 */
+    for(j = 0; j < (int)pixel_threshold; j++)
     {
-        for(col = 0; col < SEARCH_LINE_OTSU_W; col++)
-        {
-            gray = SearchLine_Get_Otsu_Gray((uint8)row, (uint8)col);
-            SearchLine_Otsu_Histogram[gray]++;
-            gray_sum += gray;
-        }
-    }
-
-    for(gray = 0; gray < SEARCH_LINE_OTSU_THRESHOLD_CAP; gray++)
-    {
-        bg_weight = (uint16)(bg_weight + SearchLine_Otsu_Histogram[gray]);
-        if(0 == bg_weight)
+        w0 += pixelPro[j];  /* 背景部分每个灰度值的像素点所占比例之和。 */
+        if(0.0f == w0)
         {
             continue;
         }
 
-        fg_weight = (uint16)(total_pixels - bg_weight);
-        if(0 == fg_weight)
+        u0tmp += j * pixelPro[j];  /* 背景部分 每个灰度值的点比例乘灰度值。 */
+        w1 = 1.0f - w0;
+        if(0.0f == w1)
         {
             break;
         }
 
-        bg_sum += (uint32)gray * (uint32)SearchLine_Otsu_Histogram[gray];
-        mean_bg = (float)bg_sum / (float)bg_weight;
-        mean_fg = (float)(gray_sum - bg_sum) / (float)fg_weight;
-        delta = mean_bg - mean_fg;
-        score = (float)bg_weight * (float)fg_weight * delta * delta;
-        if(score > best_score)
+        u1tmp = (float)gray_sum / pixelSum - u0tmp;
+        u0 = u0tmp / w0;    /* 背景平均灰度。 */
+        u1 = u1tmp / w1;    /* 前景平均灰度。 */
+        u = u0tmp + u1tmp;  /* 全局平均灰度。 */
+        deltaTmp = w0 * pow((u0 - u), 2) + w1 * pow((u1 - u), 2);
+        if(deltaTmp > deltaMax)
         {
-            best_score = score;
-            raw_threshold = (uint8)gray;
+            deltaMax = deltaTmp;
+            threshold = (uint8)j;
         }
-        else if(score < best_score)
+        if(deltaTmp < deltaMax)
         {
             break;
         }
     }
 
-    if(raw_threshold < SEARCH_LINE_OTSU_THRESHOLD_MIN)
+    if(threshold < SEARCH_LINE_OTSU_THRESHOLD_MIN)
     {
-        raw_threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
+        threshold = SEARCH_LINE_OTSU_THRESHOLD_MIN;
     }
 
-    threshold = raw_threshold;
-    if(threshold < SEARCH_LINE_OTSU_THRESHOLD_STATIC)
-    {
-        threshold = SEARCH_LINE_OTSU_THRESHOLD_STATIC;
-    }
-
-    SearchLine_Otsu_Threshold_Raw_Cache = raw_threshold;
-    SearchLine_Otsu_Threshold_Cache = threshold;
-    SearchLine_Otsu_Threshold_Frame_Count = 1;
     return threshold;
 }
 
 /* 图像二值化。 */
-static void SearchLine_Binarize_Otsu_Image(void)
+void Get01change_dajin(void)
 {
-    uint16 row = 0;
-    uint16 col = 0;
-    uint8 threshold = 0;
-    uint8 gray = 0;
-    int16 row_threshold = 0;
+    uint8 i = 0;
+    uint8 j = 0;
+    uint8 thre = 0;
 
-    threshold = SearchLine_Calc_Otsu_Threshold();
-
-    // threshold = 90;
-
-
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
+    ImageStatus.Threshold = Threshold_deal(Image_Use[0], LCDW, LCDH, ImageStatus.Threshold_detach);
+    if(ImageStatus.Threshold < ImageStatus.Threshold_static)
     {
-        for(col = 0; col < SEARCH_LINE_OTSU_W; col++)
+        ImageStatus.Threshold = (uint8)ImageStatus.Threshold_static;
+    }
+
+    for(i = 0; i < LCDH; i++)
+    {
+        for(j = 0; j < LCDW; j++)
         {
-            row_threshold = threshold;
-            if((col <= SEARCH_LINE_OTSU_LEFT_COMP_END) ||
-               (col >= SEARCH_LINE_OTSU_RIGHT_COMP_START))
+            if(j <= 15)
             {
-                row_threshold -= 10;
+                thre = (uint8)(ImageStatus.Threshold - 10);
+            }
+            else if((j > 70) && (j <= 75))
+            {
+                thre = (uint8)(ImageStatus.Threshold - 10);
+            }
+            else if(j >= 65)
+            {
+                thre = (uint8)(ImageStatus.Threshold - 10);
+            }
+            else
+            {
+                thre = ImageStatus.Threshold;
             }
 
-            row_threshold = (int16)SearchLine_Limit_Int32(row_threshold, 0, 255);
-            gray = SearchLine_Get_Otsu_Gray((uint8)row, (uint8)col);
-            SearchLine_Otsu_Binary[row][col] = (gray > (uint8)row_threshold) ? 1 : 0;
+            /* 数值越大，显示的内容越多，较浅的图像也能显示出来。 */
+            if(Image_Use[i][j] > (thre))
+            {
+                Pixle[i][j] = 1;  /* 白。 */
+            }
+            else
+            {
+                Pixle[i][j] = 0;  /* 黑。 */
+            }
         }
     }
 }
 
-/* 图像压缩、图像二值化、底边初始化、逐行搜边、边界支线、延长线补边、中线滤波。 */
-static void SearchLine_Process_Otsu(void)
+// 图像处理
+void ImageProcess(void)
 {
-    /* 行列映射表初始化。 */
-    SearchLine_Init_Otsu_Map();
-    /* 图像压缩。 */
-    SearchLine_Compress_Otsu_Image();
-    /* 底边状态初始化。 */
-    SearchLine_Clear_Otsu_State();
-    /* 图像二值化。 */
-    SearchLine_Binarize_Otsu_Image();
-    /* 参考里保留了 Pixle_Filter 接口，这里默认先不上主链。 */
-    if(SEARCH_LINE_OTSU_PIXEL_FILTER_ENABLE)
+    compressimage();          //对图像进行压缩
+    ImageStatus.OFFLine = 2;  //限制图像顶端
+    ImageStatus.WhiteLine = 0;
+    for(Ysite = 59; Ysite >= ImageStatus.OFFLine; Ysite--)//从下往上搜线（因为第60行是最上面）
     {
-        SearchLine_Pixle_Filter_Otsu();
-    }
-    /* 底边初始化。 */
-    SearchLine_Init_Otsu_BottomRows();
-    /* 逐行向上搜边。 */
-    SearchLine_DrawLinesProcess_Otsu();
-    /* 圆环支线补齐边界跟踪缓存。 */
-    SearchLine_Search_Border_Otsu();
-    /* 元素判断。 */
-    SearchLine_Element_Test();
-    /* 延长线补边。 */
-    SearchLine_DrawExtensionLine_Otsu();
-    /* 中线滤波平滑。 */
-    SearchLine_RouteFilter_Otsu();
-    /* 元素处理。 */
-    SearchLine_Element_Handle();
-    /* 固定前瞻加权中线。 */
-    SearchLine_Update_Otsu_Det();
-    /* 舵机位置式 PD 预览。 */
+        ImageDeal[Ysite].IsLeftFind = 'F';
+        ImageDeal[Ysite].IsRightFind = 'F';
+        ImageDeal[Ysite].LeftBorder = 0;
+        ImageDeal[Ysite].RightBorder = 79;
+        ImageDeal[Ysite].LeftTemp = 0;
+        ImageDeal[Ysite].RightTemp = 79;
+        ImageDeal[Ysite].close_LeftBorder = 0;
+        ImageDeal[Ysite].close_RightBorder = 79;
+    }                     //边界与标志位初始化
+
+    Get01change_dajin();  //图像二值化
+    DrawLinesFirst();     //绘制底边
+    DrawLinesProcess();   //搜边线
+
+    Search_Border_OTSU(Pixle, LCDH, LCDW, LCDH - 2);//58行位底行
+    
+    Element_Test();       /* 元素判断。 */
+    DrawExtensionLine();  /* 绘制延长线，补线。 */
+    RouteFilter();        /* 中线滤波平滑。 */
+
+    /* 当前工程未接斑马线与堵转积分，这里直接进入元素执行和直道判定。 */
+    /* 当前工程只保留直道标志计算，不在这里直接改后轮速度。 */
+    Element_Handle();     /* 环岛执行。 */
+    straight_speed();     /* 直道判定。 */
+    GetDet();             /* 获取动态前瞻并计算图像偏差。 */
+
+    /* 当前工程舵机已经实接，这里继续把图像偏差映射成业务角度。 */
     SearchLine_Update_Otsu_SteerPreview();
 }
 
@@ -2552,18 +2398,13 @@ void SearchLine_Process(void)
         SearchLine_Ring_Beep_Stop_Tick = 0;
     }
     gpio_set_level(IO_P52, 0);
-    SearchLine_Process_Otsu();
+    ImageProcess();
     gpio_set_level(IO_P52, 1);
 }
 
 uint8 SearchLine_GetOtsuThreshold(void)
 {
-    return SearchLine_Otsu_Threshold_Cache;
-}
-
-uint8 SearchLine_GetRawOtsuThreshold(void)
-{
-    return SearchLine_Otsu_Threshold_Raw_Cache;
+    return ImageStatus.Threshold;
 }
 
 uint8 SearchLine_GetSteerCommand(void)
@@ -2573,7 +2414,7 @@ uint8 SearchLine_GetSteerCommand(void)
 
 uint8 SearchLine_GetStraightAcc(void)
 {
-    return SearchLine_Otsu_Straight_Acc;
+    return ImageStatus.straight_acc;
 }
 
 uint8 SearchLine_GetDetTrue(void)
@@ -2599,22 +2440,24 @@ void SearchLine_SetSteerPdTenth(uint16 p_tenth, uint16 d_tenth)
 
 static void SearchLine_DrawPreviewLabels(void)
 {
+    uint16 preview_h = (uint16)(LCDH * 2);
+
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 4), "yu zhi");
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 20), "qian zhan pian cha");
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 36), "duo ji jiao du");
+    ips200_show_string(0, (uint16)(preview_h + 4), "yu zhi");
+    ips200_show_string(0, (uint16)(preview_h + 20), "qian zhan pian cha");
+    ips200_show_string(0, (uint16)(preview_h + 36), "duo ji jiao du");
 
     /* 圆环条件调试量。 */
     ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 52), "yuan huan");
+    ips200_show_string(0, (uint16)(preview_h + 52), "yuan huan");
     ips200_set_color(RGB565_CYAN, RGB565_BLACK);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 68), "ru huan");
+    ips200_show_string(0, (uint16)(preview_h + 68), "ru huan");
     ips200_set_color(RGB565_GREEN, RGB565_BLACK);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 84), "zuo pan");
+    ips200_show_string(0, (uint16)(preview_h + 84), "zuo pan");
     ips200_set_color(RGB565_MAGENTA, RGB565_BLACK);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 100), "you pan");
+    ips200_show_string(0, (uint16)(preview_h + 100), "you pan");
     ips200_set_color(RGB565_BLUE, RGB565_BLACK);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 116), "jie duan");
+    ips200_show_string(0, (uint16)(preview_h + 116), "jie duan");
     SearchLine_Preview_Label_Ready = 1;
 }
 
@@ -2674,30 +2517,30 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     uint8 boundary_col = 0;
     uint16 offset_abs = 0;
     uint8 command_value = 0;
-    /* int16 speed_goal_display = 0; */
-    /* int16 ref_left_display = 0; */
-    /* int16 ref_right_display = 0; */
+    uint16 preview_w = (uint16)(LCDW * 2);
+    uint16 preview_h = (uint16)(LCDH * 2);
 
+    /* 相机页直接显示 80x60 处理图，灰度和二值都与主算法共用同一口径。 */
     if(show_raw)
     {
         ips200_show_gray_image(0,
                                0,
-                               mt9v03x_image[0],
-                               CAMERA_RAW_W,
-                               CAMERA_RAW_H,
-                               CAMERA_VALID_W,
-                               CAMERA_RAW_H,
+                               Image_Use[0],
+                               LCDW,
+                               LCDH,
+                               preview_w,
+                               preview_h,
                                0);
     }
     else
     {
         ips200_show_gray_image(0,
                                0,
-                               SearchLine_Otsu_Binary[0],
-                               SEARCH_LINE_OTSU_W,
-                               SEARCH_LINE_OTSU_H,
-                               CAMERA_VALID_W,
-                               CAMERA_RAW_H,
+                               Pixle[0],
+                               LCDW,
+                               LCDH,
+                               preview_w,
+                               preview_h,
                                1);
     }
 
@@ -2707,11 +2550,11 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     {
         SearchLine_DrawPreviewLabels();
     }
-    if(SearchLine_Preview_Last_Threshold != SearchLine_Otsu_Threshold_Cache)
+    if(SearchLine_Preview_Last_Threshold != ImageStatus.Threshold)
     {
-        SearchLine_FormatThresholdText(threshold_text, SearchLine_Otsu_Threshold_Cache);
-        ips200_show_string(160, (uint16)(CAMERA_RAW_H + 4), threshold_text);
-        SearchLine_Preview_Last_Threshold = SearchLine_Otsu_Threshold_Cache;
+        SearchLine_FormatThresholdText(threshold_text, ImageStatus.Threshold);
+        ips200_show_string(preview_w, (uint16)(preview_h + 4), threshold_text);
+        SearchLine_Preview_Last_Threshold = ImageStatus.Threshold;
     }
 
     if(SearchLine_Otsu_Steer_Offset < 0)
@@ -2736,12 +2579,12 @@ static void SearchLine_DrawPreview(uint8 show_raw)
 
     if(SearchLine_Preview_Last_Offset != SearchLine_Otsu_Steer_Offset)
     {
-        ips200_show_string(160, (uint16)(CAMERA_RAW_H + 20), offset_text);
+        ips200_show_string(preview_w, (uint16)(preview_h + 20), offset_text);
         SearchLine_Preview_Last_Offset = SearchLine_Otsu_Steer_Offset;
     }
     if(SearchLine_Preview_Last_Command != command_value)
     {
-        ips200_show_string(160, (uint16)(CAMERA_RAW_H + 36), command_text);
+        ips200_show_string(preview_w, (uint16)(preview_h + 36), command_text);
         SearchLine_Preview_Last_Command = command_value;
     }
 
@@ -2851,8 +2694,8 @@ static void SearchLine_DrawPreview(uint8 show_raw)
        (SearchLine_Preview_Last_Ring_Flag != SearchLine_Otsu_Ring_Flag) ||
        (SearchLine_Preview_Last_Ring_Size != SearchLine_Otsu_Ring_Size))
     {
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 52), "            ");
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 52), ring_text);
+        ips200_show_string(104, (uint16)(preview_h + 52), "            ");
+        ips200_show_string(104, (uint16)(preview_h + 52), ring_text);
         SearchLine_Preview_Last_Ring_Element = SearchLine_Otsu_Ring_Element;
         SearchLine_Preview_Last_Ring_Flag = SearchLine_Otsu_Ring_Flag;
         SearchLine_Preview_Last_Ring_Size = SearchLine_Otsu_Ring_Size;
@@ -2862,8 +2705,8 @@ static void SearchLine_DrawPreview(uint8 show_raw)
     if((SearchLine_Preview_Last_Offline_Row != SearchLine_Otsu_Offline_Row) ||
        (SearchLine_Preview_Last_White_Line != SearchLine_Otsu_White_Line))
     {
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 68), "            ");
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 68), gate_text);
+        ips200_show_string(104, (uint16)(preview_h + 68), "            ");
+        ips200_show_string(104, (uint16)(preview_h + 68), gate_text);
         SearchLine_Preview_Last_Offline_Row = SearchLine_Otsu_Offline_Row;
         SearchLine_Preview_Last_White_Line = SearchLine_Otsu_White_Line;
     }
@@ -2873,8 +2716,8 @@ static void SearchLine_DrawPreview(uint8 show_raw)
        (SearchLine_Preview_Last_Ring_Right_Line != SearchLine_Otsu_Right_Line) ||
        (SearchLine_Preview_Last_Cirque_Left_Count != SearchLine_Otsu_Cirque_Left_Count))
     {
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 84), "            ");
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 84), left_text);
+        ips200_show_string(104, (uint16)(preview_h + 84), "            ");
+        ips200_show_string(104, (uint16)(preview_h + 84), left_text);
         SearchLine_Preview_Last_Cirque_Left_Count = SearchLine_Otsu_Cirque_Left_Count;
         SearchLine_Preview_Last_Ring_Left_Line = SearchLine_Otsu_Left_Line;
         SearchLine_Preview_Last_Ring_Right_Line = SearchLine_Otsu_Right_Line;
@@ -2885,8 +2728,8 @@ static void SearchLine_DrawPreview(uint8 show_raw)
        (SearchLine_Preview_Last_Ring_Right_Line_RightPanel != SearchLine_Otsu_Right_Line) ||
        (SearchLine_Preview_Last_Cirque_Right_Count != SearchLine_Otsu_Cirque_Right_Count))
     {
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 100), "            ");
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 100), right_text);
+        ips200_show_string(104, (uint16)(preview_h + 100), "            ");
+        ips200_show_string(104, (uint16)(preview_h + 100), right_text);
         SearchLine_Preview_Last_Cirque_Right_Count = SearchLine_Otsu_Cirque_Right_Count;
         SearchLine_Preview_Last_Ring_Left_Line_RightPanel = SearchLine_Otsu_Left_Line;
         SearchLine_Preview_Last_Ring_Right_Line_RightPanel = SearchLine_Otsu_Right_Line;
@@ -2897,98 +2740,65 @@ static void SearchLine_DrawPreview(uint8 show_raw)
        (SearchLine_Preview_Last_Ring_Point_Y != SearchLine_Otsu_Ring_Point_Y) ||
        (SearchLine_Preview_Last_Ring_Straight_Judge_Tenth != SearchLine_Otsu_Ring_Straight_Judge_Tenth))
     {
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 116), "            ");
-        ips200_show_string(104, (uint16)(CAMERA_RAW_H + 116), stage_text);
+        ips200_show_string(104, (uint16)(preview_h + 116), "            ");
+        ips200_show_string(104, (uint16)(preview_h + 116), stage_text);
         SearchLine_Preview_Last_Ring_Stage_Num = SearchLine_Otsu_Ring_Stage_Num;
         SearchLine_Preview_Last_Ring_Point_Y = SearchLine_Otsu_Ring_Point_Y;
         SearchLine_Preview_Last_Ring_Straight_Judge_Tenth = SearchLine_Otsu_Ring_Straight_Judge_Tenth;
     }
 
-    /* 暂时关闭底部速度与目标值文字显示，先只保留图像预览。 */
-    /*
-    speed_goal_display = (int16)(car_wheel_target_speed + 0.5f);
-    if(ref_left_target >= 0.0f)
-    {
-        ref_left_display = (int16)(ref_left_target + 0.5f);
-    }
-    else
-    {
-        ref_left_display = (int16)(ref_left_target - 0.5f);
-    }
-    if(ref_right_target >= 0.0f)
-    {
-        ref_right_display = (int16)(ref_right_target + 0.5f);
-    }
-    else
-    {
-        ref_right_display = (int16)(ref_right_target - 0.5f);
-    }
-
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 52), line_clear_text);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 52), "mu biao su du");
-    ips200_show_int32(160, (uint16)(CAMERA_RAW_H + 52), (int32)speed_goal_display, 3);
-
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 68), line_clear_text);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 68), "zuo bian ma mu biao");
-    ips200_show_int32(160, (uint16)(CAMERA_RAW_H + 68), (int32)ref_left_display, 4);
-
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 84), line_clear_text);
-    ips200_show_string(0, (uint16)(CAMERA_RAW_H + 84), "you bian ma mu biao");
-    ips200_show_int32(160, (uint16)(CAMERA_RAW_H + 84), (int32)ref_right_display, 4);
-    */
-
-    for(row = SearchLine_Otsu_Offline_Row; row <= SEARCH_LINE_OTSU_BOTTOM_ROW; row++)
+    for(row = SearchLine_Otsu_Offline_Row; row <= 59; row++)
     {
         if(!SearchLine_Otsu_Row_Valid[row])
         {
             continue;
         }
 
-        left_col = SearchLine_Otsu_Left_Border[row];
-        right_col = SearchLine_Otsu_Right_Border[row];
-        center_col = SearchLine_Otsu_Center_Line[row];
+        left_col = ImageDeal[row].LeftBorder;
+        right_col = ImageDeal[row].RightBorder;
+        center_col = ImageDeal[row].Center;
 
-        y = (uint16)(((uint32)row * (uint32)CAMERA_RAW_H + (uint32)(SEARCH_LINE_OTSU_H / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_H);
-        x = (uint16)(((uint32)left_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        y = (uint16)(((uint32)row * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                     (uint32)LCDH);
+        x = (uint16)(((uint32)left_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_GREEN);
-        ips200_draw_point(x, (uint16)SearchLine_Limit_Int32((int32)y + 1, 0, CAMERA_RAW_H - 1), RGB565_GREEN);
+        ips200_draw_point(x, (uint16)Limit((int32)y + 1, preview_h - 1, 0), RGB565_GREEN);
 
-        x = (uint16)(((uint32)right_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        x = (uint16)(((uint32)right_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_GREEN);
-        ips200_draw_point(x, (uint16)SearchLine_Limit_Int32((int32)y + 1, 0, CAMERA_RAW_H - 1), RGB565_GREEN);
+        ips200_draw_point(x, (uint16)Limit((int32)y + 1, preview_h - 1, 0), RGB565_GREEN);
 
-        x = (uint16)(((uint32)center_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        x = (uint16)(((uint32)center_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_RED);
-        ips200_draw_point(x, (uint16)SearchLine_Limit_Int32((int32)y + 1, 0, CAMERA_RAW_H - 1), RGB565_RED);
+        ips200_draw_point(x, (uint16)Limit((int32)y + 1, preview_h - 1, 0), RGB565_RED);
     }
 
-    for(row = SearchLine_Otsu_Offline_Boundary_Row; row <= SEARCH_LINE_OTSU_BOUNDARY_BOTTOM_ROW; row++)
+    for(row = ImageStatus.OFFLineBoundary; row <= 58; row++)
     {
-        y = (uint16)(((uint32)row * (uint32)CAMERA_RAW_H + (uint32)(SEARCH_LINE_OTSU_H / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_H);
+        y = (uint16)(((uint32)row * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                     (uint32)LCDH);
 
         boundary_col = SearchLine_Otsu_Left_Boundary_First[row];
-        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_YELLOW);
 
         boundary_col = SearchLine_Otsu_Right_Boundary_First[row];
-        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_YELLOW);
 
         boundary_col = SearchLine_Otsu_Left_Boundary[row];
-        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_CYAN);
 
         boundary_col = SearchLine_Otsu_Right_Boundary[row];
-        x = (uint16)(((uint32)boundary_col * (uint32)CAMERA_VALID_W + (uint32)(SEARCH_LINE_OTSU_W / 2)) /
-                     (uint32)SEARCH_LINE_OTSU_W);
+        x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                     (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_CYAN);
     }
 }

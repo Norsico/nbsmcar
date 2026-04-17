@@ -55,9 +55,23 @@ void ackerman_calc_wheel_speeds(float speed, float steer_angle)
     tan_delta = tan(steer_angle * 3.1415926f / 180.0f);
     v_dif = 0.5088 * tan_delta;
 
-    
-    if (steer_angle>0) {ackerman_kinematic.right_wheel_speed = speed;ackerman_kinematic.left_wheel_speed = speed * (1.0f + v_dif);}
-    else {ackerman_kinematic.left_wheel_speed = speed;ackerman_kinematic.right_wheel_speed = speed * (1.0f - v_dif);}
+    /* 右转时左轮走外侧，左转时右轮走外侧。 */
+    /* 外侧轮保持基础速度，内侧轮按国一口径减速。 */
+    if (steer_angle > 0.0f)
+    {
+        ackerman_kinematic.left_wheel_speed = speed;
+        ackerman_kinematic.right_wheel_speed = speed * (1.0f - v_dif);
+    }
+    else if (steer_angle < 0.0f)
+    {
+        ackerman_kinematic.right_wheel_speed = speed;
+        ackerman_kinematic.left_wheel_speed = speed * (1.0f + v_dif);
+    }
+    else
+    {
+        ackerman_kinematic.left_wheel_speed = speed;
+        ackerman_kinematic.right_wheel_speed = speed;
+    }
 
 }
 

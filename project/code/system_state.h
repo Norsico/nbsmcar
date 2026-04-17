@@ -21,7 +21,7 @@ typedef enum {
 #define KEY_SCAN_PERIOD 20              // 按键扫描周期 20ms (50Hz)
 #define IMU_PERIOD 10                   // IMU读取周期 10ms (100Hz)
 #define ENCODER_PERIOD 5                // 编码器采样周期 5ms (200Hz)，对齐 19 国一电机闭环节拍。
-#define CENTER_PERIOD 20				// 搜索中心周期 10ms (100Hz)
+#define CENTER_PERIOD 20				// 图像处理周期 10ms
 #define DISPLAY_PERIOD 100              // 显示刷新周期 100ms (10Hz)
 #define WIFI_PERIOD 10                  // WiFi任务周期 10ms，调参收包按更快节拍处理。
 
