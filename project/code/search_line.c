@@ -5,6 +5,7 @@
 #include "dev_servo.h"
 #include "dev_wheel.h"
 #include "system_state.h"
+#include "stdlib.h"
 
 #define SEARCH_LINE_OTSU_W                  (LCDW)
 #define SEARCH_LINE_OTSU_H                  (LCDH)
@@ -47,21 +48,9 @@
 #define SEARCH_LINE_ROAD_CROSS_TRUE         (Cross_ture)
 #define SEARCH_LINE_ROAD_ZEBRA              (Zebra_Flag)
 
-/* 边界跟踪前进规则，口径对齐 19 国一 Search_Left_and_Right_Lines。 */
-static const int8 SearchLine_Otsu_Left_Rule[2][8] =
-{
-    {0, -1, 1, 0, 0, 1, -1, 0},
-    {-1, -1, 1, -1, 1, 1, -1, 1}
-};
-static const int8 SearchLine_Otsu_Right_Rule[2][8] =
-{
-    {0, -1, 1, 0, 0, 1, -1, 0},
-    {1, -1, 1, 1, -1, 1, -1, -1}
-};
-
 /* 压缩灰度图和二值图直接按国一口径导出。 */
-IFX_ALIGN(4) uint8 Image_Use[LCDH][LCDW] = {0};
-IFX_ALIGN(4) uint8 Pixle[LCDH][LCDW] = {0};
+uint8 Image_Use[LCDH][LCDW] = {0};
+uint8 Pixle[LCDH][LCDW] = {0};
 ImageStatustypedef ImageStatus =
 {
     SEARCH_LINE_OTSU_DET_TOW_POINT,
@@ -87,11 +76,6 @@ static int ytemp = 0;
 static int TFSite = 0, FTSite = 0;
 static float DetR = 0, DetL = 0;
 static int BottomBorderRight = 79, BottomBorderLeft = 0, BottomCenter = 0;
-/* 当前阶段先把边界观测缓存名收回到国一口径。 */
-static uint8 LeftBoundary_First[SEARCH_LINE_OTSU_H] = {0};
-static uint8 RightBoundary_First[SEARCH_LINE_OTSU_H] = {0};
-static uint8 LeftBoundary[SEARCH_LINE_OTSU_H] = {0};
-static uint8 RightBoundary[SEARCH_LINE_OTSU_H] = {0};
 static uint8 ExtenLFlag = 0;
 static uint8 ExtenRFlag = 0;
 /* 对齐参考代码的舵机位置式 PD 预览量。 */
@@ -134,11 +118,6 @@ float Mh = MT9V03X_H;
 float Lh = LCDH;
 float Mw = MT9V03X_W;
 float Lw = LCDW;
-
-#define SearchLine_Otsu_Left_Boundary_First LeftBoundary_First
-#define SearchLine_Otsu_Right_Boundary_First RightBoundary_First
-#define SearchLine_Otsu_Left_Boundary LeftBoundary
-#define SearchLine_Otsu_Right_Boundary RightBoundary
 #define SearchLine_Otsu_Offline_Row ImageStatus.OFFLine
 #define SearchLine_Otsu_Left_Line ImageStatus.Left_Line
 #define SearchLine_Otsu_Right_Line ImageStatus.Right_Line
@@ -189,7 +168,6 @@ static int Limit(int value, int numH, int numL)
     return value;
 }
 
-/* 当前先按整幅相机图压缩，处理口径直接对齐国一。 */
 void compressimage(void)
 {
     int i, j, row, line;
@@ -198,14 +176,13 @@ void compressimage(void)
     for(i = 0; i < LCDH; i++)
     {
         row = i * div_h + 0.5f;
-
         for(j = 0; j < LCDW; j++)
         {
             line = j * div_w + 0.5f;
             Image_Use[i][j] = mt9v03x_image[row][line];
         }
     }
-    mt9v03x_finish_flag = 0;  /* 使用完一帧 DMA 图像后允许下一帧继续搬运。 */
+    mt9v03x_finish_flag = 0;  //使用完一帧DMA传输的图像图像  可以开始传输下一帧
 }
 
 static uint8 SearchLine_Get_Otsu_Binary_Pixel(int16 row, int16 col)
@@ -219,261 +196,270 @@ static uint8 SearchLine_Get_Otsu_Binary_Pixel(int16 row, int16 col)
     return Pixle[row][col];
 }
 
-/* 圆环支线缓存初始化。 */
-static void SearchLine_Clear_Otsu_BorderTraceState(void)
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+//  @name           Search_Bottom_Line_OTSU
+//  @brief          获取底层左右边线
+//  @param          imageInput[IMAGE_ROW][IMAGE_COL]        传入的图像数组
+//  @param          Row                                     图像的Ysite
+//  @param          Col                                     图像的Xsite
+//  @param          Bottonline                              底边行选择
+//  @return         Bottonline                              底边行选择
+//  @time           2022年10月9日
+//  @Author
+//  Sample usage:   Search_Bottom_Line_OTSU(imageInput, Row, Col, Bottonline);
+//--------------------------------------------------------------------------------------------------------------------------------------------
+void Search_Bottom_Line_OTSU(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
 {
-    uint16 row = 0;
-
-    ImageStatus.OFFLineBoundary = 5;
-
-    for(row = 0; row < SEARCH_LINE_OTSU_H; row++)
-    {
-        SearchLine_Otsu_Left_Boundary_First[row] = 0;
-        SearchLine_Otsu_Right_Boundary_First[row] = SEARCH_LINE_OTSU_W - 1;
-        SearchLine_Otsu_Left_Boundary[row] = 0;
-        SearchLine_Otsu_Right_Boundary[row] = SEARCH_LINE_OTSU_W - 1;
-    }
-}
-
-/* 19 国一 Search_Border_OTSU 的边界跟踪支线。
- * 这一支只更新观测缓存，不改主链左右边界。
- */
-static void Search_Border_OTSU(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
-{
-    uint8 bottom_row = 58;
-    uint8 trace_row = 0;
-    uint8 left_y = 0;
-    uint8 left_x = 0;
-    uint8 right_y = 0;
-    uint8 right_x = 0;
-    uint8 left_direction = 0;
-    uint8 right_direction = 0;
-    uint8 left_probe_y = 0;
-    uint8 left_probe_x = 0;
-    uint8 right_probe_y = 0;
-    uint8 right_probe_x = 0;
-    uint8 row = 0;
-    uint16 guard = 0;
-    int16 next_row = 0;
-    int16 next_col = 0;
-    int16 probe_delta = 0;
-    int16 center_col = ImageSensorMid;
-    int16 col = 0;
-
-    (void)imageInput;
-    (void)Row;
-    (void)Col;
-    bottom_row = Bottonline;
-
-    SearchLine_Otsu_White_Line_Left = 0;
-    SearchLine_Otsu_White_Line_Right = 0;
-    SearchLine_Clear_Otsu_BorderTraceState();
-
-    if(!SearchLine_Otsu_Row_Valid[bottom_row])
+    if((0 == Col) || (Bottonline >= Row))
     {
         return;
     }
 
-    left_y = bottom_row;
-    right_y = bottom_row;
-    left_x = 0;
-    right_x = SEARCH_LINE_OTSU_W - 1;
-    for(col = center_col - 2; col > 1; col--)
+    //寻找左边边界
+    for(Xsite = Col / 2 - 2; Xsite > 1; Xsite--)
     {
-        if((1 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col)) &&
-           (0 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col - 1)))
+        if(imageInput[Bottonline][Xsite] == 1 && imageInput[Bottonline][Xsite - 1] == 0)
         {
-            left_x = (uint8)col;
+            ImageDeal[Bottonline].LeftBoundary = Xsite;//获取底边左边线
             break;
         }
     }
-    for(col = center_col + 2; col < (SEARCH_LINE_OTSU_W - 1); col++)
+    //寻找右边边界
+    for(Xsite = Col / 2 + 2; Xsite < LCDW - 1; Xsite++)
     {
-        if((1 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col)) &&
-           (0 == SearchLine_Get_Otsu_Binary_Pixel(bottom_row, col + 1)))
+        if(imageInput[Bottonline][Xsite] == 1 && imageInput[Bottonline][Xsite + 1] == 0)
         {
-            right_x = (uint8)col;
+            ImageDeal[Bottonline].RightBoundary = Xsite;//获取底边右边线
             break;
         }
     }
-    left_probe_y = bottom_row;
-    left_probe_x = left_x;
-    right_probe_y = bottom_row;
-    right_probe_x = right_x;
-    trace_row = bottom_row;
+}
 
-    SearchLine_Otsu_Left_Boundary_First[bottom_row] = left_x;
-    SearchLine_Otsu_Left_Boundary[bottom_row] = left_x;
-    SearchLine_Otsu_Right_Boundary_First[bottom_row] = right_x;
-    SearchLine_Otsu_Right_Boundary[bottom_row] = right_x;
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+//  @name           Search_Left_and_Right_Lines
+//  @brief          通过sobel提取左右边线
+//  @param          imageInput[IMAGE_ROW][IMAGE_COL]        传入的图像数组
+//  @param          Row                                     图像的Ysite
+//  @param          Col                                     图像的Xsite
+//  @param          Bottonline                              底边行选择
+//  @return         无
+//  @time           2022年10月7日
+//  @Author
+//  Sample usage:   Search_Left_and_Right_Lines(imageInput, Row, Col, Bottonline);
+//--------------------------------------------------------------------------------------------------------------------------------------------
+void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
+{
+    //定义小人的当前行走状态位置为 上 左 下 右 一次要求 上：左边为黑色 左：上边为褐色 下：右边为色  右：下面有黑色
+/*  前进方向定义：
+                *   0
+                * 3   1
+                *   2
+*/
+/*寻左线坐标规则*/
+    uint8 Left_Rule[2][8] =
+    {
+        {0, -1, 1, 0, 0, 1, -1, 0},
+        {-1, -1, 1, -1, 1, 1, -1, 1}
+    };
+    /*寻右线坐标规则*/
+    int Right_Rule[2][8] =
+    {
+        {0, -1, 1, 0, 0, 1, -1, 0},
+        {1, -1, 1, 1, -1, 1, -1, -1}
+    };
+    int num = 0;
+    uint8 Left_Ysite = Bottonline;
+    uint8 Left_Xsite = ImageDeal[Bottonline].LeftBoundary;
+    uint8 Left_Rirection = 0;//左边方向
+    uint8 Pixel_Left_Ysite = Bottonline;
+    uint8 Pixel_Left_Xsite = 0;
+    uint8 Right_Ysite = Bottonline;
+    uint8 Right_Xsite = ImageDeal[Bottonline].RightBoundary;
+    uint8 Right_Rirection = 0;//右边方向
+    uint8 Pixel_Right_Ysite = Bottonline;
+    uint8 Pixel_Right_Xsite = 0;
+    uint8 Ysite = Bottonline;
 
+    if((0 == Row) || (0 == Col) || (Bottonline >= Row))
+    {
+        return;
+    }
+
+    ImageStatus.OFFLineBoundary = 5;
     while(1)
     {
-        guard++;
-        if(guard > 400)
+        num++;
+        if(num > 400)
         {
-            ImageStatus.OFFLineBoundary = trace_row;
+            ImageStatus.OFFLineBoundary = Ysite;
             break;
         }
-
-        if((trace_row >= left_probe_y) && (trace_row >= right_probe_y))
+        if(Ysite >= Pixel_Left_Ysite && Ysite >= Pixel_Right_Ysite)
         {
-            if(trace_row < ImageStatus.OFFLineBoundary)
+            if(Ysite < ImageStatus.OFFLineBoundary)
             {
-                ImageStatus.OFFLineBoundary = trace_row;
+                ImageStatus.OFFLineBoundary = Ysite;
                 break;
             }
             else
             {
-                trace_row--;
+                Ysite--;
             }
         }
 
-        if((left_probe_y > trace_row) || (trace_row == ImageStatus.OFFLineBoundary))
+        /*********左边巡线*******/
+        if((Pixel_Left_Ysite > Ysite) || Ysite == ImageStatus.OFFLineBoundary)//右边扫线
         {
-            next_row = (int16)left_y + SearchLine_Otsu_Left_Rule[0][2 * left_direction + 1];
-            next_col = (int16)left_x + SearchLine_Otsu_Left_Rule[0][2 * left_direction];
-            left_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-            left_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+            /*计算前方坐标*/
+            Pixel_Left_Ysite = Left_Ysite + Left_Rule[0][2 * Left_Rirection + 1];
+            Pixel_Left_Xsite = Left_Xsite + Left_Rule[0][2 * Left_Rirection];
 
-            if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+            if(imageInput[Pixel_Left_Ysite][Pixel_Left_Xsite] == 0)//前方是黑色
             {
-                if(3 == left_direction)
-                {
-                    left_direction = 0;
-                }
+                //顺时针旋转90
+                if(Left_Rirection == 3)
+                    Left_Rirection = 0;
                 else
-                {
-                    left_direction++;
-                }
+                    Left_Rirection++;
             }
-            else
+            else//前方是白色
             {
-                next_row = (int16)left_y + SearchLine_Otsu_Left_Rule[1][2 * left_direction + 1];
-                next_col = (int16)left_x + SearchLine_Otsu_Left_Rule[1][2 * left_direction];
-                left_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                left_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                /*计算左前方坐标*/
+                Pixel_Left_Ysite = Left_Ysite + Left_Rule[1][2 * Left_Rirection + 1];
+                Pixel_Left_Xsite = Left_Xsite + Left_Rule[1][2 * Left_Rirection];
 
-                if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+                if(imageInput[Pixel_Left_Ysite][Pixel_Left_Xsite] == 0)//左前方为黑色
                 {
-                    left_y = (uint8)Limit((int16)left_y +
-                                                           SearchLine_Otsu_Left_Rule[0][2 * left_direction + 1],
-                                                           0,
-                                                           SEARCH_LINE_OTSU_H - 1);
-                    left_x = (uint8)Limit((int16)left_x +
-                                                           SearchLine_Otsu_Left_Rule[0][2 * left_direction],
-                                                           0,
-                                                           SEARCH_LINE_OTSU_W - 1);
-                    if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
+                    //方向不变  Left_Rirection
+                    Left_Ysite = Left_Ysite + Left_Rule[0][2 * Left_Rirection + 1];
+                    Left_Xsite = Left_Xsite + Left_Rule[0][2 * Left_Rirection];
+                    if(ImageDeal[Left_Ysite].LeftBoundary_First == 0)
                     {
-                        SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
+                        ImageDeal[Left_Ysite].LeftBoundary_First = Left_Xsite;
                     }
-                    SearchLine_Otsu_Left_Boundary[left_y] = left_x;
+                    ImageDeal[Left_Ysite].LeftBoundary = Left_Xsite;
                 }
-                else
+                else//左前方为白色
                 {
-                    left_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                    left_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
-                    if(0 == SearchLine_Otsu_Left_Boundary_First[left_y])
+                    // 方向发生改变 Left_Rirection  逆时针90度
+                    Left_Ysite = Left_Ysite + Left_Rule[1][2 * Left_Rirection + 1];
+                    Left_Xsite = Left_Xsite + Left_Rule[1][2 * Left_Rirection];
+                    if(ImageDeal[Left_Ysite].LeftBoundary_First == 0)
                     {
-                        SearchLine_Otsu_Left_Boundary_First[left_y] = left_x;
+                        ImageDeal[Left_Ysite].LeftBoundary_First = Left_Xsite;
                     }
-                    SearchLine_Otsu_Left_Boundary[left_y] = left_x;
-                    if(0 == left_direction)
-                    {
-                        left_direction = 3;
-                    }
+                    ImageDeal[Left_Ysite].LeftBoundary = Left_Xsite;
+                    if(Left_Rirection == 0)
+                        Left_Rirection = 3;
                     else
-                    {
-                        left_direction--;
-                    }
+                        Left_Rirection--;
                 }
             }
         }
 
-        if((right_probe_y > trace_row) || (trace_row == ImageStatus.OFFLineBoundary))
+        /*********右边巡线*******/
+        if((Pixel_Right_Ysite > Ysite) || Ysite == ImageStatus.OFFLineBoundary)//右边扫线
         {
-            next_row = (int16)right_y + SearchLine_Otsu_Right_Rule[0][2 * right_direction + 1];
-            next_col = (int16)right_x + SearchLine_Otsu_Right_Rule[0][2 * right_direction];
-            right_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-            right_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+            /*计算前方坐标*/
+            Pixel_Right_Ysite = Right_Ysite + Right_Rule[0][2 * Right_Rirection + 1];
+            Pixel_Right_Xsite = Right_Xsite + Right_Rule[0][2 * Right_Rirection];
 
-            if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+            if(imageInput[Pixel_Right_Ysite][Pixel_Right_Xsite] == 0)//前方是黑色
             {
-                if(0 == right_direction)
-                {
-                    right_direction = 3;
-                }
+                //逆时针旋转90
+                if(Right_Rirection == 0)
+                    Right_Rirection = 3;
                 else
-                {
-                    right_direction--;
-                }
+                    Right_Rirection--;
             }
-            else
+            else//前方是白色
             {
-                next_row = (int16)right_y + SearchLine_Otsu_Right_Rule[1][2 * right_direction + 1];
-                next_col = (int16)right_x + SearchLine_Otsu_Right_Rule[1][2 * right_direction];
-                right_probe_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                right_probe_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
+                /*计算右前方坐标*/
+                Pixel_Right_Ysite = Right_Ysite + Right_Rule[1][2 * Right_Rirection + 1];
+                Pixel_Right_Xsite = Right_Xsite + Right_Rule[1][2 * Right_Rirection];
 
-                if(0 == SearchLine_Get_Otsu_Binary_Pixel(next_row, next_col))
+                if(imageInput[Pixel_Right_Ysite][Pixel_Right_Xsite] == 0)//左前方为黑色
                 {
-                    right_y = (uint8)Limit((int16)right_y +
-                                                            SearchLine_Otsu_Right_Rule[0][2 * right_direction + 1],
-                                                            0,
-                                                            SEARCH_LINE_OTSU_H - 1);
-                    right_x = (uint8)Limit((int16)right_x +
-                                                            SearchLine_Otsu_Right_Rule[0][2 * right_direction],
-                                                            0,
-                                                            SEARCH_LINE_OTSU_W - 1);
-                    if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
+                    //方向不变  Right_Rirection
+                    Right_Ysite = Right_Ysite + Right_Rule[0][2 * Right_Rirection + 1];
+                    Right_Xsite = Right_Xsite + Right_Rule[0][2 * Right_Rirection];
+                    if(ImageDeal[Right_Ysite].RightBoundary_First == 79)
                     {
-                        SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
+                        ImageDeal[Right_Ysite].RightBoundary_First = Right_Xsite;
                     }
-                    SearchLine_Otsu_Right_Boundary[right_y] = right_x;
+                    ImageDeal[Right_Ysite].RightBoundary = Right_Xsite;
                 }
-                else
+                else//左前方为白色
                 {
-                    right_y = (uint8)Limit(next_row, 0, SEARCH_LINE_OTSU_H - 1);
-                    right_x = (uint8)Limit(next_col, 0, SEARCH_LINE_OTSU_W - 1);
-                    if((SEARCH_LINE_OTSU_W - 1) == SearchLine_Otsu_Right_Boundary_First[right_y])
+                    // 方向发生改变 Right_Rirection  逆时针90度
+                    Right_Ysite = Right_Ysite + Right_Rule[1][2 * Right_Rirection + 1];
+                    Right_Xsite = Right_Xsite + Right_Rule[1][2 * Right_Rirection];
+                    if(ImageDeal[Right_Ysite].RightBoundary_First == 79)
                     {
-                        SearchLine_Otsu_Right_Boundary_First[right_y] = right_x;
+                        ImageDeal[Right_Ysite].RightBoundary_First = Right_Xsite;
                     }
-                    SearchLine_Otsu_Right_Boundary[right_y] = right_x;
-                    if(3 == right_direction)
-                    {
-                        right_direction = 0;
-                    }
+                    ImageDeal[Right_Ysite].RightBoundary = Right_Xsite;
+                    if(Right_Rirection == 3)
+                        Right_Rirection = 0;
                     else
-                    {
-                        right_direction++;
-                    }
+                        Right_Rirection++;
                 }
             }
         }
 
-        probe_delta = (int16)right_probe_x - (int16)left_probe_x;
-        if(probe_delta < 0)
+        if(abs(Pixel_Right_Xsite - Pixel_Left_Xsite) < 3)//Ysite<80是为了放在底部是斑马线扫描结束  3 && Ysite < 30
         {
-            probe_delta = -probe_delta;
-        }
-        if(probe_delta < 3)
-        {
-            ImageStatus.OFFLineBoundary = trace_row;
+            ImageStatus.OFFLineBoundary = Ysite;
             break;
         }
     }
+}
 
-    for(row = bottom_row; row > (uint8)(ImageStatus.OFFLineBoundary + 1); row--)
+//---------------------------------------------------------------------------------------------------------------------------------------------------------------
+//  @name           Search_Border_OTSU
+//  @brief          通过OTSU获取边线 和信息
+//  @param          imageInput[IMAGE_ROW][IMAGE_COL]        传入的图像数组
+//  @param          Row                                     图像的Ysite
+//  @param          Col                                     图像的Xsite
+//  @param          Bottonline                              底边行选择
+//  @return         无
+//  @time           2022年10月7日
+//  @Author
+//  Sample usage:   Search_Border_OTSU(mt9v03x_image, IMAGE_ROW, IMAGE_COL, IMAGE_ROW-8);
+//--------------------------------------------------------------------------------------------------------------------------------------------
+void Search_Border_OTSU(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
+{
+    ImageStatus.WhiteLine_L = 0;
+    ImageStatus.WhiteLine_R = 0;
+    //ImageStatus.OFFLine = 1;
+    /*封上下边界处理*/
+    for(Xsite = 0; Xsite < LCDW; Xsite++)
     {
-        if(SearchLine_Otsu_Left_Boundary[row] < 3)
+        imageInput[0][Xsite] = 0;
+        imageInput[Bottonline + 1][Xsite] = 0;
+    }
+    /*封左右边界处理*/
+    for(Ysite = 0; Ysite < LCDH; Ysite++)
+    {
+        ImageDeal[Ysite].LeftBoundary_First = 0;
+        ImageDeal[Ysite].RightBoundary_First = 79;
+        imageInput[Ysite][0] = 0;
+        imageInput[Ysite][LCDW - 1] = 0;
+    }
+    /********获取底部边线*********/
+    Search_Bottom_Line_OTSU(imageInput, Row, Col, Bottonline);
+    /********获取左右边线*********/
+    Search_Left_and_Right_Lines(imageInput, Row, Col, Bottonline);
+
+    for(Ysite = Bottonline; Ysite > ImageStatus.OFFLineBoundary + 1; Ysite--)
+    {
+        if(ImageDeal[Ysite].LeftBoundary < 3)
         {
-            SearchLine_Otsu_White_Line_Left++;
+            ImageStatus.WhiteLine_L++;
         }
-        if(SearchLine_Otsu_Right_Boundary[row] > (SEARCH_LINE_OTSU_W - 3))
+        if(ImageDeal[Ysite].RightBoundary > LCDW - 3)
         {
-            SearchLine_Otsu_White_Line_Right++;
+            ImageStatus.WhiteLine_R++;
         }
     }
 }
@@ -619,8 +605,9 @@ static uint8 DrawLinesFirst(void)
     return 'T';
 }
 
-void GetJumpPointFromDet(uint8 *p, uint8 type, int L, int H, JumpPointtypedef *Q)
-{
+void GetJumpPointFromDet(uint8 *p, uint8 type, int L, int H, JumpPointtypedef *Q)  //第一个参数是要查找的数组（80个点）
+                                                                                   //第二个扫左边线还是扫右边线
+{                                                                                  //三四是开始和结束点
     int i = 0;
 
     if(type == 'L')
@@ -682,20 +669,20 @@ void GetJumpPointFromDet(uint8 *p, uint8 type, int L, int H, JumpPointtypedef *Q
 /*边线追逐大致得到全部边线*/
 static void DrawLinesProcess(void)
 {
-    uint8 L_Found_T = 'F';
-    uint8 Get_L_line = 'F';
-    uint8 R_Found_T = 'F';
-    uint8 Get_R_line = 'F';
-    float D_L = 0;
-    float D_R = 0;
-    int ytemp_W_L = 0;
-    int ytemp_W_R = 0;
+    uint8 L_Found_T = 'F';  //确定无边斜率的基准有边行是否被找到的标志
+    uint8 Get_L_line = 'F';  //找到这一帧图像的基准左斜率
+    uint8 R_Found_T = 'F';  //确定无边斜率的基准有边行是否被找到的标志
+    uint8 Get_R_line = 'F';  //找到这一帧图像的基准右斜率
+    float D_L = 0;           //延长线左边线斜率
+    float D_R = 0;           //延长线右边线斜率
+    int ytemp_W_L = 0;       //记住首次左丢边行
+    int ytemp_W_R = 0;       //记住首次右丢边行
     int ysite = 0;
     uint8 L_found_point = 0;
     uint8 R_found_point = 0;
-    JumpPointtypedef JumpPoint[2];
+    JumpPointtypedef JumpPoint[2];  // 0左1右
 
-    ExtenRFlag = 0;
+    ExtenRFlag = 0;          //标志位清0
     ExtenLFlag = 0;
     ImageStatus.Left_Line = 0;
     ImageStatus.WhiteLine = 0;
@@ -715,15 +702,15 @@ static void DrawLinesProcess(void)
             IntervalHigh = ImageDeal[Ysite + 1].RightBorder + ImageScanInterval_Cross;
         }
 
-        LimitL(IntervalLow);
-        LimitH(IntervalHigh);
-        GetJumpPointFromDet(PicTemp, 'R', IntervalLow, IntervalHigh, &JumpPoint[1]);
+        LimitL(IntervalLow);   //确定左扫描区间并进行限制
+        LimitH(IntervalHigh);  //确定右扫描区间并进行限制
+        GetJumpPointFromDet(PicTemp, 'R', IntervalLow, IntervalHigh, &JumpPoint[1]);     //扫右边线
 
         IntervalLow = ImageDeal[Ysite + 1].LeftBorder - ImageScanInterval;
         IntervalHigh = ImageDeal[Ysite + 1].LeftBorder + ImageScanInterval;
 
-        LimitL(IntervalLow);
-        LimitH(IntervalHigh);
+        LimitL(IntervalLow);   //确定左扫描区间并进行限制
+        LimitH(IntervalHigh);  //确定右扫描区间并进行限制
         GetJumpPointFromDet(PicTemp, 'L', IntervalLow, IntervalHigh, &JumpPoint[0]);
 
         if(JumpPoint[0].type == 'W')
@@ -1406,8 +1393,8 @@ static void Element_Judgment_Left_Rings(void)
 
     for(row = 58; row > ring_ysite; row--)
     {
-        if((int16)SearchLine_Otsu_Left_Boundary_First[row] -
-           (int16)SearchLine_Otsu_Left_Boundary_First[row - 1] > 4)
+        if((int16)ImageDeal[row].LeftBoundary_First -
+           (int16)ImageDeal[row - 1].LeftBoundary_First > 4)
         {
             point1_y = row;
             break;
@@ -1415,8 +1402,8 @@ static void Element_Judgment_Left_Rings(void)
     }
     for(row = 58; row > ring_ysite; row--)
     {
-        if((int16)SearchLine_Otsu_Left_Boundary[row + 1] -
-           (int16)SearchLine_Otsu_Left_Boundary[row] > 4)
+        if((int16)ImageDeal[row + 1].LeftBoundary -
+           (int16)ImageDeal[row].LeftBoundary > 4)
         {
             point2_y = row;
             break;
@@ -1486,8 +1473,8 @@ static void Element_Judgment_Right_Rings(void)
 
     for(row = 58; row > ring_ysite; row--)
     {
-        if((int16)SearchLine_Otsu_Right_Boundary_First[row - 1] -
-           (int16)SearchLine_Otsu_Right_Boundary_First[row] > 4)
+        if((int16)ImageDeal[row - 1].RightBoundary_First -
+           (int16)ImageDeal[row].RightBoundary_First > 4)
         {
             point1_y = row;
             break;
@@ -1495,8 +1482,8 @@ static void Element_Judgment_Right_Rings(void)
     }
     for(row = 58; row > ring_ysite; row--)
     {
-        if((int16)SearchLine_Otsu_Right_Boundary[row] -
-           (int16)SearchLine_Otsu_Right_Boundary[row + 1] > 4)
+        if((int16)ImageDeal[row].RightBoundary -
+           (int16)ImageDeal[row + 1].RightBoundary > 4)
         {
             point2_y = row;
             break;
@@ -2221,25 +2208,41 @@ uint8 Threshold_deal(uint8* image,
                      uint16 row,
                      uint32 pixel_threshold)
 {
-    uint16 width = col;
-    uint16 height = row;
+    uint16 width;
+    uint16 height;
     int pixelCount[256];
     float pixelPro[256];
-    int i = 0;
-    int j = 0;
-    int pixelSum = width * height;
-    uint8 threshold = 0;
-    uint8* data = image;  /* 指向像素数据的指针。 */
-    uint32 gray_sum = 0;
-    float w0 = 0.0f;
-    float w1 = 0.0f;
-    float u0tmp = 0.0f;
-    float u1tmp = 0.0f;
-    float u0 = 0.0f;
-    float u1 = 0.0f;
-    float u = 0.0f;
-    float deltaTmp = 0.0f;
-    float deltaMax = 0.0f;
+    uint16 i;
+    uint16 j;
+    int pixelSum;
+    uint8 threshold;
+    uint8 *image_data;
+    uint32 gray_sum;
+    float w0;
+    float w1;
+    float u0tmp;
+    float u1tmp;
+    float u0;
+    float u1;
+    float u;
+    float deltaTmp;
+    float deltaMax;
+
+    width = col;
+    height = row;
+    pixelSum = width * height;
+    threshold = 0;
+    image_data = image;  /* 指向像素数据的指针。 */
+    gray_sum = 0;
+    w0 = 0.0f;
+    w1 = 0.0f;
+    u0tmp = 0.0f;
+    u1tmp = 0.0f;
+    u0 = 0.0f;
+    u1 = 0.0f;
+    u = 0.0f;
+    deltaTmp = 0.0f;
+    deltaMax = 0.0f;
 
     for(i = 0; i < 256; i++)
     {
@@ -2252,8 +2255,8 @@ uint8 Threshold_deal(uint8* image,
     {
         for(j = 0; j < width; j++)
         {
-            pixelCount[(int)data[i * width + j]]++;  /* 将当前点的像素值作为计数数组下标。 */
-            gray_sum += (int)data[i * width + j];    /* 灰度值总和。 */
+            pixelCount[(int)image_data[i * width + j]]++;  /* 将当前点的像素值作为计数数组下标。 */
+            gray_sum += (int)image_data[i * width + j];    /* 灰度值总和。 */
         }
     }
 
@@ -2264,7 +2267,7 @@ uint8 Threshold_deal(uint8* image,
     }
 
     /* 遍历灰度级 [0, pixel_threshold) 。 */
-    for(j = 0; j < (int)pixel_threshold; j++)
+    for(j = 0; j < (uint16)pixel_threshold; j++)
     {
         w0 += pixelPro[j];  /* 背景部分每个灰度值的像素点所占比例之和。 */
         if(0.0f == w0)
@@ -2781,22 +2784,22 @@ static void SearchLine_DrawPreview(uint8 show_raw)
         y = (uint16)(((uint32)row * (uint32)preview_h + (uint32)(LCDH / 2)) /
                      (uint32)LCDH);
 
-        boundary_col = SearchLine_Otsu_Left_Boundary_First[row];
+        boundary_col = (uint8)ImageDeal[row].LeftBoundary_First;
         x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
                      (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_YELLOW);
 
-        boundary_col = SearchLine_Otsu_Right_Boundary_First[row];
+        boundary_col = (uint8)ImageDeal[row].RightBoundary_First;
         x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
                      (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_YELLOW);
 
-        boundary_col = SearchLine_Otsu_Left_Boundary[row];
+        boundary_col = (uint8)ImageDeal[row].LeftBoundary;
         x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
                      (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_CYAN);
 
-        boundary_col = SearchLine_Otsu_Right_Boundary[row];
+        boundary_col = (uint8)ImageDeal[row].RightBoundary;
         x = (uint16)(((uint32)boundary_col * (uint32)preview_w + (uint32)(LCDW / 2)) /
                      (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_CYAN);
