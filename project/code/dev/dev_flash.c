@@ -5,9 +5,7 @@
 
 #define FLASH_STORE_ADDR                (0x0000)
 #define FLASH_STORE_MAGIC               (0x4653)
-#define FLASH_STORE_VERSION             (0x0003)
-#define FLASH_STORE_LINE_KP_MAX_TENTH   (100)
-#define FLASH_STORE_LINE_KD_MAX_TENTH   (100)
+#define FLASH_STORE_VERSION             (0x0004)
 /* 掉电参数写在用户 EEPROM 第一个扇区。 */
 
 typedef struct
@@ -27,9 +25,11 @@ static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            return (value >= FLASH_STEER_P_MIN && value <= FLASH_STEER_P_MAX) ? 1 : 0;
+            return (value >= (int16)FlashSteerPConfig.min &&
+                    value <= (int16)FlashSteerPConfig.max) ? 1 : 0;
         case FLASH_PARAM_SLOT_SECOND:
-            return (value >= FLASH_STEER_D_MIN && value <= FLASH_STEER_D_MAX) ? 1 : 0;
+            return (value >= (int16)FlashSteerDConfig.min &&
+                    value <= (int16)FlashSteerDConfig.max) ? 1 : 0;
         default:
             return 0;
     }
@@ -40,11 +40,14 @@ static uint8 flash_store_camera_value_in_range(flash_camera_slot_t slot, uint16 
     switch(slot)
     {
         case FLASH_CAMERA_SLOT_AUTO_EXP:
-            return (value >= FLASH_CAMERA_AUTO_EXP_MIN && value <= FLASH_CAMERA_AUTO_EXP_MAX) ? 1 : 0;
+            return (value >= FlashCameraAutoExpConfig.min &&
+                    value <= FlashCameraAutoExpConfig.max) ? 1 : 0;
         case FLASH_CAMERA_SLOT_EXP_TIME:
-            return (value >= FLASH_CAMERA_EXP_TIME_MIN && value <= FLASH_CAMERA_EXP_TIME_MAX) ? 1 : 0;
+            return (value >= FlashCameraExpTimeConfig.min &&
+                    value <= FlashCameraExpTimeConfig.max) ? 1 : 0;
         case FLASH_CAMERA_SLOT_GAIN:
-            return (value >= FLASH_CAMERA_GAIN_MIN && value <= FLASH_CAMERA_GAIN_MAX) ? 1 : 0;
+            return (value >= FlashCameraGainConfig.min &&
+                    value <= FlashCameraGainConfig.max) ? 1 : 0;
         default:
             return 0;
     }
@@ -52,40 +55,32 @@ static uint8 flash_store_camera_value_in_range(flash_camera_slot_t slot, uint16 
 
 static uint8 flash_store_start_speed_in_range(uint16 value)
 {
-    return (value >= FLASH_START_SPEED_MIN && value <= FLASH_START_SPEED_MAX) ? 1 : 0;
+    return (value >= FlashStartSpeedConfig.min &&
+            value <= FlashStartSpeedConfig.max) ? 1 : 0;
 }
 
 static uint8 flash_store_start_enable_in_range(uint8 value)
 {
-    return (value >= FLASH_START_ENABLE_MIN && value <= FLASH_START_ENABLE_MAX) ? 1 : 0;
+    return (value >= FlashStartEnableConfig.min &&
+            value <= FlashStartEnableConfig.max) ? 1 : 0;
 }
 
-/* 校验巡线调参页。 */
-static uint8 flash_store_line_tune_page_is_valid(const flash_line_tune_page_t *page)
+/* 校验舵机限幅页。 */
+static uint8 flash_store_servo_limit_page_is_valid(const flash_servo_limit_page_t *page)
 {
     if(0 == page)
     {
         return 0;
     }
 
-    if(page->kp_tenth > FLASH_STORE_LINE_KP_MAX_TENTH)
+    if((page->servo_min_angle < FlashServoMinAngleConfig.min) ||
+       (page->servo_min_angle > FlashServoMinAngleConfig.max))
     {
         return 0;
     }
 
-    if(page->kd_tenth > FLASH_STORE_LINE_KD_MAX_TENTH)
-    {
-        return 0;
-    }
-
-    if((page->servo_min_angle < FLASH_SERVO_LIMIT_ANGLE_MIN) ||
-       (page->servo_min_angle > FLASH_SERVO_LIMIT_ANGLE_MAX))
-    {
-        return 0;
-    }
-
-    if((page->servo_max_angle < FLASH_SERVO_LIMIT_ANGLE_MIN) ||
-       (page->servo_max_angle > FLASH_SERVO_LIMIT_ANGLE_MAX))
+    if((page->servo_max_angle < FlashServoMaxAngleConfig.min) ||
+       (page->servo_max_angle > FlashServoMaxAngleConfig.max))
     {
         return 0;
     }
@@ -118,17 +113,15 @@ static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
 static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
 {
     memset(store_ptr, 0, sizeof(*store_ptr));
-    store_ptr->param_page.first_value = FLASH_STEER_P_DEFAULT;
-    store_ptr->param_page.second_value = FLASH_STEER_D_DEFAULT;
-    store_ptr->camera_page.auto_exp = MT9V03X_AUTO_EXP_DEF;
-    store_ptr->camera_page.exp_time = 75;
-    store_ptr->camera_page.gain = 36;
-    store_ptr->line_tune_page.kp_tenth = FLASH_LINE_KP_DEFAULT_TENTH;
-    store_ptr->line_tune_page.kd_tenth = FLASH_LINE_KD_DEFAULT_TENTH;
-    store_ptr->line_tune_page.servo_min_angle = FLASH_LINE_SERVO_MIN_DEFAULT;
-    store_ptr->line_tune_page.servo_max_angle = FLASH_LINE_SERVO_MAX_DEFAULT;
-    store_ptr->start_page.target_speed = FLASH_START_SPEED_DEFAULT;
-    store_ptr->start_page.enable = FLASH_START_ENABLE_DEFAULT;
+    store_ptr->param_page.first_value = (int16)FlashSteerPConfig.default_value;
+    store_ptr->param_page.second_value = (int16)FlashSteerDConfig.default_value;
+    store_ptr->camera_page.auto_exp = (uint8)FlashCameraAutoExpConfig.default_value;
+    store_ptr->camera_page.exp_time = FlashCameraExpTimeConfig.default_value;
+    store_ptr->camera_page.gain = (uint8)FlashCameraGainConfig.default_value;
+    store_ptr->servo_limit_page.servo_min_angle = (uint8)FlashServoMinAngleConfig.default_value;
+    store_ptr->servo_limit_page.servo_max_angle = (uint8)FlashServoMaxAngleConfig.default_value;
+    store_ptr->start_page.target_speed = FlashStartSpeedConfig.default_value;
+    store_ptr->start_page.enable = (uint8)FlashStartEnableConfig.default_value;
     store_ptr->start_page.reserved = 0;
 }
 
@@ -170,7 +163,7 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
         return 0;
     }
 
-    if(!flash_store_line_tune_page_is_valid(&store_ptr->line_tune_page))
+    if(!flash_store_servo_limit_page_is_valid(&store_ptr->servo_limit_page))
     {
         return 0;
     }
@@ -498,8 +491,8 @@ uint8 flash_store_set_camera_value(flash_camera_slot_t slot, uint16 value)
     return flash_store_set_camera_page(&page);
 }
 
-/* 读取巡线调参页。 */
-void flash_store_get_line_tune_page(flash_line_tune_page_t *page)
+/* 读取舵机限幅页。 */
+void flash_store_get_servo_limit_page(flash_servo_limit_page_t *page)
 {
     if(0 == g_flash_store_ready)
     {
@@ -511,11 +504,11 @@ void flash_store_get_line_tune_page(flash_line_tune_page_t *page)
         return;
     }
 
-    memcpy(page, &g_flash_store_cache.store_data.line_tune_page, sizeof(*page));
+    memcpy(page, &g_flash_store_cache.store_data.servo_limit_page, sizeof(*page));
 }
 
-/* 整体覆盖巡线调参页。 */
-uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page)
+/* 整体覆盖舵机限幅页。 */
+uint8 flash_store_set_servo_limit_page(const flash_servo_limit_page_t *page)
 {
     if(0 == g_flash_store_ready)
     {
@@ -527,12 +520,12 @@ uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page)
         return 0;
     }
 
-    if(!flash_store_line_tune_page_is_valid(page))
+    if(!flash_store_servo_limit_page_is_valid(page))
     {
         return 0;
     }
 
-    memcpy(&g_flash_store_cache.store_data.line_tune_page, page, sizeof(*page));
+    memcpy(&g_flash_store_cache.store_data.servo_limit_page, page, sizeof(*page));
     flash_store_save_cache();
     return 1;
 }

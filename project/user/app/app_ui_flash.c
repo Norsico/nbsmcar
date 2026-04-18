@@ -9,7 +9,7 @@
 #include "dev_wheel.h"
 
 static uint8 g_ui_flash_ready = 0;
-static flash_start_page_t g_ui_start_page = {FLASH_START_SPEED_DEFAULT, 0, 0};
+static flash_start_page_t g_ui_start_page = {0, 0, 0};
 
 static void ui_flash_fill_default_steer_pd_page(flash_param_page_t *page)
 {
@@ -18,8 +18,8 @@ static void ui_flash_fill_default_steer_pd_page(flash_param_page_t *page)
         return;
     }
 
-    page->first_value = FLASH_STEER_P_DEFAULT;
-    page->second_value = FLASH_STEER_D_DEFAULT;
+    page->first_value = (int16)FlashSteerPConfig.default_value;
+    page->second_value = (int16)FlashSteerDConfig.default_value;
 }
 
 static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
@@ -29,14 +29,14 @@ static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
         return 0;
     }
 
-    if((page->first_value < FLASH_STEER_P_MIN) ||
-       (page->first_value > FLASH_STEER_P_MAX))
+    if((page->first_value < (int16)FlashSteerPConfig.min) ||
+       (page->first_value > (int16)FlashSteerPConfig.max))
     {
         return 0;
     }
 
-    if((page->second_value < FLASH_STEER_D_MIN) ||
-       (page->second_value > FLASH_STEER_D_MAX))
+    if((page->second_value < (int16)FlashSteerDConfig.min) ||
+       (page->second_value > (int16)FlashSteerDConfig.max))
     {
         return 0;
     }
@@ -44,7 +44,7 @@ static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
     return 1;
 }
 
-static void ui_flash_apply_servo_limit_page(const flash_line_tune_page_t *page)
+static void ui_flash_apply_servo_limit_page(const flash_servo_limit_page_t *page)
 {
     if(0 == page)
     {
@@ -61,8 +61,8 @@ static void ui_flash_fill_default_start_page(flash_start_page_t *page)
         return;
     }
 
-    page->target_speed = FLASH_START_SPEED_DEFAULT;
-    page->enable = FLASH_START_ENABLE_DEFAULT;
+    page->target_speed = FlashStartSpeedConfig.default_value;
+    page->enable = (uint8)FlashStartEnableConfig.default_value;
     page->reserved = 0;
 }
 
@@ -73,9 +73,9 @@ static void ui_flash_normalize_start_page(flash_start_page_t *page)
         return;
     }
 
-    if(page->target_speed > FLASH_START_SPEED_MAX)
+    if(page->target_speed > FlashStartSpeedConfig.max)
     {
-        page->target_speed = FLASH_START_SPEED_MAX;
+        page->target_speed = FlashStartSpeedConfig.max;
     }
     page->enable = 0;
     page->reserved = 0;
@@ -88,7 +88,8 @@ static uint8 ui_flash_start_page_is_valid(const flash_start_page_t *page)
         return 0;
     }
 
-    if(page->target_speed < FLASH_START_SPEED_MIN || page->target_speed > FLASH_START_SPEED_MAX)
+    if(page->target_speed < FlashStartSpeedConfig.min ||
+       page->target_speed > FlashStartSpeedConfig.max)
     {
         return 0;
     }
@@ -127,7 +128,7 @@ void ui_flash_init(void)
 {
     flash_store_data_t store_data;
     flash_param_page_t param_page;
-    flash_line_tune_page_t line_tune_page;
+    flash_servo_limit_page_t servo_limit_page;
     flash_start_page_t page;
 
     flash_store_get_data(&store_data);
@@ -137,8 +138,8 @@ void ui_flash_init(void)
         ui_flash_fill_default_steer_pd_page(&store_data.param_page);
         flash_store_set_data(&store_data);
     }
-    line_tune_page = store_data.line_tune_page;
-    ui_flash_apply_servo_limit_page(&line_tune_page);
+    servo_limit_page = store_data.servo_limit_page;
+    ui_flash_apply_servo_limit_page(&servo_limit_page);
 
     /* 校验 Car Speed 页存档。 */
     flash_store_get_start_page(&page);
@@ -162,14 +163,14 @@ void ui_flash_get_steer_pd_range(flash_param_slot_t slot, uint16 *min_value, uin
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            min_value_local = FLASH_STEER_P_MIN;
-            max_value_local = FLASH_STEER_P_MAX;
-            step_value_local = FLASH_STEER_P_STEP;
+            min_value_local = FlashSteerPConfig.min;
+            max_value_local = FlashSteerPConfig.max;
+            step_value_local = FlashSteerPConfig.step;
             break;
         case FLASH_PARAM_SLOT_SECOND:
-            min_value_local = FLASH_STEER_D_MIN;
-            max_value_local = FLASH_STEER_D_MAX;
-            step_value_local = FLASH_STEER_D_STEP;
+            min_value_local = FlashSteerDConfig.min;
+            max_value_local = FlashSteerDConfig.max;
+            step_value_local = FlashSteerDConfig.step;
             break;
         default:
             break;
@@ -202,14 +203,14 @@ void ui_flash_get_camera_range(flash_camera_slot_t slot, uint16 *min_value, uint
     switch(slot)
     {
         case FLASH_CAMERA_SLOT_EXP_TIME:
-            min_value_local = FLASH_CAMERA_EXP_TIME_MIN;
-            max_value_local = FLASH_CAMERA_EXP_TIME_MAX;
-            step_value_local = FLASH_CAMERA_EXP_TIME_STEP;
+            min_value_local = FlashCameraExpTimeConfig.min;
+            max_value_local = FlashCameraExpTimeConfig.max;
+            step_value_local = FlashCameraExpTimeConfig.step;
             break;
         case FLASH_CAMERA_SLOT_GAIN:
-            min_value_local = FLASH_CAMERA_GAIN_MIN;
-            max_value_local = FLASH_CAMERA_GAIN_MAX;
-            step_value_local = FLASH_CAMERA_GAIN_STEP;
+            min_value_local = FlashCameraGainConfig.min;
+            max_value_local = FlashCameraGainConfig.max;
+            step_value_local = FlashCameraGainConfig.step;
             break;
         default:
             break;
@@ -245,33 +246,33 @@ void ui_flash_get_servo_limit_range(uint16 *min_value, uint16 *max_value, uint16
 {
     if(0 != min_value)
     {
-        *min_value = FLASH_SERVO_LIMIT_ANGLE_MIN;
+        *min_value = FlashServoMinAngleConfig.min;
     }
 
     if(0 != max_value)
     {
-        *max_value = FLASH_SERVO_LIMIT_ANGLE_MAX;
+        *max_value = FlashServoMinAngleConfig.max;
     }
 
     if(0 != step_value)
     {
-        *step_value = FLASH_SERVO_LIMIT_ANGLE_STEP;
+        *step_value = FlashServoMinAngleConfig.step;
     }
 }
 
 uint16 ui_flash_get_servo_limit_min_value(void)
 {
-    flash_line_tune_page_t page;
+    flash_servo_limit_page_t page;
 
-    flash_store_get_line_tune_page(&page);
+    flash_store_get_servo_limit_page(&page);
     return page.servo_min_angle;
 }
 
 uint16 ui_flash_get_servo_limit_max_value(void)
 {
-    flash_line_tune_page_t page;
+    flash_servo_limit_page_t page;
 
-    flash_store_get_line_tune_page(&page);
+    flash_store_get_servo_limit_page(&page);
     return page.servo_max_angle;
 }
 
@@ -308,12 +309,12 @@ uint8 ui_flash_adjust_camera_value(flash_camera_slot_t slot, int16 delta)
 /* 调整最小舵机限幅。 */
 uint8 ui_flash_adjust_servo_limit_min_value(int16 delta)
 {
-    flash_line_tune_page_t page;
+    flash_servo_limit_page_t page;
     uint16 min_value = 0;
     uint16 max_value = 0;
     int32 next_value = 0;
 
-    flash_store_get_line_tune_page(&page);
+    flash_store_get_servo_limit_page(&page);
     ui_flash_get_servo_limit_range(&min_value, &max_value, 0);
     next_value = (int32)page.servo_min_angle + (int32)delta;
     if(next_value < min_value)
@@ -326,7 +327,8 @@ uint8 ui_flash_adjust_servo_limit_min_value(int16 delta)
     }
     if((uint16)next_value >= page.servo_max_angle)
     {
-        next_value = (int32)page.servo_max_angle - FLASH_SERVO_LIMIT_ANGLE_STEP;
+        next_value = (int32)page.servo_max_angle -
+                     (int32)FlashServoMinAngleConfig.step;
     }
     if(next_value < min_value)
     {
@@ -339,18 +341,18 @@ uint8 ui_flash_adjust_servo_limit_min_value(int16 delta)
 
     page.servo_min_angle = (uint8)next_value;
     ui_flash_apply_servo_limit_page(&page);
-    return flash_store_set_line_tune_page(&page);
+    return flash_store_set_servo_limit_page(&page);
 }
 
 /* 调整最大舵机限幅。 */
 uint8 ui_flash_adjust_servo_limit_max_value(int16 delta)
 {
-    flash_line_tune_page_t page;
+    flash_servo_limit_page_t page;
     uint16 min_value = 0;
     uint16 max_value = 0;
     int32 next_value = 0;
 
-    flash_store_get_line_tune_page(&page);
+    flash_store_get_servo_limit_page(&page);
     ui_flash_get_servo_limit_range(&min_value, &max_value, 0);
     next_value = (int32)page.servo_max_angle + (int32)delta;
     if(next_value < min_value)
@@ -363,7 +365,8 @@ uint8 ui_flash_adjust_servo_limit_max_value(int16 delta)
     }
     if((uint16)next_value <= page.servo_min_angle)
     {
-        next_value = (int32)page.servo_min_angle + FLASH_SERVO_LIMIT_ANGLE_STEP;
+        next_value = (int32)page.servo_min_angle +
+                     (int32)FlashServoMaxAngleConfig.step;
     }
     if(next_value > max_value)
     {
@@ -376,7 +379,7 @@ uint8 ui_flash_adjust_servo_limit_max_value(int16 delta)
 
     page.servo_max_angle = (uint8)next_value;
     ui_flash_apply_servo_limit_page(&page);
-    return flash_store_set_line_tune_page(&page);
+    return flash_store_set_servo_limit_page(&page);
 }
 
 /* 调整 Steer PD 参数。 */
@@ -426,17 +429,17 @@ void ui_flash_get_start_speed_range(uint16 *min_value, uint16 *max_value, uint16
 {
     if(0 != min_value)
     {
-        *min_value = FLASH_START_SPEED_MIN;
+        *min_value = FlashStartSpeedConfig.min;
     }
 
     if(0 != max_value)
     {
-        *max_value = FLASH_START_SPEED_MAX;
+        *max_value = FlashStartSpeedConfig.max;
     }
 
     if(0 != step_value)
     {
-        *step_value = FLASH_START_SPEED_STEP;
+        *step_value = FlashStartSpeedConfig.step;
     }
 }
 
@@ -451,13 +454,13 @@ uint8 ui_flash_adjust_start_speed(int16 delta)
     page = g_ui_start_page;
     next_speed = (int32)page.target_speed + (int32)delta;
 
-    if(next_speed < FLASH_START_SPEED_MIN)
+    if(next_speed < (int32)FlashStartSpeedConfig.min)
     {
-        next_speed = FLASH_START_SPEED_MIN;
+        next_speed = (int32)FlashStartSpeedConfig.min;
     }
-    else if(next_speed > FLASH_START_SPEED_MAX)
+    else if(next_speed > (int32)FlashStartSpeedConfig.max)
     {
-        next_speed = FLASH_START_SPEED_MAX;
+        next_speed = (int32)FlashStartSpeedConfig.max;
     }
 
     if((uint16)next_speed == page.target_speed)

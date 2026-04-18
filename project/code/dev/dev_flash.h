@@ -2,45 +2,103 @@
 #define _DEV_FLASH_H_
 
 #include "zf_common_typedef.h"
+#include "zf_device_mt9v03x.h"
 
-/* Steer P，直接按预览 PD 的实际整数值保存。 */
-#define FLASH_STEER_P_MIN               (0)
-#define FLASH_STEER_P_MAX               (60)
-#define FLASH_STEER_P_STEP              (2)
-#define FLASH_STEER_P_DEFAULT           (24)
-/* Steer D，直接按预览 PD 的实际整数值保存。 */
-#define FLASH_STEER_D_MIN               (0)
-#define FLASH_STEER_D_MAX               (80)
-#define FLASH_STEER_D_STEP              (2)
-#define FLASH_STEER_D_DEFAULT           (4)
+// 参数结构体
+typedef struct
+{
+    uint16 min;            /* 下限。 */
+    uint16 max;            /* 上限。 */
+    uint16 step;           /* 步进。 */
+    uint16 default_value;  /* 默认值。 */
+} flash_value_config_t;
 
-/* 摄像头参数按原生整数值存档。 */
-#define FLASH_CAMERA_AUTO_EXP_MIN       (0)     /* 自动曝光下限：0 表示关闭自动曝光。 */
-#define FLASH_CAMERA_AUTO_EXP_MAX       (63)    /* 自动曝光上限：逐飞库注释给的有效范围是 0-63。 */
-#define FLASH_CAMERA_AUTO_EXP_STEP      (1)     /* 自动曝光步进：屏幕上每次调整加减 1。 */
-#define FLASH_CAMERA_EXP_TIME_MIN       (1)     /* 曝光时间下限：工程侧收口为 1，避免出现 0 这种无意义配置。 */
-#define FLASH_CAMERA_EXP_TIME_MAX       (300)   /* 曝光时间上限：工程侧按当前默认值、示例值和赛道调参需求收口到 300。 */
-#define FLASH_CAMERA_EXP_TIME_STEP      (10)    /* 曝光时间步进：屏幕上每次调整加减 10。 */
-#define FLASH_CAMERA_GAIN_MIN           (16)    /* 图像增益下限：逐飞库注释给的有效范围起点。 */
-#define FLASH_CAMERA_GAIN_MAX           (64)    /* 图像增益上限：逐飞库注释给的有效范围终点。 */
-#define FLASH_CAMERA_GAIN_STEP          (10)    /* 图像增益步进：屏幕上每次调整加减 10。 */
-#define FLASH_LINE_KP_DEFAULT_TENTH     (12)    /* 巡线 KP 默认值 1.2，单位统一按 0.1 保存。 */
-#define FLASH_LINE_KD_DEFAULT_TENTH     (10)    /* 巡线 KD 默认值 1.0，单位统一按 0.1 保存。 */
-#define FLASH_SERVO_LIMIT_ANGLE_MIN     (50)    /* 舵机限幅页最小可调角度。 */
-#define FLASH_SERVO_LIMIT_ANGLE_MAX     (120)   /* 舵机限幅页最大可调角度。 */
-#define FLASH_SERVO_LIMIT_ANGLE_STEP    (2)     /* 舵机限幅页步进。 */
-#define FLASH_LINE_SERVO_MIN_DEFAULT    (70)    /* 舵机默认右限幅角。 */
-#define FLASH_LINE_SERVO_MAX_DEFAULT    (110)   /* 舵机默认左限幅角。 */
-#define FLASH_START_SPEED_MIN           (0)     /* 启动页后轮目标速度下限，0 表示静止。 */
-#define FLASH_START_SPEED_MAX           (4000)   /* 启动页后轮目标速度上限。 */
-#define FLASH_START_SPEED_STEP          (10)    /* 启动页后轮目标速度步进。 */
-#define FLASH_START_ENABLE_MIN          (0)     /* 启动开关下限，0 表示关闭。 */
-#define FLASH_START_ENABLE_MAX          (1)     /* 启动开关上限，1 表示开启。 */
-#define FLASH_START_ENABLE_STEP         (1)     /* 启动开关步进。 */
-#define FLASH_START_SPEED_DEFAULT       (100)   /* 启动页默认后轮目标速度。 */
-#define FLASH_START_ENABLE_DEFAULT      (0)     /* 上电默认不自动起跑。 */
 
-/* 当前参数页这两项当前用于 Steer PD，数值统一按 0.1 保存。 */
+/****************************** Steer PD 页 ******************************/
+// 舵机P参数
+static const flash_value_config_t FlashSteerPConfig =
+{
+    0,   /* min */
+    60,  /* max */
+    2,   /* step */
+    24       /* default */
+};
+// 舵机D参数
+static const flash_value_config_t FlashSteerDConfig =
+{
+    0,   /* min */
+    80,  /* max */
+    2,   /* step */
+    4        /* default */
+};
+
+/****************************** Camera 页 ******************************/
+// 自动曝光参数
+static const flash_value_config_t FlashCameraAutoExpConfig =
+{
+    0,   /* min */
+    63,  /* max */
+    1,   /* step */
+    MT9V03X_AUTO_EXP_DEF  /* default */
+};
+
+// 曝光时间参数
+static const flash_value_config_t FlashCameraExpTimeConfig =
+{
+    1,    /* min */
+    300,  /* max */
+    10,   /* step */
+    75        /* default */
+};
+
+// 增益参数
+static const flash_value_config_t FlashCameraGainConfig =
+{
+    16,  /* min */
+    64,  /* max */
+    10,  /* step */
+    36       /* default */
+};
+
+/****************************** Servo Limit 页 ******************************/
+// 舵机最小限幅参数
+static const flash_value_config_t FlashServoMinAngleConfig =
+{
+    50,   /* min */
+    120,  /* max */
+    2,    /* step */
+    70    /* default */
+};
+
+// 舵机最大限幅参数
+static const flash_value_config_t FlashServoMaxAngleConfig =
+{
+    50,   /* min */
+    120,  /* max */
+    2,    /* step */
+    110   /* default */
+};
+
+/****************************** Car Speed 页 ******************************/
+// 目标速度参数
+static const flash_value_config_t FlashStartSpeedConfig =
+{
+    0,     /* min */
+    4000,  /* max */
+    10,    /* step */
+    100       /* default */
+};
+
+// 启动开关参数
+static const flash_value_config_t FlashStartEnableConfig =
+{
+    0,  /* min */
+    1,  /* max */
+    1,  /* step */
+    0      /* default */
+};
+
+
 typedef enum
 {
     FLASH_PARAM_SLOT_FIRST = 0,     /* Steer P。 */
@@ -70,13 +128,12 @@ typedef struct
     uint8 gain;       /* 图像增益配置值。 */
 } flash_camera_page_t;
 
+/* 当前这组 flash 只保留舵机限幅，不再保留废弃的 line kp/kd。 */
 typedef struct
 {
-    uint8 kp_tenth;         /* 巡线 KP，单位 0.1。 */
-    uint8 kd_tenth;         /* 巡线 KD，单位 0.1。 */
     uint8 servo_min_angle;  /* 舵机最小角限制。 */
     uint8 servo_max_angle;  /* 舵机最大角限制。 */
-} flash_line_tune_page_t;
+} flash_servo_limit_page_t;
 
 typedef struct
 {
@@ -90,7 +147,7 @@ typedef struct
 {
     flash_param_page_t param_page;
     flash_camera_page_t camera_page;
-    flash_line_tune_page_t line_tune_page;
+    flash_servo_limit_page_t servo_limit_page;
     flash_start_page_t start_page;
 } flash_store_data_t;
 
@@ -114,10 +171,10 @@ uint8 flash_store_set_camera_page(const flash_camera_page_t *page);
 uint16 flash_store_get_camera_value(flash_camera_slot_t slot);
 /* 修改摄像头参数页里某一项，值变了就立刻落盘。 */
 uint8 flash_store_set_camera_value(flash_camera_slot_t slot, uint16 value);
-/* 读取巡线调参页这一组参数。 */
-void flash_store_get_line_tune_page(flash_line_tune_page_t *page);
-/* 整体覆盖巡线调参页。 */
-uint8 flash_store_set_line_tune_page(const flash_line_tune_page_t *page);
+/* 读取舵机限幅页这一组参数。 */
+void flash_store_get_servo_limit_page(flash_servo_limit_page_t *page);
+/* 整体覆盖舵机限幅页。 */
+uint8 flash_store_set_servo_limit_page(const flash_servo_limit_page_t *page);
 /* 读取启动页这一组参数。 */
 void flash_store_get_start_page(flash_start_page_t *page);
 /* 整体覆盖启动页。 */

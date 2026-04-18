@@ -3,8 +3,8 @@
 #include "dev_flash.h"
 #include "dev_servo.h"
 
-static uint16 SteerP = FLASH_STEER_P_DEFAULT;
-static uint16 SteerD = FLASH_STEER_D_DEFAULT;
+static uint16 SteerP = 0;
+static uint16 SteerD = 0;
 static float SteerLastError = 0.0f;
 int S3010_Duty = steer_middle;
 
@@ -20,8 +20,8 @@ static int Steer_Round_Float(float value)
 
 void Steer_init(void)
 {
-    SteerP = FLASH_STEER_P_DEFAULT;
-    SteerD = FLASH_STEER_D_DEFAULT;
+    SteerP = FlashSteerPConfig.default_value;
+    SteerD = FlashSteerDConfig.default_value;
     SteerLastError = 0.0f;
     S3010_Duty = steer_middle;
 }

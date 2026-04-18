@@ -6,7 +6,6 @@
 
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
-#define CAR_WHEEL_TARGET_SPEED_MAX    ((float)FLASH_START_SPEED_MAX)   /* Start 页速度上限。 */
 #define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 电机输出百分比限幅。 */
 #define CAR_WHEEL_ACKERMAN_CENTER_ANGLE ((float)CAR_SERVO_CENTER_ANGLE) /* 阿克曼角度按左负右正换算。 */
 float car_wheel_target_speed = 0.0f;  // 整车目标速度
@@ -127,9 +126,9 @@ static void car_wheel_apply_target(float left_speed, float right_speed)
 /* 设置整车基础速度。 */
 void car_wheel_set_target(float speed)
 {
-    if(speed > CAR_WHEEL_TARGET_SPEED_MAX)
+    if(speed > (float)FlashStartSpeedConfig.max)
     {
-        speed = CAR_WHEEL_TARGET_SPEED_MAX;
+        speed = (float)FlashStartSpeedConfig.max;
     }
     if(speed < 0.0f)
     {
