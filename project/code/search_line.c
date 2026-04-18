@@ -101,14 +101,26 @@ static int Limit(int value, int numH, int numL)
 void compressimage(void)
 {
     int i, j, row, line;
-    const float div_h = Mh / Lh, div_w = Mw / Lw;
+    /* 原图左右各裁 4 列。 */
+    const int cut_col = 4;
+    /* 原图底部裁 20 行。 */
+    const int cut_row_bottom = 20;
+    /* 原图顶部当前不裁。 */
+    const int cut_row_top = 0;
+    /* 裁剪后输入窗口：180x100。 */
+    const float src_h = Mh - (float)cut_row_top - (float)cut_row_bottom;
+    const float src_w = Mw - (float)(cut_col * 2);
+    const float div_h = src_h / Lh;
+    const float div_w = src_w / Lw;
 
     for(i = 0; i < LCDH; i++)
     {
-        row = i * div_h + 0.5f;
+        /* 压缩行映射回裁剪后的原图行。 */
+        row = cut_row_top + i * div_h + 0.5f;
         for(j = 0; j < LCDW; j++)
         {
-            line = j * div_w + 0.5f;
+            /* 压缩列映射回裁剪后的原图列。 */
+            line = cut_col + j * div_w + 0.5f;
             Image_Use[i][j] = mt9v03x_image[row][line];
         }
     }
