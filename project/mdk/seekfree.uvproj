@@ -859,6 +859,16 @@
               <FileType>1</FileType>
               <FilePath>..\code\ackerman.c</FilePath>
             </File>
+            <File>
+              <FileName>steer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\steer.c</FilePath>
+            </File>
+            <File>
+              <FileName>steer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\steer.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

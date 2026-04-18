@@ -73,9 +73,18 @@ typedef struct
     int variance_acc;           /* 直道方差累计。 */
 } ImageStatustypedef;
 
+typedef struct
+{
+    int16 image_element_rings;       /* 0:无圆环 1:左圆环 2:右圆环 */
+    int16 ring_big_small;            /* 0:无 1:大圆环 2:小圆环 */
+    int16 image_element_rings_flag;  /* 圆环进程 */
+    int16 straight_long;             /* 长直道标志位 */
+} ImageFlagtypedef;
+
 extern uint8 Image_Use[LCDH][LCDW];
 extern uint8 Pixle[LCDH][LCDW];
 extern ImageStatustypedef ImageStatus;
+extern ImageFlagtypedef ImageFlag;
 extern ImageDealDatatypedef ImageDeal[LCDH];
 extern int ImageScanInterval;        //扫边范围    上一行的边界+-ImageScanInterval
 extern int ImageScanInterval_Cross;  //十字扫线范围
@@ -88,11 +97,9 @@ void SearchLine_DrawBinaryPreview(void);
 void SearchLine_DrawRawPreview(void);
 void SearchLine_ResetPreviewOverlay(void);
 uint8 SearchLine_GetOtsuThreshold(void);
-uint8 SearchLine_GetSteerCommand(void);
 uint8 SearchLine_GetStraightAcc(void);
 uint8 SearchLine_GetDetTrue(void);
 uint8 SearchLine_GetLeftLine(void);
 uint8 SearchLine_GetRightLine(void);
-void SearchLine_SetSteerPdTenth(uint16 p_tenth, uint16 d_tenth);
 
 #endif

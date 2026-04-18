@@ -22,14 +22,14 @@ static flash_store_image_t g_flash_store_cache;
 static uint8 g_flash_store_ready = 0;
 
 /* 校验 Steer PD 存档范围。 */
-static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 value_tenth)
+static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 value)
 {
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            return (value_tenth >= FLASH_STEER_P_MIN_TENTH && value_tenth <= FLASH_STEER_P_MAX_TENTH) ? 1 : 0;
+            return (value >= FLASH_STEER_P_MIN && value <= FLASH_STEER_P_MAX) ? 1 : 0;
         case FLASH_PARAM_SLOT_SECOND:
-            return (value_tenth >= FLASH_STEER_D_MIN_TENTH && value_tenth <= FLASH_STEER_D_MAX_TENTH) ? 1 : 0;
+            return (value >= FLASH_STEER_D_MIN && value <= FLASH_STEER_D_MAX) ? 1 : 0;
         default:
             return 0;
     }
@@ -118,8 +118,8 @@ static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
 static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
 {
     memset(store_ptr, 0, sizeof(*store_ptr));
-    store_ptr->param_page.first_value_tenth = FLASH_STEER_P_DEFAULT_TENTH;
-    store_ptr->param_page.second_value_tenth = FLASH_STEER_D_DEFAULT_TENTH;
+    store_ptr->param_page.first_value = FLASH_STEER_P_DEFAULT;
+    store_ptr->param_page.second_value = FLASH_STEER_D_DEFAULT;
     store_ptr->camera_page.auto_exp = MT9V03X_AUTO_EXP_DEF;
     store_ptr->camera_page.exp_time = 75;
     store_ptr->camera_page.gain = 36;
@@ -145,12 +145,12 @@ static void flash_store_fill_default_image(flash_store_image_t *image)
 /* 校验掉电参数内容。 */
 static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
 {
-    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_FIRST, store_ptr->param_page.first_value_tenth))
+    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_FIRST, store_ptr->param_page.first_value))
     {
         return 0;
     }
 
-    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_SECOND, store_ptr->param_page.second_value_tenth))
+    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_SECOND, store_ptr->param_page.second_value))
     {
         return 0;
     }
@@ -321,7 +321,7 @@ void flash_store_get_param_page(flash_param_page_t *page)
     memcpy(page, &g_flash_store_cache.store_data.param_page, sizeof(*page));
 }
 
-int16 flash_store_get_param_value_tenth(flash_param_slot_t slot)
+int16 flash_store_get_param_value(flash_param_slot_t slot)
 {
     if(0 == g_flash_store_ready)
     {
@@ -331,16 +331,16 @@ int16 flash_store_get_param_value_tenth(flash_param_slot_t slot)
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            return g_flash_store_cache.store_data.param_page.first_value_tenth;
+            return g_flash_store_cache.store_data.param_page.first_value;
         case FLASH_PARAM_SLOT_SECOND:
-            return g_flash_store_cache.store_data.param_page.second_value_tenth;
+            return g_flash_store_cache.store_data.param_page.second_value;
         default:
             return 0;
     }
 }
 
 /* 修改单个 Steer PD 参数并落盘。 */
-uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_tenth)
+uint8 flash_store_set_param_value(flash_param_slot_t slot, int16 value)
 {
     int16 *target_value = 0;
 
@@ -352,29 +352,29 @@ uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_ten
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            if(!flash_store_steer_pd_value_in_range(slot, value_tenth))
+            if(!flash_store_steer_pd_value_in_range(slot, value))
             {
                 return 0;
             }
-            target_value = &g_flash_store_cache.store_data.param_page.first_value_tenth;
+            target_value = &g_flash_store_cache.store_data.param_page.first_value;
             break;
         case FLASH_PARAM_SLOT_SECOND:
-            if(!flash_store_steer_pd_value_in_range(slot, value_tenth))
+            if(!flash_store_steer_pd_value_in_range(slot, value))
             {
                 return 0;
             }
-            target_value = &g_flash_store_cache.store_data.param_page.second_value_tenth;
+            target_value = &g_flash_store_cache.store_data.param_page.second_value;
             break;
         default:
             return 0;
     }
 
-    if(value_tenth == *target_value)
+    if(value == *target_value)
     {
         return 1;
     }
 
-    *target_value = value_tenth;
+    *target_value = value;
     flash_store_save_cache();
     return 1;
 }

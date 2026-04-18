@@ -18,8 +18,8 @@ static void ui_flash_fill_default_steer_pd_page(flash_param_page_t *page)
         return;
     }
 
-    page->first_value_tenth = FLASH_STEER_P_DEFAULT_TENTH;
-    page->second_value_tenth = FLASH_STEER_D_DEFAULT_TENTH;
+    page->first_value = FLASH_STEER_P_DEFAULT;
+    page->second_value = FLASH_STEER_D_DEFAULT;
 }
 
 static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
@@ -29,20 +29,14 @@ static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
         return 0;
     }
 
-    if((page->first_value_tenth < FLASH_STEER_P_MIN_TENTH) ||
-       (page->first_value_tenth > FLASH_STEER_P_MAX_TENTH))
+    if((page->first_value < FLASH_STEER_P_MIN) ||
+       (page->first_value > FLASH_STEER_P_MAX))
     {
         return 0;
     }
 
-    if((page->second_value_tenth < FLASH_STEER_D_MIN_TENTH) ||
-       (page->second_value_tenth > FLASH_STEER_D_MAX_TENTH))
-    {
-        return 0;
-    }
-
-    /* 兼容旧存档里未初始化的 Steer PD 槽位。 */
-    if((0 == page->first_value_tenth) && (0 == page->second_value_tenth))
+    if((page->second_value < FLASH_STEER_D_MIN) ||
+       (page->second_value > FLASH_STEER_D_MAX))
     {
         return 0;
     }
@@ -168,14 +162,14 @@ void ui_flash_get_steer_pd_range(flash_param_slot_t slot, uint16 *min_value, uin
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            min_value_local = FLASH_STEER_P_MIN_TENTH;
-            max_value_local = FLASH_STEER_P_MAX_TENTH;
-            step_value_local = FLASH_STEER_P_STEP_TENTH;
+            min_value_local = FLASH_STEER_P_MIN;
+            max_value_local = FLASH_STEER_P_MAX;
+            step_value_local = FLASH_STEER_P_STEP;
             break;
         case FLASH_PARAM_SLOT_SECOND:
-            min_value_local = FLASH_STEER_D_MIN_TENTH;
-            max_value_local = FLASH_STEER_D_MAX_TENTH;
-            step_value_local = FLASH_STEER_D_STEP_TENTH;
+            min_value_local = FLASH_STEER_D_MIN;
+            max_value_local = FLASH_STEER_D_MAX;
+            step_value_local = FLASH_STEER_D_STEP;
             break;
         default:
             break;
@@ -242,9 +236,9 @@ uint16 ui_flash_get_camera_value(flash_camera_slot_t slot)
     return flash_store_get_camera_value(slot);
 }
 
-uint16 ui_flash_get_steer_pd_value_tenth(flash_param_slot_t slot)
+uint16 ui_flash_get_steer_pd_value(flash_param_slot_t slot)
 {
-    return (uint16)flash_store_get_param_value_tenth(slot);
+    return (uint16)flash_store_get_param_value(slot);
 }
 
 void ui_flash_get_servo_limit_range(uint16 *min_value, uint16 *max_value, uint16 *step_value)
@@ -386,14 +380,14 @@ uint8 ui_flash_adjust_servo_limit_max_value(int16 delta)
 }
 
 /* 调整 Steer PD 参数。 */
-uint8 ui_flash_adjust_steer_pd_value_tenth(flash_param_slot_t slot, int16 delta)
+uint8 ui_flash_adjust_steer_pd_value(flash_param_slot_t slot, int16 delta)
 {
     uint16 current_value = 0;
     uint16 min_value = 0;
     uint16 max_value = 0;
     int32 next_value = 0;
 
-    current_value = ui_flash_get_steer_pd_value_tenth(slot);
+    current_value = ui_flash_get_steer_pd_value(slot);
     ui_flash_get_steer_pd_range(slot, &min_value, &max_value, 0);
     next_value = (int32)current_value + (int32)delta;
 
@@ -411,7 +405,7 @@ uint8 ui_flash_adjust_steer_pd_value_tenth(flash_param_slot_t slot, int16 delta)
         return 0;
     }
 
-    return line_app_set_steer_pd_value_tenth(slot, (int16)next_value);
+    return line_app_set_steer_pd_value(slot, (int16)next_value);
 }
 
 /* 读取 Car Speed 页缓存。 */

@@ -1,11 +1,13 @@
 #include "app_line.h"
 
 #include "search_line.h"
+#include "steer.h"
 #include "dev_other.h"
 #include "dev_servo.h"
 #include "dev_wheel.h"
 
 static uint8 line_camera_ready = 0; // 摄像头是否初始化完成
+static uint8 line_result_ready = 0;
 static line_app_preview_mode_t g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
 
 /* 下发整页相机参数。 */
@@ -56,7 +58,7 @@ static void line_app_apply_steer_pd_page_from_flash(void)
     flash_param_page_t page;
 
     flash_store_get_param_page(&page);
-    SearchLine_SetSteerPdTenth((uint16)page.first_value_tenth, (uint16)page.second_value_tenth);
+    Steer_Set_Pd((uint16)page.first_value, (uint16)page.second_value);
 }
 
 #if IPS_ENABLE
@@ -105,7 +107,7 @@ line_app_preview_mode_t line_app_get_preview_mode(void)
     return g_line_preview_mode;
 }
 
-/* 处理一帧图像并更新前轮输出。 */
+/* 处理一帧图像。 */
 static uint8 line_app_handle_frame(void)
 {
     if(!line_camera_ready)
@@ -121,11 +123,20 @@ static uint8 line_app_handle_frame(void)
 
     // 处理图像
     SearchLine_Process();
-
-    /* 当前舵机命令直接下发到前轮。 */
-    car_servo_set_angle(SearchLine_GetSteerCommand());
+    line_result_ready = 1;
     
     return 1;
+}
+
+/* 按独立节拍执行前轮 PD。 */
+void line_app_process_steer(void)
+{
+    if(!line_camera_ready || !line_result_ready)
+    {
+        return;
+    }
+
+    SteerPID_Realize((float)SearchLine_GetDetTrue() - (float)ImageSensorMid);
 }
 
 /* 初始化巡线应用。 */
@@ -153,8 +164,10 @@ void line_app_init(void)
     }
 
     line_app_apply_camera_page_from_flash();
+    Steer_init();
     line_app_apply_steer_pd_page_from_flash();
     line_camera_ready = 1; // 摄像头初始化OK
+    line_result_ready = 0;
 
 #if IPS_ENABLE
     if(switch_ui_enabled())
@@ -207,7 +220,7 @@ uint8 line_app_set_camera_param_value(flash_camera_slot_t slot, uint16 value)
 }
 
 /* 修改舵机 PD 参数并同步到搜线模块。 */
-uint8 line_app_set_steer_pd_value_tenth(flash_param_slot_t slot, int16 value_tenth)
+uint8 line_app_set_steer_pd_value(flash_param_slot_t slot, int16 value)
 {
     flash_param_page_t page;
 
@@ -215,20 +228,20 @@ uint8 line_app_set_steer_pd_value_tenth(flash_param_slot_t slot, int16 value_ten
     switch(slot)
     {
         case FLASH_PARAM_SLOT_FIRST:
-            page.first_value_tenth = value_tenth;
+            page.first_value = value;
             break;
         case FLASH_PARAM_SLOT_SECOND:
-            page.second_value_tenth = value_tenth;
+            page.second_value = value;
             break;
         default:
             return 0;
     }
 
-    if(!flash_store_set_param_value_tenth(slot, value_tenth))
+    if(!flash_store_set_param_value(slot, value))
     {
         return 0;
     }
 
-    SearchLine_SetSteerPdTenth((uint16)page.first_value_tenth, (uint16)page.second_value_tenth);
+    Steer_Set_Pd((uint16)page.first_value, (uint16)page.second_value);
     return 1;
 }

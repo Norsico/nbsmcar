@@ -17,8 +17,8 @@ uint16 ui_flash_get_camera_value(flash_camera_slot_t slot);
 uint8 ui_flash_adjust_camera_value(flash_camera_slot_t slot, int16 delta);
 /* Steer PD 页参数读写。 */
 void ui_flash_get_steer_pd_range(flash_param_slot_t slot, uint16 *min_value, uint16 *max_value, uint16 *step_value);
-uint16 ui_flash_get_steer_pd_value_tenth(flash_param_slot_t slot);
-uint8 ui_flash_adjust_steer_pd_value_tenth(flash_param_slot_t slot, int16 delta);
+uint16 ui_flash_get_steer_pd_value(flash_param_slot_t slot);
+uint8 ui_flash_adjust_steer_pd_value(flash_param_slot_t slot, int16 delta);
 /* 舵机限幅参数读写。 */
 void ui_flash_get_servo_limit_range(uint16 *min_value, uint16 *max_value, uint16 *step_value);
 uint16 ui_flash_get_servo_limit_min_value(void);

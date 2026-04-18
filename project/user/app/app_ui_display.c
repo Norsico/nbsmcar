@@ -453,12 +453,12 @@ static void display_menu_draw_steer_pd_row(steer_page_slot_t slot)
     switch(slot)
     {
         case STEER_PAGE_SLOT_P:
-            value = ui_flash_get_steer_pd_value_tenth(FLASH_PARAM_SLOT_FIRST);
-            ui_library_format_tenth((int16)value, value_text);
+            value = ui_flash_get_steer_pd_value(FLASH_PARAM_SLOT_FIRST);
+            ui_library_format_uint16(value, value_text);
             break;
         case STEER_PAGE_SLOT_D:
-            value = ui_flash_get_steer_pd_value_tenth(FLASH_PARAM_SLOT_SECOND);
-            ui_library_format_tenth((int16)value, value_text);
+            value = ui_flash_get_steer_pd_value(FLASH_PARAM_SLOT_SECOND);
+            ui_library_format_uint16(value, value_text);
             break;
         case STEER_PAGE_SLOT_SERVO_MIN:
             value = ui_flash_get_servo_limit_min_value();
@@ -524,15 +524,15 @@ static void display_menu_draw_steer_pd_info(void)
     {
         case STEER_PAGE_SLOT_P:
             ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FIRST, &min_value, &max_value, &step_value);
-            ui_library_format_tenth((int16)min_value, min_text);
-            ui_library_format_tenth((int16)max_value, max_text);
-            ui_library_format_tenth((int16)step_value, step_text);
+            ui_library_format_uint16(min_value, min_text);
+            ui_library_format_uint16(max_value, max_text);
+            ui_library_format_uint16(step_value, step_text);
             break;
         case STEER_PAGE_SLOT_D:
             ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_SECOND, &min_value, &max_value, &step_value);
-            ui_library_format_tenth((int16)min_value, min_text);
-            ui_library_format_tenth((int16)max_value, max_text);
-            ui_library_format_tenth((int16)step_value, step_text);
+            ui_library_format_uint16(min_value, min_text);
+            ui_library_format_uint16(max_value, max_text);
+            ui_library_format_uint16(step_value, step_text);
             break;
         case STEER_PAGE_SLOT_SERVO_MIN:
         case STEER_PAGE_SLOT_SERVO_MAX:
@@ -626,10 +626,10 @@ static void display_menu_steer_pd_adjust(int16 delta)
     switch(g_steer_pd_selected)
     {
         case STEER_PAGE_SLOT_P:
-            changed = ui_flash_adjust_steer_pd_value_tenth(FLASH_PARAM_SLOT_FIRST, delta);
+            changed = ui_flash_adjust_steer_pd_value(FLASH_PARAM_SLOT_FIRST, delta);
             break;
         case STEER_PAGE_SLOT_D:
-            changed = ui_flash_adjust_steer_pd_value_tenth(FLASH_PARAM_SLOT_SECOND, delta);
+            changed = ui_flash_adjust_steer_pd_value(FLASH_PARAM_SLOT_SECOND, delta);
             break;
         case STEER_PAGE_SLOT_SERVO_MIN:
             changed = ui_flash_adjust_servo_limit_min_value(delta);

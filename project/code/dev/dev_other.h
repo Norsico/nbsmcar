@@ -13,6 +13,9 @@ void other_init(void);
 // 蜂鸣器
 void buzzer_on(void);
 void buzzer_off(void);
+void buzzer_short(void);
+void buzzer_long(void);
+void buzzer_task(void);
 // 激光笔
 void laser_on(void);
 void laser_off(void);

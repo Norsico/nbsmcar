@@ -3,16 +3,16 @@
 
 #include "zf_common_typedef.h"
 
-/* Steer P，单位 0.1。 */
-#define FLASH_STEER_P_MIN_TENTH         (0)
-#define FLASH_STEER_P_MAX_TENTH         (600)
-#define FLASH_STEER_P_STEP_TENTH        (20)
-#define FLASH_STEER_P_DEFAULT_TENTH     (240)
-/* Steer D，单位 0.1。 */
-#define FLASH_STEER_D_MIN_TENTH         (0)
-#define FLASH_STEER_D_MAX_TENTH         (800)
-#define FLASH_STEER_D_STEP_TENTH        (20)
-#define FLASH_STEER_D_DEFAULT_TENTH     (40)
+/* Steer P，直接按预览 PD 的实际整数值保存。 */
+#define FLASH_STEER_P_MIN               (0)
+#define FLASH_STEER_P_MAX               (60)
+#define FLASH_STEER_P_STEP              (2)
+#define FLASH_STEER_P_DEFAULT           (24)
+/* Steer D，直接按预览 PD 的实际整数值保存。 */
+#define FLASH_STEER_D_MIN               (0)
+#define FLASH_STEER_D_MAX               (80)
+#define FLASH_STEER_D_STEP              (2)
+#define FLASH_STEER_D_DEFAULT           (4)
 
 /* 摄像头参数按原生整数值存档。 */
 #define FLASH_CAMERA_AUTO_EXP_MIN       (0)     /* 自动曝光下限：0 表示关闭自动曝光。 */
@@ -59,8 +59,8 @@ typedef enum
 /* Param Config 里的 Steer PD 页。 */
 typedef struct
 {
-    int16 first_value_tenth;        /* Steer P，单位 0.1。 */
-    int16 second_value_tenth;       /* Steer D，单位 0.1。 */
+    int16 first_value;        /* Steer P。 */
+    int16 second_value;       /* Steer D。 */
 } flash_param_page_t;
 
 typedef struct
@@ -102,10 +102,10 @@ void flash_store_get_data(flash_store_data_t *store_ptr);
 uint8 flash_store_set_data(const flash_store_data_t *store_ptr);
 /* 读取当前参数页这一组参数。 */
 void flash_store_get_param_page(flash_param_page_t *page);
-/* 读取参数页里某一项，返回值单位是 0.1。 */
-int16 flash_store_get_param_value_tenth(flash_param_slot_t slot);
+/* 读取参数页里某一项。 */
+int16 flash_store_get_param_value(flash_param_slot_t slot);
 /* 修改参数页里某一项，值变了就立刻落盘。 */
-uint8 flash_store_set_param_value_tenth(flash_param_slot_t slot, int16 value_tenth);
+uint8 flash_store_set_param_value(flash_param_slot_t slot, int16 value);
 /* 读取摄像头参数页这一组参数。 */
 void flash_store_get_camera_page(flash_camera_page_t *page);
 /* 整体覆盖摄像头参数页。 */

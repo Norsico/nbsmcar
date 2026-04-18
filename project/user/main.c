@@ -22,7 +22,7 @@
 void main(void)
 {
 
-/**********************************************初始化开始***************************************************/
+/********************************************** 初始化开始 ***************************************************/
     // 系统初始化
     clock_init(SYSTEM_CLOCK_96M);
     debug_init();
@@ -114,7 +114,7 @@ void main(void)
     /* 最后打开系统节拍。 */
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
 
-/**********************************************初始化结束***************************************************/
+/********************************************** 初始化结束 ***************************************************/
 
     printf("Init OK\n");
 
@@ -129,6 +129,12 @@ void main(void)
     {
         // 系统错误时进入紧急状态
         if(system_error) g_system_state = SYS_EMERGENCY;
+
+        if(g_flag_buzzer){
+            /* 蜂鸣器时序独立轮询，短响长响都从底层自行关断。 */
+            g_flag_buzzer = 0;
+            buzzer_task();
+        }
 
         switch(g_system_state){
 
@@ -164,6 +170,20 @@ void main(void)
                 if(g_flag_imu){
                     // 陀螺仪 10ms
                     g_flag_imu = 0;
+                }
+                if(g_flag_steer){
+                    // 舵机控制 10ms
+                    g_flag_steer = 0;
+                    // 开屏时，仅View页面允许舵机跟随图像输出
+                    // 关屏时，WiFi准备好就允许舵机更新
+                    if((SYS_RUNNING == g_system_state) &&
+                       (((switch_ui_enabled()) && display_menu_in_camera_view()) ||
+                        ((!switch_ui_enabled()) &&
+                         ((!switch_wifi_enabled()) || wifi_is_initialized()))))
+                    {
+                        // 前轮PD控制
+                        line_app_process_steer();
+                    }
                 }
                 if(g_flag_key){
                     // 按键 20ms
@@ -223,7 +243,7 @@ void main(void)
 #endif
 #if WIFI_ENABLE
                 if(switch_wifi_enabled()){
-                    /* WiFi 任务按 10ms 节拍执行，避免主循环乱序冲掉调参口径。 */
+                    // WiFi 10ms
                     if(g_flag_wifi)
                     {
                         g_flag_wifi = 0;
@@ -244,7 +264,9 @@ void main(void)
                 car_servo_set_center();
 
                 // 清空标志位
+                g_flag_buzzer = 0;
                 g_flag_encoder = 0;
+                g_flag_steer = 0;
                 g_flag_center = 0;
 #if IPS_ENABLE
                 g_flag_display = 0;
