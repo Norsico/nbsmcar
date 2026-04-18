@@ -13,5 +13,6 @@
 void bldc_motor_init(void);
 void bldc_motor_set_duty(uint8 left_speed,uint8 right_speed);
 void bldc_motor_stop(void);
+uint8 bldc_motor_is_ready(void);
 
 #endif 

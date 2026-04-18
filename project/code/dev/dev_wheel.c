@@ -162,6 +162,18 @@ void car_wheel_control_reset(void)
     car_wheel_stop_all();
 }
 
+/* 无刷未就绪时保持后轮待转，不清 Start 速度目标。 */
+void car_wheel_hold(void)
+{
+    ref_left_target = 0.0f;
+    ref_right_target = 0.0f;
+    car_wheel_apply_target(0.0f, 0.0f);
+    car_wheel_pid_reset_single(&wheel_pid_left);
+    car_wheel_pid_reset_single(&wheel_pid_right);
+    encoder_clear();
+    car_wheel_stop_all();
+}
+
 /* 按当前舵机角解算阿克曼左右轮目标。 */
 static void car_wheel_update_reference_target(void)
 {

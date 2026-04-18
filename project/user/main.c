@@ -164,6 +164,11 @@ void main(void)
                 {
                     // 关屏打开风扇跑
                     bldc_motor_set_duty(30, 30);
+                    if(!bldc_motor_is_ready())
+                    {
+                        /* 负压风扇没起稳前，后轮先待转。 */
+                        car_wheel_hold();
+                    }
                 }
                 /****************** 预判断结束 ******************/
 
@@ -196,10 +201,11 @@ void main(void)
                     g_flag_encoder = 0;
                     if((SYS_RUNNING != g_system_state) ||
                        switch_ui_enabled() ||
-                       (switch_wifi_enabled() && !wifi_is_initialized()))
+                       (switch_wifi_enabled() && !wifi_is_initialized()) ||
+                       !bldc_motor_is_ready())
                     {
-                        // 屏幕打开 or WiFi没连成功不开电机
-                        encoder_clear();
+                        // 屏幕打开 or WiFi没连成功 or 负压未起稳，不开后轮
+                        car_wheel_hold();
                     }
                     else
                     {
