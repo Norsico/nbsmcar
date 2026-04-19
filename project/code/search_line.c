@@ -1,5 +1,6 @@
 #include "search_line.h"
 #include "dev_encoder.h"
+#include "dev_flash.h"
 #include "dev_other.h"
 #include "dev_servo.h"
 #include "system_state.h"
@@ -1048,14 +1049,18 @@ static void GetDet(void)
     int TowPoint = 0;
     float UnitAll = 0;
     float SpeedGain = 0.0f;
+    flash_start_page_t start_page;
     int speed_left = 0;
     int speed_right = 0;
     int speed_now = 0;
+    int speed_normal = 0;
 
     // 能改的
-    int speed_bend = 175;           // 弯道速度
-    int speed_straight = 230;       // 直道速度
-    int speed_min = 155;            // 最低速度，一般为稳定速度
+    int speed_straight = 260;       // 直道速度
+    int speed_min = 160;            // 最低速度，一般为稳定速度
+
+    flash_store_get_start_page(&start_page);
+    speed_normal = (int)start_page.target_speed;
 
     speed_left = encoder_get_left();
     if(speed_left < 0)
@@ -1076,7 +1081,7 @@ static void GetDet(void)
     }
     else
     {
-        Speed_Goal = (uint16)speed_bend;
+        Speed_Goal = (uint16)speed_normal;
     }
 
     if((ImageStatus.Road_type == RightCirque || ImageStatus.Road_type == LeftCirque) && ImageStatus.CirqueOff == 'F')

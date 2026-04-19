@@ -53,7 +53,7 @@ void ackerman_calc_wheel_speeds(float speed, float steer_angle)
 
     // 阿克曼差速因子: v_dif = (tread_width / wheelbase) * tan(δ)
     tan_delta = tan(steer_angle * 3.1415926f / 180.0f);
-    v_dif = 0.7088 * tan_delta;
+    v_dif = 0.8088 * tan_delta;
 
     /* 右转时左轮走外侧，左转时右轮走外侧。 */
     /* 外侧轮保持基础速度，内侧轮按国一口径减速。 */
