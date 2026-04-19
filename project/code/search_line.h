@@ -99,6 +99,7 @@ void SearchLine_ResetPreviewOverlay(void);
 uint8 SearchLine_GetOtsuThreshold(void);
 uint8 SearchLine_GetRawOtsuThreshold(void);
 uint8 SearchLine_GetStraightAcc(void);
+uint16 SearchLine_GetSpeedGoal(void);
 uint8 SearchLine_GetDetTrue(void);
 uint8 SearchLine_GetLeftLine(void);
 uint8 SearchLine_GetRightLine(void);

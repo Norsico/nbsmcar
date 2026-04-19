@@ -1,4 +1,5 @@
 #include "search_line.h"
+#include "dev_encoder.h"
 #include "dev_other.h"
 #include "dev_servo.h"
 #include "system_state.h"
@@ -61,6 +62,7 @@ static uint8 CompressColMap[LCDW] = {0};
 static uint8 CompressMapReady = 0;
 static uint8 OtsuRefreshCountdown = 0;
 static uint8 OtsuRawThreshold = 0;
+static uint16 Speed_Goal = 150;
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
 {
@@ -1045,6 +1047,37 @@ static void GetDet(void)
     float DetTemp = 0;
     int TowPoint = 0;
     float UnitAll = 0;
+    float SpeedGain = 0.0f;
+    int speed_left = 0;
+    int speed_right = 0;
+    int speed_now = 0;
+
+    // 能改的
+    int speed_bend = 150;           // 弯道速度
+    int speed_straight = 190;       // 直道速度
+    int speed_min = 145;            // 最低速度，一般为稳定速度
+
+    speed_left = encoder_get_left();
+    if(speed_left < 0)
+    {
+        speed_left = -speed_left;
+    }
+
+    speed_right = encoder_get_right();
+    if(speed_right < 0)
+    {
+        speed_right = -speed_right;
+    }
+
+    speed_now = (speed_left + speed_right) / 2;
+    if(ImageStatus.straight_acc == 1)
+    {
+        Speed_Goal = (uint16)speed_straight;
+    }
+    else
+    {
+        Speed_Goal = (uint16)speed_bend;
+    }
 
     if((ImageStatus.Road_type == RightCirque || ImageStatus.Road_type == LeftCirque) && ImageStatus.CirqueOff == 'F')
         TowPoint = 30;                                                                      //圆环前瞻
@@ -1055,7 +1088,20 @@ static void GetDet(void)
     else if(ImageFlag.image_element_rings_flag == 1 || ImageFlag.image_element_rings_flag == 2)
         TowPoint = 30;
     else
-        TowPoint = ImageStatus.TowPoint;
+    {
+
+        SpeedGain = ((float)(speed_min - speed_now) * 0.2f) + 0.5f;
+        if(SpeedGain > 3.0f)
+        {
+            SpeedGain = 3.0f;
+        }
+        else if(SpeedGain < -1.0f)
+        {
+            SpeedGain = -1.0f;
+        }
+
+        TowPoint = (int)((float)ImageStatus.TowPoint - SpeedGain);
+    }
 
     if(TowPoint < ImageStatus.OFFLine)
         TowPoint = ImageStatus.OFFLine + 1;
@@ -2206,6 +2252,11 @@ uint8 SearchLine_GetRawOtsuThreshold(void)
 uint8 SearchLine_GetStraightAcc(void)
 {
     return ImageStatus.straight_acc;
+}
+
+uint16 SearchLine_GetSpeedGoal(void)
+{
+    return Speed_Goal;
 }
 
 uint8 SearchLine_GetDetTrue(void)

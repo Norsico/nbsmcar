@@ -65,9 +65,6 @@ void SteerPID_Realize(float offset)
     float abs_error = 0.0f;
     int PWM = 0;
 
-    SteerErr = (float)SteerP * iError +
-               (float)SteerD * (iError - SteerLastError);  /* 位置式 PID 算式。 */
-
     abs_error = (iError < 0.0f) ? (-iError) : iError;
     if(abs_error < 3.0f)
     {
@@ -77,6 +74,10 @@ void SteerPID_Realize(float offset)
     {
         iError = 1.2f * iError;
     }
+
+    /* 大小误差缩放要先完成，再参与当前拍 P/D 计算。 */
+    SteerErr = (float)SteerP * iError +
+               (float)SteerD * (iError - SteerLastError);  /* 位置式 PID 算式。 */
 
     SteerLastError = iError;
     PWM = Steer_Round_Float((float)steer_middle - SteerErr);

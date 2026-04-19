@@ -3,11 +3,13 @@
 #include "dev_encoder.h"
 #include "dev_flash.h"
 #include "dev_servo.h"
+#include "search_line.h"
 
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
 #define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 电机输出百分比限幅。 */
 #define CAR_WHEEL_ACKERMAN_CENTER_ANGLE ((float)CAR_SERVO_CENTER_ANGLE) /* 阿克曼角度按左负右正换算。 */
+static float car_wheel_run_request_speed = 0.0f;  /* Start 页速度当前只保留作运行开关。 */
 float car_wheel_target_speed = 0.0f;  // 整车目标速度
 
 float ref_left_target = 0.0f;
@@ -134,7 +136,12 @@ void car_wheel_set_target(float speed)
     {
         speed = 0.0f;
     }
-    car_wheel_target_speed = speed;
+
+    car_wheel_run_request_speed = speed;
+    if(speed <= 0.0f)
+    {
+        car_wheel_target_speed = 0.0f;
+    }
 }
 
 /* 清空单个 PID 累积状态。 */
@@ -151,6 +158,7 @@ static void car_wheel_pid_reset_single(pid_control_t *pid)
 /* 清空后轮闭环状态并停轮。 */
 void car_wheel_control_reset(void)
 {
+    car_wheel_run_request_speed = 0.0f;
     car_wheel_target_speed = 0.0f;
     ref_left_target = 0.0f;
     ref_right_target = 0.0f;
@@ -164,6 +172,7 @@ void car_wheel_control_reset(void)
 /* 无刷未就绪时保持后轮待转，不清 Start 速度目标。 */
 void car_wheel_hold(void)
 {
+    car_wheel_target_speed = 0.0f;
     ref_left_target = 0.0f;
     ref_right_target = 0.0f;
     car_wheel_apply_target(0.0f, 0.0f);
@@ -173,14 +182,29 @@ void car_wheel_hold(void)
     car_wheel_stop_all();
 }
 
+/* 按国一直道/非直道口径切当前整车目标速度。 */
+static float car_wheel_get_runtime_target_speed(void)
+{
+    if(car_wheel_run_request_speed <= 0.0f)
+    {
+        car_wheel_target_speed = 0.0f;
+        return 0.0f;
+    }
+
+    car_wheel_target_speed = (float)SearchLine_GetSpeedGoal();
+    return car_wheel_target_speed;
+}
+
 /* 按当前舵机角解算阿克曼左右轮目标。 */
 static void car_wheel_update_reference_target(void)
 {
+    float base_speed = 0.0f;
     float steer_angle = 0.0f;
 
+    base_speed = car_wheel_get_runtime_target_speed();
     steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
 
-    ackerman_calc_wheel_speeds(car_wheel_target_speed, steer_angle);
+    ackerman_calc_wheel_speeds(base_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();
     ref_right_target = ackerman_get_right_speed();
 

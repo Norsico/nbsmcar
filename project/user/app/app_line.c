@@ -9,6 +9,7 @@
 static uint8 line_camera_ready = 0; // 摄像头是否初始化完成
 static uint8 line_result_ready = 0;
 static line_app_preview_mode_t g_line_preview_mode = LINE_APP_PREVIEW_BINARY;
+static uint8 g_line_last_straight_acc = 0;
 
 /* 下发整页相机参数。 */
 static uint8 line_app_apply_camera_page(const flash_camera_page_t *page)
@@ -111,6 +112,7 @@ line_app_preview_mode_t line_app_get_preview_mode(void)
 static uint8 line_app_handle_frame(void)
 {
     uint8 raw_otsu_threshold = 0;
+    uint8 straight_acc = 0;
 
     if(!line_camera_ready)
     {
@@ -129,10 +131,26 @@ static uint8 line_app_handle_frame(void)
     if(raw_otsu_threshold < 25U)
     {
         /* 工作阈值继续锁下限，抓车急停单独看原始阈值，避免黑场时还继续出力。 */
+        g_line_last_straight_acc = 0;
         line_result_ready = 0;
         g_system_state = SYS_EMERGENCY;
         return 1;
     }
+
+    straight_acc = SearchLine_GetStraightAcc();
+    if(SYS_RUNNING == g_system_state)
+    {
+        if((0U == g_line_last_straight_acc) && (0U != straight_acc))
+        {
+            buzzer_long();
+        }
+        g_line_last_straight_acc = straight_acc;
+    }
+    else
+    {
+        g_line_last_straight_acc = 0;
+    }
+
     line_result_ready = 1;
     
     return 1;
@@ -178,6 +196,7 @@ void line_app_init(void)
     line_app_apply_steer_pd_page_from_flash();
     line_camera_ready = 1; // 摄像头初始化OK
     line_result_ready = 0;
+    g_line_last_straight_acc = 0;
 
 #if IPS_ENABLE
     if(switch_ui_enabled())
