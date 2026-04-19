@@ -1985,6 +1985,85 @@ uint8 Threshold_deal(uint8* image,
     return threshold;
 }
 
+/* @brief      下方中间区域混合阈值。
+ * @param      image  图像数组。
+ * @param      col    宽。
+ * @param      row    高。
+ * @return     uint8
+ */
+uint8 Threshold_deal_roi_mix(uint8* image, uint16 col, uint16 row)
+{
+    uint16 start_row;
+    uint16 end_row;
+    uint16 start_col;
+    uint16 end_col;
+    uint16 i;
+    uint16 j;
+    uint16 sample_count;
+    uint32 gray_sum;
+    uint8 gray_min;
+    uint8 gray_max;
+    uint8 gray_value;
+    uint16 gray_mean;
+    uint16 gray_mid;
+    uint16 threshold_value;
+
+    start_row = 40;
+    end_row = 59;
+    start_col = 20;
+    end_col = 59;
+    sample_count = 0;
+    gray_sum = 0;
+    gray_min = 255;
+    gray_max = 0;
+
+    if(row <= end_row)
+    {
+        end_row = row - 1;
+    }
+    if(col <= end_col)
+    {
+        end_col = col - 1;
+    }
+
+    for(i = start_row; i <= end_row; i += 2)
+    {
+        for(j = start_col; j <= end_col; j += 2)
+        {
+            gray_value = image[i * col + j];
+            gray_sum += gray_value;
+            if(gray_value < gray_min)
+            {
+                gray_min = gray_value;
+            }
+            if(gray_value > gray_max)
+            {
+                gray_max = gray_value;
+            }
+            sample_count++;
+        }
+    }
+
+    if(0 == sample_count)
+    {
+        return 0;
+    }
+
+    gray_mean = (uint16)(gray_sum / sample_count);
+    gray_mid = (uint16)(((uint16)gray_max + (uint16)gray_min) >> 1);
+    threshold_value = (uint16)((gray_mid * 3U + gray_mean) >> 2);
+    if(threshold_value > 8U)
+    {
+        threshold_value -= 8U;
+    }
+    else
+    {
+        threshold_value = 0;
+    }
+
+    return (uint8)threshold_value;
+}
+
 /* 图像二值化。 */
 void Get01change_dajin(void)
 {
@@ -2032,6 +2111,61 @@ void Get01change_dajin(void)
     }
 }
 
+/* 图像二值化，下方中间区域混合阈值版本。 */
+void Get01change_roi_mix(void)
+{
+    uint8 i = 0;
+    uint8 j = 0;
+    uint8 thre = 0;
+    uint8 current_threshold = 0;
+
+    current_threshold = Threshold_deal_roi_mix(Image_Use[0], LCDW, LCDH);
+    if(0 != ImageStatus.Threshold)
+    {
+        /* 阈值做轻微平滑，避免局部光照抖动时二值图来回跳。 */
+        current_threshold = (uint8)(((uint16)ImageStatus.Threshold * 3U +
+                                     (uint16)current_threshold + 2U) >> 2);
+    }
+
+    ImageStatus.Threshold = current_threshold;
+    if(ImageStatus.Threshold < ImageStatus.Threshold_static)
+    {
+        ImageStatus.Threshold = (uint8)ImageStatus.Threshold_static;
+    }
+
+    for(i = 0; i < LCDH; i++)
+    {
+        for(j = 0; j < LCDW; j++)
+        {
+            if(j <= 15)
+            {
+                thre = (uint8)(ImageStatus.Threshold - 10);
+            }
+            else if((j > 70) && (j <= 75))
+            {
+                thre = (uint8)(ImageStatus.Threshold - 10);
+            }
+            else if(j >= 65)
+            {
+                thre = (uint8)(ImageStatus.Threshold - 10);
+            }
+            else
+            {
+                thre = ImageStatus.Threshold;
+            }
+
+            if(Image_Use[i][j] > thre)
+            {
+                Pixle[i][j] = 1;  /* 白。 */
+            }
+            else
+            {
+                Pixle[i][j] = 0;  /* 黑。 */
+            }
+        }
+    }
+}
+
 // 图像处理
 void ImageProcess(void)
 {
@@ -2050,7 +2184,7 @@ void ImageProcess(void)
         ImageDeal[Ysite].close_RightBorder = 79;
     }                     //边界与标志位初始化
 
-    Get01change_dajin();  //图像二值化
+    Get01change_roi_mix();  //图像二值化，当前切到下方中间 ROI 混合阈值
     DrawLinesFirst();     //绘制底边
     DrawLinesProcess();   //搜边线
 
