@@ -20,6 +20,7 @@ static void ui_flash_fill_default_steer_pd_page(flash_param_page_t *page)
 
     page->first_value = (int16)FlashSteerPConfig.default_value;
     page->second_value = (int16)FlashSteerDConfig.default_value;
+    page->third_value = (int16)FlashSteerErr2Config.default_value;
 }
 
 static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
@@ -37,6 +38,12 @@ static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
 
     if((page->second_value < (int16)FlashSteerDConfig.min) ||
        (page->second_value > (int16)FlashSteerDConfig.max))
+    {
+        return 0;
+    }
+
+    if((page->third_value < (int16)FlashSteerErr2Config.min) ||
+       (page->third_value > (int16)FlashSteerErr2Config.max))
     {
         return 0;
     }
@@ -171,6 +178,11 @@ void ui_flash_get_steer_pd_range(flash_param_slot_t slot, uint16 *min_value, uin
             min_value_local = FlashSteerDConfig.min;
             max_value_local = FlashSteerDConfig.max;
             step_value_local = FlashSteerDConfig.step;
+            break;
+        case FLASH_PARAM_SLOT_THIRD:
+            min_value_local = FlashSteerErr2Config.min;
+            max_value_local = FlashSteerErr2Config.max;
+            step_value_local = FlashSteerErr2Config.step;
             break;
         default:
             break;

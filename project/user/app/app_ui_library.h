@@ -20,5 +20,6 @@ void ui_library_draw_list_item(uint16 y, const char *label, uint8 selected);
 void ui_library_draw_battery(uint8 percent);
 /* 数值转字符串显示。 */
 void ui_library_format_uint16(uint16 value, char *text);
+void ui_library_format_tenths(uint16 value, char *text);
 
 #endif

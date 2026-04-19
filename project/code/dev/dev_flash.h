@@ -21,7 +21,7 @@ static const flash_value_config_t FlashSteerPConfig =
     0,   /* min */
     60,  /* max */
     2,   /* step */
-    24       /* default */
+    18       /* default */
 };
 // 舵机D参数
 static const flash_value_config_t FlashSteerDConfig =
@@ -29,7 +29,15 @@ static const flash_value_config_t FlashSteerDConfig =
     0,   /* min */
     80,  /* max */
     2,   /* step */
-    4        /* default */
+    8        /* default */
+};
+// 舵机二次误差系数，单位 0.1，取值 3 对应一号常用量级 0.3
+static const flash_value_config_t FlashSteerErr2Config =
+{
+    0,   /* min */
+    6,   /* max */
+    1,   /* step */
+    0    /* default */
 };
 
 /****************************** Camera 页 ******************************/
@@ -39,7 +47,7 @@ static const flash_value_config_t FlashCameraAutoExpConfig =
     0,   /* min */
     63,  /* max */
     1,   /* step */
-    MT9V03X_AUTO_EXP_DEF  /* default */
+    0   /* default */
 };
 
 // 曝光时间参数
@@ -48,7 +56,7 @@ static const flash_value_config_t FlashCameraExpTimeConfig =
     1,    /* min */
     300,  /* max */
     10,   /* step */
-    75        /* default */
+    100       /* default */
 };
 
 // 增益参数
@@ -56,8 +64,8 @@ static const flash_value_config_t FlashCameraGainConfig =
 {
     16,  /* min */
     64,  /* max */
-    10,  /* step */
-    36       /* default */
+    1,   /* step */
+    25       /* default */
 };
 
 /****************************** Servo Limit 页 ******************************/
@@ -67,7 +75,7 @@ static const flash_value_config_t FlashServoMinAngleConfig =
     50,   /* min */
     120,  /* max */
     2,    /* step */
-    70    /* default */
+    72    /* default */
 };
 
 // 舵机最大限幅参数
@@ -76,7 +84,7 @@ static const flash_value_config_t FlashServoMaxAngleConfig =
     50,   /* min */
     120,  /* max */
     2,    /* step */
-    110   /* default */
+    108   /* default */
 };
 
 /****************************** Car Speed 页 ******************************/
@@ -103,6 +111,7 @@ typedef enum
 {
     FLASH_PARAM_SLOT_FIRST = 0,     /* Steer P。 */
     FLASH_PARAM_SLOT_SECOND,        /* Steer D。 */
+    FLASH_PARAM_SLOT_THIRD,         /* 二次误差系数。 */
     FLASH_PARAM_SLOT_COUNT
 } flash_param_slot_t;
 
@@ -119,6 +128,7 @@ typedef struct
 {
     int16 first_value;        /* Steer P。 */
     int16 second_value;       /* Steer D。 */
+    int16 third_value;        /* 舵机二次误差系数，单位 0.1。 */
 } flash_param_page_t;
 
 typedef struct

@@ -5,7 +5,7 @@
 
 #define FLASH_STORE_ADDR                (0x0000)
 #define FLASH_STORE_MAGIC               (0x4653)
-#define FLASH_STORE_VERSION             (0x0004)
+#define FLASH_STORE_VERSION             (0x0005)
 /* 掉电参数写在用户 EEPROM 第一个扇区。 */
 
 typedef struct
@@ -30,6 +30,9 @@ static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 
         case FLASH_PARAM_SLOT_SECOND:
             return (value >= (int16)FlashSteerDConfig.min &&
                     value <= (int16)FlashSteerDConfig.max) ? 1 : 0;
+        case FLASH_PARAM_SLOT_THIRD:
+            return (value >= (int16)FlashSteerErr2Config.min &&
+                    value <= (int16)FlashSteerErr2Config.max) ? 1 : 0;
         default:
             return 0;
     }
@@ -115,6 +118,7 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     memset(store_ptr, 0, sizeof(*store_ptr));
     store_ptr->param_page.first_value = (int16)FlashSteerPConfig.default_value;
     store_ptr->param_page.second_value = (int16)FlashSteerDConfig.default_value;
+    store_ptr->param_page.third_value = (int16)FlashSteerErr2Config.default_value;
     store_ptr->camera_page.auto_exp = (uint8)FlashCameraAutoExpConfig.default_value;
     store_ptr->camera_page.exp_time = FlashCameraExpTimeConfig.default_value;
     store_ptr->camera_page.gain = (uint8)FlashCameraGainConfig.default_value;
@@ -144,6 +148,11 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
     }
 
     if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_SECOND, store_ptr->param_page.second_value))
+    {
+        return 0;
+    }
+
+    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_THIRD, store_ptr->param_page.third_value))
     {
         return 0;
     }
@@ -327,6 +336,8 @@ int16 flash_store_get_param_value(flash_param_slot_t slot)
             return g_flash_store_cache.store_data.param_page.first_value;
         case FLASH_PARAM_SLOT_SECOND:
             return g_flash_store_cache.store_data.param_page.second_value;
+        case FLASH_PARAM_SLOT_THIRD:
+            return g_flash_store_cache.store_data.param_page.third_value;
         default:
             return 0;
     }
@@ -357,6 +368,13 @@ uint8 flash_store_set_param_value(flash_param_slot_t slot, int16 value)
                 return 0;
             }
             target_value = &g_flash_store_cache.store_data.param_page.second_value;
+            break;
+        case FLASH_PARAM_SLOT_THIRD:
+            if(!flash_store_steer_pd_value_in_range(slot, value))
+            {
+                return 0;
+            }
+            target_value = &g_flash_store_cache.store_data.param_page.third_value;
             break;
         default:
             return 0;

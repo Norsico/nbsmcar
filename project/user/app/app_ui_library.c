@@ -183,3 +183,22 @@ void ui_library_format_uint16(uint16 value, char *text)
         text[1] = '\0';
     }
 }
+
+void ui_library_format_tenths(uint16 value, char *text)
+{
+    uint16 integer_part = 0;
+    uint16 decimal_part = 0;
+
+    if(value >= 100U)
+    {
+        value = 99U;
+    }
+
+    integer_part = (uint16)(value / 10U);
+    decimal_part = (uint16)(value % 10U);
+
+    text[0] = (char)('0' + integer_part);
+    text[1] = '.';
+    text[2] = (char)('0' + decimal_part);
+    text[3] = '\0';
+}

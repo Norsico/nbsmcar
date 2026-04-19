@@ -11,7 +11,7 @@ uint8 Image_Use[LCDH][LCDW] = {0};
 uint8 Pixle[LCDH][LCDW] = {0};
 ImageStatustypedef ImageStatus =
 {
-    27,
+    32,  /* 当前图像先裁掉底部 20 行，给定前瞻要比参考全图口径略往下取。 */
     0,
     0,
     0,
@@ -1057,7 +1057,7 @@ static void GetDet(void)
 
     // 能改的
     int speed_straight = 260;       // 直道速度
-    int speed_min = 160;            // 最低速度，一般为稳定速度
+    int speed_min = 155;            // 最低速度，一般为稳定速度
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
@@ -1095,7 +1095,7 @@ static void GetDet(void)
     else
     {
 
-        SpeedGain = ((float)(speed_min - speed_now) * 0.2f) + 0.5f;
+        SpeedGain = ((float)(speed_now - speed_min) * 0.2f) + 0.5f;
         if(SpeedGain > 3.0f)
         {
             SpeedGain = 3.0f;
@@ -1430,7 +1430,7 @@ static void Element_Judgment_Right_Rings(void)
         ImageFlag.image_element_rings_flag = 1;
         ImageFlag.ring_big_small = 1;
         ImageStatus.Road_type = RightCirque;
-        buzzer_short();
+        // buzzer_short();
     }
     Ring_Help_Flag = 0;
 }

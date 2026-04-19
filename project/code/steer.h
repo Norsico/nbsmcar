@@ -14,6 +14,6 @@ extern int S3010_Duty;
 void Steer_init(void);
 void SteerControl(int duty);
 void SteerPID_Realize(float offset);
-void Steer_Set_Pd(uint16 p, uint16 d);
+void Steer_Set_Pd(uint16 p, uint16 d, uint16 err2_tenth);
 
 #endif
