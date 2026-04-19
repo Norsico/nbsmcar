@@ -110,6 +110,8 @@ line_app_preview_mode_t line_app_get_preview_mode(void)
 /* 处理一帧图像。 */
 static uint8 line_app_handle_frame(void)
 {
+    uint8 raw_otsu_threshold = 0;
+
     if(!line_camera_ready)
     {
         // 摄像头未初始化
@@ -123,6 +125,14 @@ static uint8 line_app_handle_frame(void)
 
     // 处理图像
     SearchLine_Process();
+    raw_otsu_threshold = SearchLine_GetRawOtsuThreshold();
+    if(raw_otsu_threshold < 25U)
+    {
+        /* 工作阈值继续锁下限，抓车急停单独看原始阈值，避免黑场时还继续出力。 */
+        line_result_ready = 0;
+        g_system_state = SYS_EMERGENCY;
+        return 1;
+    }
     line_result_ready = 1;
     
     return 1;

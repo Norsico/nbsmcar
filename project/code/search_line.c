@@ -56,11 +56,12 @@ static uint8 PreviewLastRingRightLineRightPanel = 0xFF;
 static uint16 PreviewLastRingStageNum = 0xFFFF;
 static uint16 PreviewLastRingPointY = 0xFFFF;
 static int16 PreviewLastRingStraightJudgeTenth = 32767;
+static uint8 CompressRowMap[LCDH] = {0};
+static uint8 CompressColMap[LCDW] = {0};
+static uint8 CompressMapReady = 0;
+static uint8 OtsuRefreshCountdown = 0;
+static uint8 OtsuRawThreshold = 0;
 float variance = 0, variance_acc = 25;  //方差
-float Mh = MT9V03X_H;
-float Lh = LCDH;
-float Mw = MT9V03X_W;
-float Lw = LCDW;
 static float Weighting[10] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
@@ -100,7 +101,9 @@ static int Limit(int value, int numH, int numL)
 
 void compressimage(void)
 {
-    int i, j, row, line;
+    int i, j, row;
+    uint8 *dst_row;
+    uint8 *src_row;
     /* 原图左右各裁 4 列。 */
     const int cut_col = 4;
     /* 原图底部裁 20 行。 */
@@ -108,20 +111,31 @@ void compressimage(void)
     /* 原图顶部当前不裁。 */
     const int cut_row_top = 0;
     /* 裁剪后输入窗口：180x100。 */
-    const float src_h = Mh - (float)cut_row_top - (float)cut_row_bottom;
-    const float src_w = Mw - (float)(cut_col * 2);
-    const float div_h = src_h / Lh;
-    const float div_w = src_w / Lw;
+    const int src_h = MT9V03X_H - cut_row_top - cut_row_bottom;
+    const int src_w = MT9V03X_W - (cut_col * 2);
+
+    if(!CompressMapReady)
+    {
+        /* 当前裁剪口径固定，只在首帧生成一次压缩映射，避免每像素做浮点缩放。 */
+        for(i = 0; i < LCDH; i++)
+        {
+            CompressRowMap[i] = (uint8)(cut_row_top + ((i * src_h + (LCDH / 2)) / LCDH));
+        }
+        for(j = 0; j < LCDW; j++)
+        {
+            CompressColMap[j] = (uint8)(cut_col + ((j * src_w + (LCDW / 2)) / LCDW));
+        }
+        CompressMapReady = 1;
+    }
 
     for(i = 0; i < LCDH; i++)
     {
-        /* 压缩行映射回裁剪后的原图行。 */
-        row = cut_row_top + i * div_h + 0.5f;
+        row = CompressRowMap[i];
+        dst_row = Image_Use[i];
+        src_row = mt9v03x_image[row];
         for(j = 0; j < LCDW; j++)
         {
-            /* 压缩列映射回裁剪后的原图列。 */
-            line = cut_col + j * div_w + 0.5f;
-            Image_Use[i][j] = mt9v03x_image[row][line];
+            dst_row[j] = src_row[CompressColMap[j]];
         }
     }
     mt9v03x_finish_flag = 0;  //使用完一帧DMA传输的图像图像  可以开始传输下一帧
@@ -1328,11 +1342,15 @@ static void Element_Judgment_Right_Rings(void)
             break;
         }
     }
-    if(Right_RingsFlag_Point1_Ysite > 52)
-    {
-        Right_RingsFlag_Point1_Ysite = 52;
-    }
 
+    if((Right_RingsFlag_Point1_Ysite <= ring_ysite) ||
+       (Right_RingsFlag_Point2_Ysite <= ring_ysite))
+    {
+        /* 旧 OTSU 版这里靠前级边界更稳定，当前搜线口径下单点毛刺更多。
+         * 两个候选拐点没同时成立时，直接不判右环，先压掉误触发。 */
+        Ring_Help_Flag = 0;
+        return;
+    }
     for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
         if(ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder &&
@@ -1634,7 +1652,7 @@ static void Element_Handle_Right_Rings(void)
     {
         ImageFlag.image_element_rings_flag = 2;
     }
-    if(ImageFlag.image_element_rings_flag == 2 && num < 12)
+    if(ImageFlag.image_element_rings_flag == 2 && num < 8)
     {
         ImageFlag.image_element_rings_flag = 5;
         buzzer_short();
@@ -1911,6 +1929,9 @@ uint8 Threshold_deal(uint8* image,
     float u;
     float deltaTmp;
     float deltaMax;
+    float diff0;
+    float diff1;
+    float inv_pixel_sum;
 
     width = col;
     height = row;
@@ -1927,6 +1948,9 @@ uint8 Threshold_deal(uint8* image,
     u = 0.0f;
     deltaTmp = 0.0f;
     deltaMax = 0.0f;
+    diff0 = 0.0f;
+    diff1 = 0.0f;
+    inv_pixel_sum = 0.0f;
 
     for(i = 0; i < 256; i++)
     {
@@ -1944,11 +1968,18 @@ uint8 Threshold_deal(uint8* image,
         }
     }
 
+    if(0 != pixelSum)
+    {
+        inv_pixel_sum = 1.0f / (float)pixelSum;
+    }
+
     /* 计算每个像素值在整幅图像中的比例。 */
     for(i = 0; i < 256; i++)
     {
-        pixelPro[i] = (float)pixelCount[i] / pixelSum;
+        pixelPro[i] = (float)pixelCount[i] * inv_pixel_sum;
     }
+
+    u = (float)gray_sum * inv_pixel_sum;  /* 全局平均灰度。 */
 
     /* 遍历灰度级 [0, pixel_threshold) 。 */
     for(j = 0; j < (uint16)pixel_threshold; j++)
@@ -1966,11 +1997,12 @@ uint8 Threshold_deal(uint8* image,
             break;
         }
 
-        u1tmp = (float)gray_sum / pixelSum - u0tmp;
+        u1tmp = u - u0tmp;
         u0 = u0tmp / w0;    /* 背景平均灰度。 */
         u1 = u1tmp / w1;    /* 前景平均灰度。 */
-        u = u0tmp + u1tmp;  /* 全局平均灰度。 */
-        deltaTmp = w0 * pow((u0 - u), 2) + w1 * pow((u1 - u), 2);
+        diff0 = u0 - u;
+        diff1 = u1 - u;
+        deltaTmp = w0 * diff0 * diff0 + w1 * diff1 * diff1;
         if(deltaTmp > deltaMax)
         {
             deltaMax = deltaTmp;
@@ -1985,96 +2017,31 @@ uint8 Threshold_deal(uint8* image,
     return threshold;
 }
 
-/* @brief      下方中间区域混合阈值。
- * @param      image  图像数组。
- * @param      col    宽。
- * @param      row    高。
- * @return     uint8
- */
-uint8 Threshold_deal_roi_mix(uint8* image, uint16 col, uint16 row)
-{
-    uint16 start_row;
-    uint16 end_row;
-    uint16 start_col;
-    uint16 end_col;
-    uint16 i;
-    uint16 j;
-    uint16 sample_count;
-    uint32 gray_sum;
-    uint8 gray_min;
-    uint8 gray_max;
-    uint8 gray_value;
-    uint16 gray_mean;
-    uint16 gray_mid;
-    uint16 threshold_value;
-
-    start_row = 40;
-    end_row = 59;
-    start_col = 20;
-    end_col = 59;
-    sample_count = 0;
-    gray_sum = 0;
-    gray_min = 255;
-    gray_max = 0;
-
-    if(row <= end_row)
-    {
-        end_row = row - 1;
-    }
-    if(col <= end_col)
-    {
-        end_col = col - 1;
-    }
-
-    for(i = start_row; i <= end_row; i += 2)
-    {
-        for(j = start_col; j <= end_col; j += 2)
-        {
-            gray_value = image[i * col + j];
-            gray_sum += gray_value;
-            if(gray_value < gray_min)
-            {
-                gray_min = gray_value;
-            }
-            if(gray_value > gray_max)
-            {
-                gray_max = gray_value;
-            }
-            sample_count++;
-        }
-    }
-
-    if(0 == sample_count)
-    {
-        return 0;
-    }
-
-    gray_mean = (uint16)(gray_sum / sample_count);
-    gray_mid = (uint16)(((uint16)gray_max + (uint16)gray_min) >> 1);
-    threshold_value = (uint16)((gray_mid * 3U + gray_mean) >> 2);
-    if(threshold_value > 8U)
-    {
-        threshold_value -= 8U;
-    }
-    else
-    {
-        threshold_value = 0;
-    }
-
-    return (uint8)threshold_value;
-}
-
 /* 图像二值化。 */
 void Get01change_dajin(void)
 {
     uint8 i = 0;
     uint8 j = 0;
     uint8 thre = 0;
+    uint8 raw_threshold = 0;
 
-    ImageStatus.Threshold = Threshold_deal(Image_Use[0], LCDW, LCDH, ImageStatus.Threshold_detach);
-    if(ImageStatus.Threshold < ImageStatus.Threshold_static)
+    if((0 == OtsuRefreshCountdown) || (0 == ImageStatus.Threshold))
     {
-        ImageStatus.Threshold = (uint8)ImageStatus.Threshold_static;
+        /* 大津法改成 10 帧重算一次，其余帧沿用上次阈值，先把主耗时压下来。 */
+        raw_threshold = Threshold_deal(Image_Use[0], LCDW, LCDH, ImageStatus.Threshold_detach);
+
+        // raw_threshold = 79;
+        OtsuRawThreshold = raw_threshold;
+        ImageStatus.Threshold = raw_threshold;
+        if(ImageStatus.Threshold < ImageStatus.Threshold_static)
+        {
+            ImageStatus.Threshold = (uint8)ImageStatus.Threshold_static;
+        }
+        OtsuRefreshCountdown = 9;
+    }
+    else
+    {
+        OtsuRefreshCountdown--;
     }
 
     for(i = 0; i < LCDH; i++)
@@ -2111,50 +2078,65 @@ void Get01change_dajin(void)
     }
 }
 
-/* 图像二值化，下方中间区域混合阈值版本。 */
+/* 图像二值化，沿用现有函数口径，内部改成参考代码的底部参考均值阈值。 */
 void Get01change_roi_mix(void)
 {
     uint8 i = 0;
     uint8 j = 0;
-    uint8 thre = 0;
+    uint8 reference_row_start = 0;
+    uint8 reference_row_count = 8;   /* 底部参考行数，当前按压缩图最底 8 行取均值。 */
+    uint8 threshold_mul_tenth = 11;  /* 参考代码是“均值乘倍率出白点门槛”，这里按 1.1 倍等价落地。 */
     uint8 current_threshold = 0;
+    uint16 sample_count = 0;
+    uint16 threshold_value = 0;
+    uint32 gray_sum = 0;
 
-    current_threshold = Threshold_deal_roi_mix(Image_Use[0], LCDW, LCDH);
-    if(0 != ImageStatus.Threshold)
+    if(LCDH > reference_row_count)
     {
-        /* 阈值做轻微平滑，避免局部光照抖动时二值图来回跳。 */
-        current_threshold = (uint8)(((uint16)ImageStatus.Threshold * 3U +
-                                     (uint16)current_threshold + 2U) >> 2);
+        reference_row_start = (uint8)(LCDH - reference_row_count);
     }
 
+    /* 参考“路边野生”代码，直接取底部参考区均值，再乘固定倍率得到白点门槛。 */
+    for(i = reference_row_start; i < LCDH; i++)
+    {
+        for(j = 0; j < LCDW; j++)
+        {
+            gray_sum += Image_Use[i][j];
+            sample_count++;
+        }
+    }
+
+    if(0 != sample_count)
+    {
+        threshold_value = (uint16)((gray_sum * threshold_mul_tenth +
+                                    ((uint32)sample_count * 5U)) /
+                                   ((uint32)sample_count * 10U));
+    }
+    if(threshold_value > 255U)
+    {
+        OtsuRawThreshold = 255U;
+    }
+    else
+    {
+        OtsuRawThreshold = (uint8)threshold_value;
+    }
+    if(threshold_value < ImageStatus.Threshold_static)
+    {
+        threshold_value = (uint16)ImageStatus.Threshold_static;
+    }
+    if(threshold_value > 255U)
+    {
+        threshold_value = 255U;
+    }
+
+    current_threshold = (uint8)threshold_value;
     ImageStatus.Threshold = current_threshold;
-    if(ImageStatus.Threshold < ImageStatus.Threshold_static)
-    {
-        ImageStatus.Threshold = (uint8)ImageStatus.Threshold_static;
-    }
 
     for(i = 0; i < LCDH; i++)
     {
         for(j = 0; j < LCDW; j++)
         {
-            if(j <= 15)
-            {
-                thre = (uint8)(ImageStatus.Threshold - 10);
-            }
-            else if((j > 70) && (j <= 75))
-            {
-                thre = (uint8)(ImageStatus.Threshold - 10);
-            }
-            else if(j >= 65)
-            {
-                thre = (uint8)(ImageStatus.Threshold - 10);
-            }
-            else
-            {
-                thre = ImageStatus.Threshold;
-            }
-
-            if(Image_Use[i][j] > thre)
+            if(Image_Use[i][j] > current_threshold)
             {
                 Pixle[i][j] = 1;  /* 白。 */
             }
@@ -2184,8 +2166,8 @@ void ImageProcess(void)
         ImageDeal[Ysite].close_RightBorder = 79;
     }                     //边界与标志位初始化
 
-    // Get01change_roi_mix();  //图像二值化，当前切到下方中间 ROI 混合阈值
-    Get01change_dajin();    //图像二值化
+    // Get01change_roi_mix();  /* 图像二值化，当前按参考代码切到底部参考均值阈值。 */
+    Get01change_dajin();       /* 图像二值化，当前切回大津法，并做 10 帧阈值复用。 */
     DrawLinesFirst();     //绘制底边
     DrawLinesProcess();   //搜边线
 
@@ -2212,6 +2194,11 @@ void SearchLine_Process(void)
 uint8 SearchLine_GetOtsuThreshold(void)
 {
     return ImageStatus.Threshold;
+}
+
+uint8 SearchLine_GetRawOtsuThreshold(void)
+{
+    return OtsuRawThreshold;
 }
 
 uint8 SearchLine_GetStraightAcc(void)
