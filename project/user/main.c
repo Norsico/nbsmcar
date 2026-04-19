@@ -163,12 +163,12 @@ void main(void)
                 else
                 {
                     // 关屏打开风扇跑
-                    bldc_motor_set_duty(30, 30);
-                    if(!bldc_motor_is_ready())
-                    {
-                        /* 负压风扇没起稳前，后轮先待转。 */
-                        car_wheel_hold();
-                    }
+                    bldc_motor_set_duty(20, 20);
+                    // if(!bldc_motor_is_ready())
+                    // {
+                    //     /* 负压风扇没起稳前，后轮先待转。 */
+                    //     car_wheel_hold();
+                    // }
                 }
                 /****************** 预判断结束 ******************/
 

@@ -98,14 +98,14 @@ pid_control_t wheel_pid_right;
 static void wheel_pid_init_left(void)
 {
     /* 左轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_left, 10.4f, 0.37f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_left, 19.1f, 0.42f, 0.0f, 9900.0f, -9900.0f);
     pid_init(&wheel_pid_left);
 }
 
 static void wheel_pid_init_right(void)
 {
     /* 右轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_right, 10.4f, 0.37f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_right, 18.9f, 0.42f, 0.0f, 9900.0f, -9900.0f);
     pid_init(&wheel_pid_right);
 }
 

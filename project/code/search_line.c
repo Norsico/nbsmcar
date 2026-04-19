@@ -2184,7 +2184,8 @@ void ImageProcess(void)
         ImageDeal[Ysite].close_RightBorder = 79;
     }                     //边界与标志位初始化
 
-    Get01change_roi_mix();  //图像二值化，当前切到下方中间 ROI 混合阈值
+    // Get01change_roi_mix();  //图像二值化，当前切到下方中间 ROI 混合阈值
+    Get01change_dajin();    //图像二值化
     DrawLinesFirst();     //绘制底边
     DrawLinesProcess();   //搜边线
 
