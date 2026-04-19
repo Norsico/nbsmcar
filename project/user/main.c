@@ -105,7 +105,7 @@ void main(void)
     {
         /* 低电量报警。 */
         buzzer_on();
-        my_delay_s(1);
+        system_delay_ms(200);
         buzzer_off();
     }
 

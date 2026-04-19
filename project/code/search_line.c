@@ -1420,6 +1420,7 @@ static void Element_Handle_Left_Rings(void)
     if(ImageFlag.image_element_rings_flag == 2 && num < 8)
     {
         ImageFlag.image_element_rings_flag = 5;
+        buzzer_short();
     }
         //进环
     if(ImageFlag.image_element_rings_flag == 5 && ImageStatus.Right_Line > 15)
@@ -1485,6 +1486,7 @@ static void Element_Handle_Left_Rings(void)
             ImageFlag.image_element_rings = 0;
             ImageFlag.ring_big_small = 0;
             ImageStatus.Road_type = Normol;
+            buzzer_short();
         }
     }
 
