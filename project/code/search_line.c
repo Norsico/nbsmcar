@@ -107,7 +107,7 @@ void compressimage(void)
     uint8 *dst_row;
     uint8 *src_row;
     /* 原图左右各裁 4 列。 */
-    const int cut_col = 4;
+    const int cut_col = 1;
     /* 原图底部裁 20 行。 */
     const int cut_row_bottom = 20;
     /* 原图顶部当前不裁。 */
@@ -1053,9 +1053,9 @@ static void GetDet(void)
     int speed_now = 0;
 
     // 能改的
-    int speed_bend = 150;           // 弯道速度
-    int speed_straight = 190;       // 直道速度
-    int speed_min = 145;            // 最低速度，一般为稳定速度
+    int speed_bend = 175;           // 弯道速度
+    int speed_straight = 230;       // 直道速度
+    int speed_min = 155;            // 最低速度，一般为稳定速度
 
     speed_left = encoder_get_left();
     if(speed_left < 0)
