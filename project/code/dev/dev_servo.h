@@ -15,7 +15,7 @@
 
 /*********** 宏定义 *************/
 #define CAR_SERVO_PWM_PIN         (PWME_CH3P_PA4)
-#define CAR_SERVO_FREQ            (50)
+#define CAR_SERVO_FREQ            (300)
 #define CAR_SERVO_MIN_ANGLE       (70)
 #define CAR_SERVO_CENTER_ANGLE    (90)
 #define CAR_SERVO_MAX_ANGLE       (110)

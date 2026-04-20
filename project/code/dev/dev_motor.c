@@ -129,6 +129,24 @@ void bldc_motor_set_duty(uint8 left_speed,uint8 right_speed){
 	g_bldc_output_right = right_speed;
 	bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
 }
+
+/* 直接写入目标占空比，用于上电前的阻塞预启动。 */
+void bldc_motor_set_duty_direct(uint8 left_speed, uint8 right_speed)
+{
+	if(left_speed > 100 || right_speed > 100)
+	{
+		return;
+	}
+
+	g_bldc_target_left = left_speed;
+	g_bldc_target_right = right_speed;
+	g_bldc_output_left = left_speed;
+	g_bldc_output_right = right_speed;
+	g_bldc_softstart_active = 0;
+	g_bldc_softstart_step = 0;
+	g_bldc_softstart_tick = g_system_ticks;
+	bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
+}
 // 停止电机
 /* 停止无刷电机。 */
 void bldc_motor_stop(void){

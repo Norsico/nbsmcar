@@ -23,7 +23,7 @@ typedef enum {
 #define IMU_PERIOD 10                   // IMU读取周期 10ms (100Hz)
 #define STEER_PERIOD 10                 // 舵机控制周期 10ms，对齐国一独立舵机节拍。
 #define ENCODER_PERIOD 5                // 编码器采样周期 5ms (200Hz)
-#define CENTER_PERIOD 20				// 图像处理周期 10ms
+#define CENTER_PERIOD 16				// 图像处理周期 10ms
 #define DISPLAY_PERIOD 100              // 显示刷新周期 100ms (10Hz)
 #define WIFI_PERIOD 10                  // WiFi任务周期 10ms
 

@@ -21,6 +21,7 @@
 /* 主循环入口。 */
 void main(void)
 {
+    uint8 fan_duty = 0;
 
 /********************************************** 初始化开始 ***************************************************/
     // 系统初始化
@@ -124,6 +125,18 @@ void main(void)
         g_system_state = SYS_RUNNING;
     }
 
+    if((SYS_RUNNING == g_system_state) &&
+       (!switch_ui_enabled()) &&
+       ((!switch_wifi_enabled()) || wifi_is_initialized()))
+    {
+        /* 关屏直跑时先把负压拉起来，再放后轮进主循环，避免一上电就直接走车。 */
+        car_wheel_hold();
+        for(fan_duty = 5; fan_duty <= 40; fan_duty += 5)
+        {
+            bldc_motor_set_duty_direct(fan_duty, fan_duty);
+            system_delay_ms(250);
+        }
+    }
 
     while(1)
     {
@@ -160,16 +173,6 @@ void main(void)
                     car_wheel_stop_all();
                     car_servo_set_center();
                 }
-                else
-                {
-                    // 关屏打开风扇跑
-                    bldc_motor_set_duty(20, 20);
-                    if(!bldc_motor_is_ready())
-                    {
-                        /* 负压风扇没起稳前，后轮先待转。 */
-                        car_wheel_hold();
-                    }
-                }
                 /****************** 预判断结束 ******************/
 
                 if(g_flag_imu){
@@ -201,10 +204,9 @@ void main(void)
                     g_flag_encoder = 0;
                     if((SYS_RUNNING != g_system_state) ||
                        switch_ui_enabled() ||
-                       (switch_wifi_enabled() && !wifi_is_initialized()) ||
-                       !bldc_motor_is_ready())
+                       (switch_wifi_enabled() && !wifi_is_initialized()))
                     {
-                        // 屏幕打开 or WiFi没连成功 or 负压未起稳，不开后轮
+                        // 屏幕打开 or WiFi没连成功，不开后轮
                         car_wheel_hold();
                     }
                     else
