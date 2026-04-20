@@ -1937,7 +1937,7 @@ void Element_Handle(void)
     if(ImageFlag.image_element_rings == 1)
         Element_Handle_Left_Rings();
     else if(ImageFlag.image_element_rings == 2)
-        Element_Handle_Right_Rings();
+        // Element_Handle_Right_Rings();
 //      Cross_Handle();
 }
 
