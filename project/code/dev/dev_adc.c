@@ -1,6 +1,6 @@
 #include "dev_adc.h"
 
-static uint8 power_adc_ready = 0;
+/********* 初始化后默认ADC能够使用，不需要标志位 ********/
 
 static float power_adc_calc_voltage(uint16 value)
 {
@@ -11,7 +11,6 @@ static float power_adc_calc_voltage(uint16 value)
 /* 初始化电池电压 ADC。 */
 void power_adc_init(void){
 	adc_init(PWOER_ADC_PIN,ADC_RESOLUTION);
-	power_adc_ready = 1;
 }
 // 读取滤波后的ADC值
 static uint16 power_adc_update(void){
@@ -33,14 +32,5 @@ uint8 power_adc_judge(void){
 
 float power_adc_get_voltage(void)
 {
-	if(!power_adc_ready){
-		return 0.0f;
-	}
 	return power_adc_calc_voltage(power_adc_update());
-}
-
-/* 查询 ADC 是否已初始化。 */
-uint8 power_adc_is_ready(void)
-{
-	return power_adc_ready;
 }

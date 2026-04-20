@@ -8,12 +8,12 @@
 #define MOTOR_PWM_MAX 9900
 #define WHELL_PWM_FREQ (17000)
 #define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 电机输出百分比限幅。 */
-#define CAR_WHEEL_ACKERMAN_CENTER_ANGLE ((float)CAR_SERVO_CENTER_ANGLE) /* 阿克曼角度按左负右正换算。 */
-static float car_wheel_run_request_speed = 0.0f;  /* Start 页速度当前只保留作运行开关。 */
-float car_wheel_target_speed = 0.0f;  // 整车目标速度
+#define CAR_WHEEL_ACKERMAN_CENTER_ANGLE  CAR_SERVO_CENTER_ANGLE /* 阿克曼角度按左负右正换算。 */
+static int16 car_wheel_run_request_speed = 0.0f;  /* Start 页速度当前只保留作运行开关。 */
+int16 car_wheel_target_speed = 0.0f;  // 整车目标速度
 
-float ref_left_target = 0.0f;
-float ref_right_target = 0.0f;
+int16 ref_left_target = 0.0f;
+int16 ref_right_target = 0.0f;
 
 /**************电机控制PWM*******************/
 // 电机速度限幅函数，-100~100
@@ -35,6 +35,7 @@ static int8 car_wheel_limit_speed(int8 speed_percent)
 /* 设置单个后轮输出。 */
 void car_wheel_set_speed(car_wheel_index_enum wheel, int8 speed_percent)
 {
+        // pwm_set_duty 中 duty 为 uint32 类型
 		uint32 duty = 0;
 		int8 speed = car_wheel_limit_speed(speed_percent);
 	
@@ -94,20 +95,21 @@ void car_wheel_init(void)
 
 /**************电机控制PID****************/
 
+// pid初始化时kp、ki、kd参数扩大1000倍，注意不要超过32767
 pid_control_t wheel_pid_left;
 pid_control_t wheel_pid_right;
 
 static void wheel_pid_init_left(void)
 {
     /* 左轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_left, 19.1f, 0.42f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_left, 19100, 420, 0, 9900, -9900);
     pid_init(&wheel_pid_left);
 }
 
 static void wheel_pid_init_right(void)
 {
     /* 右轮 PID 初始化。 */
-    pid_param_init(&wheel_pid_right, 18.9f, 0.42f, 0.0f, 9900.0f, -9900.0f);
+    pid_param_init(&wheel_pid_right, 18900, 420, 0, 9900, -9900);
     pid_init(&wheel_pid_right);
 }
 
@@ -119,50 +121,50 @@ void car_wheel_pid_init(void){
 }
 
 /* 更新左右轮目标值。 */
-static void car_wheel_apply_target(float left_speed, float right_speed)
+static void car_wheel_apply_target(int16 left_speed, int16 right_speed)
 {
     wheel_pid_left.target = left_speed;
     wheel_pid_right.target = right_speed;
 }
 
 /* 设置整车基础速度。 */
-void car_wheel_set_target(float speed)
+void car_wheel_set_target(int16 speed)
 {
-    if(speed > (float)FlashStartSpeedConfig.max)
+    if(speed > FlashStartSpeedConfig.max)
     {
-        speed = (float)FlashStartSpeedConfig.max;
+        speed = FlashStartSpeedConfig.max;
     }
-    if(speed < 0.0f)
+    if(speed < 0)
     {
-        speed = 0.0f;
+        speed = 0;
     }
 
     car_wheel_run_request_speed = speed;
-    if(speed <= 0.0f)
+    if(speed <= 0)
     {
-        car_wheel_target_speed = 0.0f;
+        car_wheel_target_speed = 0;
     }
 }
 
 /* 清空单个 PID 累积状态。 */
 static void car_wheel_pid_reset_single(pid_control_t *pid)
 {
-    pid->current = 0.0f;
-    pid->error = 0.0f;
-    pid->prev_error = 0.0f;
-    pid->integral = 0.0f;
-    pid->output = 0.0f;
+    pid->current = 0;
+    pid->error = 0;
+    pid->prev_error = 0;
+    pid->integral = 0;
+    pid->output = 0;
 }
 
 // 进入紧急情况情况，清空PID参数
 /* 清空后轮闭环状态并停轮。 */
 void car_wheel_control_reset(void)
 {
-    car_wheel_run_request_speed = 0.0f;
-    car_wheel_target_speed = 0.0f;
-    ref_left_target = 0.0f;
-    ref_right_target = 0.0f;
-    car_wheel_apply_target(0.0f, 0.0f);
+    car_wheel_run_request_speed = 0;
+    car_wheel_target_speed = 0;
+    ref_left_target = 0;
+    ref_right_target = 0;
+    car_wheel_apply_target(0, 0);
     car_wheel_pid_reset_single(&wheel_pid_left);
     car_wheel_pid_reset_single(&wheel_pid_right);
     encoder_clear();
@@ -172,10 +174,10 @@ void car_wheel_control_reset(void)
 /* 无刷未就绪时保持后轮待转，不清 Start 速度目标。 */
 void car_wheel_hold(void)
 {
-    car_wheel_target_speed = 0.0f;
-    ref_left_target = 0.0f;
-    ref_right_target = 0.0f;
-    car_wheel_apply_target(0.0f, 0.0f);
+    car_wheel_target_speed = 0;
+    ref_left_target = 0;
+    ref_right_target = 0;
+    car_wheel_apply_target(0, 0);
     car_wheel_pid_reset_single(&wheel_pid_left);
     car_wheel_pid_reset_single(&wheel_pid_right);
     encoder_clear();
@@ -185,24 +187,24 @@ void car_wheel_hold(void)
 /* 按国一直道/非直道口径切当前整车目标速度。 */
 static float car_wheel_get_runtime_target_speed(void)
 {
-    if(car_wheel_run_request_speed <= 0.0f)
+    if(car_wheel_run_request_speed <= 0)
     {
-        car_wheel_target_speed = 0.0f;
-        return 0.0f;
+        car_wheel_target_speed = 0;
+        return 0;
     }
 
-    car_wheel_target_speed = (float)SearchLine_GetSpeedGoal();
+    car_wheel_target_speed = SearchLine_GetSpeedGoal();
     return car_wheel_target_speed;
 }
 
 /* 按当前舵机角解算阿克曼左右轮目标。 */
 static void car_wheel_update_reference_target(void)
 {
-    float base_speed = 0.0f;
-    float steer_angle = 0.0f;
+    float base_speed = 0;
+    float steer_angle = 0;
 
     base_speed = car_wheel_get_runtime_target_speed();
-    steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - (float)car_servo_get_current_angle();
+    steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - car_servo_get_current_angle();
 
     ackerman_calc_wheel_speeds(base_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();
@@ -213,9 +215,9 @@ static void car_wheel_update_reference_target(void)
 /* 将阿克曼结果写入左右轮目标。 */
 static void car_wheel_update_target_from_vehicle(void)
 {
-    if(car_wheel_target_speed <= 0.0f)
+    if(car_wheel_target_speed <= 0)
     {
-        car_wheel_apply_target(0.0f, 0.0f);
+        car_wheel_apply_target(0, 0);
         return;
     }
 
@@ -232,7 +234,7 @@ static void car_wheel_update_left(void)
 	
 		if(pwm>0){
 			//正转
-			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
+			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
 			
 			// 二次限幅
 			if(speed_percent > CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
@@ -240,7 +242,7 @@ static void car_wheel_update_left(void)
 		}
 		else{
 			//反转
-			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
+			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
 			if(speed_percent < -CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = -CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 		}
 		car_wheel_set_speed(LEFT_MOTOR,speed_percent);
