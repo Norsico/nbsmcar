@@ -1355,14 +1355,12 @@ static void Element_Judgment_Left_Rings(void)
 
 static void Element_Judgment_Right_Rings(void)
 {
-    float straight_judge = 0.0f;
     int ring_ysite = 25;
 
-    straight_judge = Straight_Judge(1, 25, 45);
     if(ImageStatus.Left_Line > 7 ||
        ImageStatus.Right_Line < 13 ||
        ImageStatus.OFFLine > 10 ||
-       (straight_judge > 50.0f) ||
+       Straight_Judge(1, 25, 45) > 50.0f ||
        ImageStatus.WhiteLine > 15 ||
        ImageDeal[52].IsRightFind == 'W' ||
        ImageDeal[53].IsRightFind == 'W' ||
@@ -1393,14 +1391,10 @@ static void Element_Judgment_Right_Rings(void)
             break;
         }
     }
-
-    if((Right_RingsFlag_Point1_Ysite <= ring_ysite) ||
-       (Right_RingsFlag_Point2_Ysite <= ring_ysite))
+    if(Right_RingsFlag_Point1_Ysite > 52)
     {
-        /* 旧 OTSU 版这里靠前级边界更稳定，当前搜线口径下单点毛刺更多。
-         * 两个候选拐点没同时成立时，直接不判右环，先压掉误触发。 */
-        Ring_Help_Flag = 0;
-        return;
+        /* 与左环一致，压住底部高点，避免后面 Ysite+6 贴底越界。 */
+        Right_RingsFlag_Point1_Ysite = 52;
     }
     for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
@@ -1748,11 +1742,7 @@ static void Element_Handle_Right_Rings(void)
         //出环后
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        straight_judge = Straight_Judge(1,
-                                        (uint8)Limit((int16)ImageStatus.OFFLine + 10,
-                                                     0,
-                                                     LCDH - 1),
-                                        45);
+        straight_judge = Straight_Judge(1, ImageStatus.OFFLine + 10, 45);
         Ring_Straight_Judge_Tenth = (int16)(straight_judge * 10.0f + 0.5f);
         if(straight_judge < 1.0f &&
            ImageStatus.Left_Line < 9 &&
