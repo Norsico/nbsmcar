@@ -117,11 +117,6 @@ static void display_menu_draw_battery(uint8 force)
 {
     uint8 percent = 0;
 
-    if(!power_adc_is_ready())
-    {
-        return;
-    }
-
     /* 非强制刷新时只更新电量，避免整页反复重绘。 */
     percent = display_menu_get_battery_percent();
     if(!force && (percent == g_menu_last_battery_percent))

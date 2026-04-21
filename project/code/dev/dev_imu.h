@@ -60,18 +60,7 @@ extern uint8 imu_init_with_retry(void);
 
 /************ 角度积分算法 ************/
 // 更新角度积分（需在固定周期调用，推荐 10ms）
-extern void imu_angle_update(float dt);
-
-// 重置角度积分
-extern void imu_angle_reset(void);
-
-// 设置采样周期
-extern void imu_set_dt(float dt);
-
-// 获取累计角度（单位：度）
-extern float imu_get_yaw(void);    // 偏航角 Z轴
-extern float imu_get_pitch(void);  // 俯仰角 X轴
-extern float imu_get_roll(void);   // 横滚角 Y轴
+extern void imu_angle_update(void);
 
 /************ 零偏校准算法 ************/
 // 执行零偏校准（需要在静止状态下调用）

@@ -11,14 +11,14 @@ static uint16 SteerImuDTenth = 0;
 static float SteerLastError = 0.0f;
 int S3010_Duty = steer_middle;
 
-static int Steer_Round_Float(float value)
+static uint16 Steer_Round_Float(uint16 value)
 {
-    if(value >= 0.0f)
+    if(value >= 0)
     {
-        return (int)(value + 0.5f);
+        return (value + 50);
     }
 
-    return (int)(value - 0.5f);
+    return (value - 50);
 }
 
 void Steer_init(void)
@@ -34,33 +34,33 @@ void Steer_init(void)
 void SteerControl(int duty)
 {
     int command_duty = duty;
-    int command_angle = 0;
-    float angle = 0.0f;
-    float min_angle = (float)car_servo_get_min_angle();
-    float max_angle = (float)car_servo_get_max_angle();
-    float center_angle = (float)CAR_SERVO_CENTER_ANGLE;
+    uint16 command_angle = 0;
+    uint16 angle = 0;
+    uint16 min_angle = car_servo_get_min_angle();
+    uint16 max_angle = car_servo_get_max_angle();
+    uint16 center_angle = CAR_SERVO_CENTER_ANGLE;
 
     LimitLeft(command_duty);
     LimitRight(command_duty);
     S3010_Duty = command_duty;
-
+ 
     if(command_duty >= steer_middle)
     {
         angle = center_angle +
-                ((float)command_duty - (float)steer_middle) *
+                (command_duty - steer_middle) *
                 (max_angle - center_angle) /
-                ((float)steer_left - (float)steer_middle);
+                (steer_left - steer_middle);
     }
     else
     {
         angle = center_angle -
-                ((float)steer_middle - (float)command_duty) *
+                (steer_middle - command_duty) *
                 (center_angle - min_angle) /
-                ((float)steer_middle - (float)steer_right);
+                (steer_middle - steer_right);
     }
 
     command_angle = Steer_Round_Float(angle);
-    car_servo_set_angle((uint8)command_angle);
+    car_servo_set_angle(command_angle);
 }
 
 void SteerPID_Realize(float offset)

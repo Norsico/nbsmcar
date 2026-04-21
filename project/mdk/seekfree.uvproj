@@ -850,11 +850,6 @@
               <FilePath>..\code\system_state.c</FilePath>
             </File>
             <File>
-              <FileName>my_delay.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\code\my_delay.c</FilePath>
-            </File>
-            <File>
               <FileName>ackerman.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\ackerman.c</FilePath>
