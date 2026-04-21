@@ -39,38 +39,63 @@ void SteerControl(int duty)
     int16 duty_offset = 0;
     int16 duty_span = 0;
     int16 angle_span = 0;
+    int16 angle_span_gcd = 0;
+    int16 angle_span_tenth = 0;
+    int16 angle_tenth = 0;
     uint16 min_angle = car_servo_get_min_angle();
     uint16 max_angle = car_servo_get_max_angle();
     uint16 center_angle = CAR_SERVO_CENTER_ANGLE;
-    int16 min_angle_deg = (int16)(min_angle / 100);
-    int16 max_angle_deg = (int16)(max_angle / 100);
-    int16 center_angle_deg = (int16)(center_angle / 100);
+    int16 center_angle_tenth = (int16)(center_angle / 10);
 
     LimitLeft(command_duty);
     LimitRight(command_duty);
     S3010_Duty = command_duty;
 
-    /* 按整度做整数映射，最后再乘 100 回到舵机 0.01° 口径。 */
+    /* 按 0.1 度做整数映射，避免整度量化后单侧小打角出不来。 */
     if(command_duty >= steer_middle)
     {
         duty_offset = (int16)(command_duty - steer_middle);
         duty_span = (int16)(steer_left - steer_middle);
-        angle_span = (int16)(max_angle_deg - center_angle_deg);
-        angle = center_angle_deg +
-                (int16)((duty_offset * angle_span + duty_span / 2) /
-                        duty_span);
+        angle_span_tenth = (int16)((max_angle - center_angle) / 10);
+        angle_span_gcd = angle_span_tenth;
+        angle_span = duty_span;
+
+        while(angle_span != 0)
+        {
+            angle = (int16)(angle_span_gcd % angle_span);
+            angle_span_gcd = angle_span;
+            angle_span = angle;
+        }
+
+        angle_span_tenth = (int16)(angle_span_tenth / angle_span_gcd);
+        duty_span = (int16)(duty_span / angle_span_gcd);
+        angle_tenth = center_angle_tenth +
+                      (int16)((duty_offset * angle_span_tenth + duty_span / 2) /
+                              duty_span);
     }
     else
     {
         duty_offset = (int16)(steer_middle - command_duty);
         duty_span = (int16)(steer_middle - steer_right);
-        angle_span = (int16)(center_angle_deg - min_angle_deg);
-        angle = center_angle_deg -
-                (int16)((duty_offset * angle_span + duty_span / 2) /
-                        duty_span);
+        angle_span_tenth = (int16)((center_angle - min_angle) / 10);
+        angle_span_gcd = angle_span_tenth;
+        angle_span = duty_span;
+
+        while(angle_span != 0)
+        {
+            angle = (int16)(angle_span_gcd % angle_span);
+            angle_span_gcd = angle_span;
+            angle_span = angle;
+        }
+
+        angle_span_tenth = (int16)(angle_span_tenth / angle_span_gcd);
+        duty_span = (int16)(duty_span / angle_span_gcd);
+        angle_tenth = center_angle_tenth -
+                      (int16)((duty_offset * angle_span_tenth + duty_span / 2) /
+                              duty_span);
     }
 
-    command_angle = (uint16)angle * 100;
+    command_angle = (uint16)angle_tenth * 10;
     car_servo_set_angle(command_angle);
 }
 
