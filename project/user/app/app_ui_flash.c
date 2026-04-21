@@ -117,7 +117,7 @@ static void ui_flash_apply_start_page(const flash_start_page_t *page)
     ui_flash_normalize_start_page(&g_ui_start_page);
 
     /* Car Speed 页只同步目标速度和舵机中值。 */
-    car_wheel_set_target((float)g_ui_start_page.target_speed);
+    car_wheel_set_target(g_ui_start_page.target_speed);
     car_servo_set_center();
 }
 

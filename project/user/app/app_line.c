@@ -166,7 +166,7 @@ void line_app_process_steer(void)
         return;
     }
 
-    SteerPID_Realize((float)SearchLine_GetDetTrue() - (float)ImageSensorMid);
+    SteerPID_Realize(SearchLine_GetDetTrue() - ImageSensorMid);
 }
 
 /* 初始化巡线应用。 */
