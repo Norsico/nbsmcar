@@ -110,7 +110,12 @@ void main(void)
         buzzer_off();
     }
 
-    /* 暂不用陀螺仪，先跳过 IMU 初始化。 */
+    // 陀螺仪
+    if(0 == imu_init_with_retry())
+    {
+        /* 上电静止时先取 z 轴零偏，避免陀螺仪抑制项把舵机慢慢带偏。 */
+        imu_calibrate(100);
+    }
 
     /* 最后打开系统节拍。 */
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
@@ -178,6 +183,10 @@ void main(void)
                 if(g_flag_imu){
                     // 陀螺仪 10ms
                     g_flag_imu = 0;
+                    imu_update();
+                    // printf("Data: %d\n", imu_get_gyro_x());
+                    // // z轴为左右转向方向 左转负值 右转正值
+                    // printf("\r\nIMU660RA acc data: x=%5d, y=%5d, z=%5d\r\n", imu660ra_gyro_x, imu660ra_gyro_y, imu660ra_gyro_z);
                 }
                 if(g_flag_steer){
                     // 舵机控制 10ms

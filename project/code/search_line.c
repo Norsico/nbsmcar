@@ -1056,8 +1056,8 @@ static void GetDet(void)
     int speed_normal = 0;
 
     // 能改的
-    int speed_straight = 380;       // 直道速度
-    int speed_min = 255;            // 最低速度，一般为稳定速度
+    int speed_straight = 300;       // 直道速度
+    int speed_min = 190;            // 最低速度
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
@@ -2225,7 +2225,7 @@ void ImageProcess(void)
     DrawLinesProcess();   //搜边线
 
     Search_Border_OTSU(Pixle, LCDH, LCDW, LCDH - 2);//58行位底行
-    
+
     Element_Test();       //元素判断
     DrawExtensionLine();  /* 绘制延长线，补线。 */
     RouteFilter();        /* 中线滤波平滑。 */

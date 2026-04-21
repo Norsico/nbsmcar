@@ -19,7 +19,7 @@ typedef struct
 static const flash_value_config_t FlashSteerPConfig =
 {
     0,   /* min */
-    60,  /* max */
+    600,  /* max */
     2,   /* step */
     18       /* default */
 };
@@ -27,7 +27,7 @@ static const flash_value_config_t FlashSteerPConfig =
 static const flash_value_config_t FlashSteerDConfig =
 {
     0,   /* min */
-    80,  /* max */
+    800,  /* max */
     2,   /* step */
     8        /* default */
 };
@@ -35,7 +35,15 @@ static const flash_value_config_t FlashSteerDConfig =
 static const flash_value_config_t FlashSteerErr2Config =
 {
     0,   /* min */
-    20,   /* max */
+    200,   /* max */
+    1,   /* step */
+    0    /* default */
+};
+// 舵机陀螺仪抑制系数，单位 0.1，直接作用于原始 gyro z
+static const flash_value_config_t FlashSteerImuDConfig =
+{
+    0,   /* min */
+    100,  /* max */
     1,   /* step */
     0    /* default */
 };
@@ -112,6 +120,7 @@ typedef enum
     FLASH_PARAM_SLOT_FIRST = 0,     /* Steer P。 */
     FLASH_PARAM_SLOT_SECOND,        /* Steer D。 */
     FLASH_PARAM_SLOT_THIRD,         /* 二次误差系数。 */
+    FLASH_PARAM_SLOT_FOURTH,        /* 陀螺仪抑制系数。 */
     FLASH_PARAM_SLOT_COUNT
 } flash_param_slot_t;
 
@@ -129,6 +138,7 @@ typedef struct
     int16 first_value;        /* Steer P。 */
     int16 second_value;       /* Steer D。 */
     int16 third_value;        /* 舵机二次误差系数，单位 0.1。 */
+    int16 fourth_value;       /* 陀螺仪抑制系数，单位 0.1。 */
 } flash_param_page_t;
 
 typedef struct

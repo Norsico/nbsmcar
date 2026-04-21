@@ -61,7 +61,8 @@ static void line_app_apply_steer_pd_page_from_flash(void)
     flash_store_get_param_page(&page);
     Steer_Set_Pd((uint16)page.first_value,
                  (uint16)page.second_value,
-                 (uint16)page.third_value);
+                 (uint16)page.third_value,
+                 (uint16)page.fourth_value);
 }
 
 #if IPS_ENABLE
@@ -267,6 +268,9 @@ uint8 line_app_set_steer_pd_value(flash_param_slot_t slot, int16 value)
         case FLASH_PARAM_SLOT_THIRD:
             page.third_value = value;
             break;
+        case FLASH_PARAM_SLOT_FOURTH:
+            page.fourth_value = value;
+            break;
         default:
             return 0;
     }
@@ -278,6 +282,7 @@ uint8 line_app_set_steer_pd_value(flash_param_slot_t slot, int16 value)
 
     Steer_Set_Pd((uint16)page.first_value,
                  (uint16)page.second_value,
-                 (uint16)page.third_value);
+                 (uint16)page.third_value,
+                 (uint16)page.fourth_value);
     return 1;
 }
