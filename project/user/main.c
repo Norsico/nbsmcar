@@ -16,10 +16,12 @@
 #include "app_key.h"
 #include "app_line.h"
 #include "app_ui_display.h"
+#include "my_delay.h"
 
 /* 主循环入口。 */
 void main(void)
 {
+    uint8 fan_duty = 0;
 
 /********************************************** 初始化开始 ***************************************************/
     // 系统初始化
@@ -70,8 +72,13 @@ void main(void)
     }
 #endif
 
-    /* 上电默认先清执行器输出。 */  
+    /* 上电默认先清执行器输出。 */
+    bldc_motor_stop();
+    car_wheel_stop_all();
+    car_wheel_set_target(0.0f);
+    car_servo_set_center();
     display_menu_init(); // 屏幕参数初始化，flash初始化取值
+
     /* 相机链路统一在这里初始化。 */
     line_app_init();
 
@@ -103,7 +110,12 @@ void main(void)
         buzzer_off();
     }
 
-    /* 暂不用陀螺仪，先跳过 IMU 初始化。 */
+    // 陀螺仪
+    if(0 == imu_init_with_retry())
+    {
+        /* 上电静止时先取 z 轴零偏，避免陀螺仪抑制项把舵机慢慢带偏。 */
+        imu_calibrate(100);
+    }
 
     /* 最后打开系统节拍。 */
     pit_ms_init(TIM2_PIT, TICKS_MS, system_tick_handler);
@@ -118,19 +130,36 @@ void main(void)
         g_system_state = SYS_RUNNING;
     }
 
+    if((SYS_RUNNING == g_system_state) &&
+       (!switch_ui_enabled()) &&
+       ((!switch_wifi_enabled()) || wifi_is_initialized()))
+    {
+        /* 关屏直跑时先把负压拉起来，再放后轮进主循环，避免一上电就直接走车。 */
+        car_wheel_hold();
+        for(fan_duty = 5; fan_duty <= 40; fan_duty += 5)
+        {
+            bldc_motor_set_duty_direct(fan_duty, fan_duty);
+            system_delay_ms(250);
+        }
+    }
 
     while(1)
     {
         // 系统错误时进入紧急状态
         if(system_error) g_system_state = SYS_EMERGENCY;
 
-        
+        if(g_flag_buzzer){
+            /* 蜂鸣器时序独立轮询，短响长响都从底层自行关断。 */
+            g_flag_buzzer = 0;
+            buzzer_task();
+        }
+
         switch(g_system_state){
-            
+
             // 正常运行
             case SYS_RUNNING:
             {
-                
+
                 /****************** 预判断开始 ******************/
                 if(switch_ui_enabled())
                 {
@@ -149,33 +178,23 @@ void main(void)
                     car_wheel_stop_all();
                     car_servo_set_center();
                 }
-                else
-                {
-                    // 关屏打开风扇跑
-                    bldc_motor_set_duty(20, 20);
-                    if(!bldc_motor_is_ready())
-                    {
-                        /* 负压风扇没起稳前，后轮先待转。 */
-                        car_wheel_hold();
-                    }
-                }
                 /****************** 预判断结束 ******************/
-                
-                if(g_flag_buzzer){
-                    /* 蜂鸣器 */
-                    g_flag_buzzer = 0;
-                    buzzer_task();
-                }
+
                 if(g_flag_imu){
                     // 陀螺仪 10ms
                     g_flag_imu = 0;
+                    imu_update();
+                    // printf("Data: %d\n", imu_get_gyro_x());
+                    // // z轴为左右转向方向 左转负值 右转正值
+                    // printf("\r\nIMU660RA acc data: x=%5d, y=%5d, z=%5d\r\n", imu660ra_gyro_x, imu660ra_gyro_y, imu660ra_gyro_z);
                 }
                 if(g_flag_steer){
                     // 舵机控制 10ms
                     g_flag_steer = 0;
                     // 开屏时，仅View页面允许舵机跟随图像输出
                     // 关屏时，WiFi准备好就允许舵机更新
-                    if((((switch_ui_enabled()) && display_menu_in_camera_view()) ||
+                    if((SYS_RUNNING == g_system_state) &&
+                       (((switch_ui_enabled()) && display_menu_in_camera_view()) ||
                         ((!switch_ui_enabled()) &&
                          ((!switch_wifi_enabled()) || wifi_is_initialized()))))
                     {
@@ -192,11 +211,11 @@ void main(void)
                 if(g_flag_encoder){
                     // 编码器 5ms
                     g_flag_encoder = 0;
-                    if(switch_ui_enabled() ||
-                       (switch_wifi_enabled() && !wifi_is_initialized()) ||
-                       !bldc_motor_is_ready())
+                    if((SYS_RUNNING != g_system_state) ||
+                       switch_ui_enabled() ||
+                       (switch_wifi_enabled() && !wifi_is_initialized()))
                     {
-                        // 屏幕打开 or WiFi没连成功 or 负压未起稳，不开后轮
+                        // 屏幕打开 or WiFi没连成功，不开后轮
                         car_wheel_hold();
                     }
                     else

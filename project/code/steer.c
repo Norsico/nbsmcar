@@ -1,11 +1,13 @@
 #include "steer.h"
 
+#include "dev_imu.h"
 #include "dev_flash.h"
 #include "dev_servo.h"
 
 static uint16 SteerP = 0;
 static uint16 SteerD = 0;
 static uint16 SteerErr2Tenth = 0;
+static uint16 SteerImuDTenth = 0;
 static float SteerLastError = 0.0f;
 int S3010_Duty = steer_middle;
 
@@ -24,6 +26,7 @@ void Steer_init(void)
     SteerP = FlashSteerPConfig.default_value;
     SteerD = FlashSteerDConfig.default_value;
     SteerErr2Tenth = FlashSteerErr2Config.default_value;
+    SteerImuDTenth = FlashSteerImuDConfig.default_value;
     SteerLastError = 0.0f;
     S3010_Duty = steer_middle;
 }
@@ -66,34 +69,34 @@ void SteerPID_Realize(float offset)
     float SteerErr = 0.0f;
     float abs_error = 0.0f;
     float err2_gain = 0.0f;
+    float imu_d_gain = 0.0f;
+    float imu_feedback = 0.0f;
+    float gyro_z = 0.0f;
     int PWM = 0;
 
     abs_error = (iError < 0.0f) ? (-iError) : iError;
-    if(abs_error < 3.0f)
-    {
-        iError = 0.3f * iError;
-    }
-    if(abs_error > 15.0f)
-    {
-        iError = 1.2f * iError;
-    }
-
-    abs_error = (iError < 0.0f) ? (-iError) : iError;
     err2_gain = (float)SteerErr2Tenth / 10.0f;
+    imu_d_gain = (float)SteerImuDTenth / 10.0f;
+    gyro_z = (float)(imu_get_gyro_z() - imu_get_offset_z());
 
-    /* 大小误差缩放要先完成，再参与当前拍 P/D 计算。 */
+    /* z 轴右转为正、左转为负 */
+    imu_feedback = -imu_d_gain * gyro_z;
+
+    // 误差
     SteerErr = (float)SteerP * iError +
-               err2_gain * iError * abs_error +
-               (float)SteerD * (iError - SteerLastError);  /* 位置式 PID 算式。 */
+               iError * abs_error * err2_gain +
+               (float)SteerD * (iError - SteerLastError) +
+               imu_feedback;  /* 位置式 PID 算式。 */
 
     SteerLastError = iError;
     PWM = Steer_Round_Float((float)steer_middle - SteerErr);
     SteerControl(PWM);
 }
 
-void Steer_Set_Pd(uint16 p, uint16 d, uint16 err2_tenth)
+void Steer_Set_Pd(uint16 p, uint16 d, uint16 err2_tenth, uint16 imu_d_tenth)
 {
     SteerP = p;
     SteerD = d;
     SteerErr2Tenth = err2_tenth;
+    SteerImuDTenth = imu_d_tenth;
 }

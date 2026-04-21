@@ -1056,8 +1056,8 @@ static void GetDet(void)
     int speed_normal = 0;
 
     // 能改的
-    int speed_straight = 260;       // 直道速度
-    int speed_min = 155;            // 最低速度，一般为稳定速度
+    int speed_straight = 300;       // 直道速度
+    int speed_min = 190;            // 最低速度
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
@@ -1355,12 +1355,14 @@ static void Element_Judgment_Left_Rings(void)
 
 static void Element_Judgment_Right_Rings(void)
 {
+    float straight_judge = 0.0f;
     int ring_ysite = 25;
 
+    straight_judge = Straight_Judge(1, 25, 45);
     if(ImageStatus.Left_Line > 7 ||
        ImageStatus.Right_Line < 13 ||
        ImageStatus.OFFLine > 10 ||
-       Straight_Judge(1, 25, 45) > 50.0f ||
+       (straight_judge > 50.0f) ||
        ImageStatus.WhiteLine > 15 ||
        ImageDeal[52].IsRightFind == 'W' ||
        ImageDeal[53].IsRightFind == 'W' ||
@@ -1391,10 +1393,14 @@ static void Element_Judgment_Right_Rings(void)
             break;
         }
     }
-    if(Right_RingsFlag_Point1_Ysite > 52)
+
+    if((Right_RingsFlag_Point1_Ysite <= ring_ysite) ||
+       (Right_RingsFlag_Point2_Ysite <= ring_ysite))
     {
-        /* 与左环一致，压住底部高点，避免后面 Ysite+6 贴底越界。 */
-        Right_RingsFlag_Point1_Ysite = 52;
+        /* 旧 OTSU 版这里靠前级边界更稳定，当前搜线口径下单点毛刺更多。
+         * 两个候选拐点没同时成立时，直接不判右环，先压掉误触发。 */
+        Ring_Help_Flag = 0;
+        return;
     }
     for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
@@ -1742,7 +1748,11 @@ static void Element_Handle_Right_Rings(void)
         //出环后
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        straight_judge = Straight_Judge(1, ImageStatus.OFFLine + 10, 45);
+        straight_judge = Straight_Judge(1,
+                                        (uint8)Limit((int16)ImageStatus.OFFLine + 10,
+                                                     0,
+                                                     LCDH - 1),
+                                        45);
         Ring_Straight_Judge_Tenth = (int16)(straight_judge * 10.0f + 0.5f);
         if(straight_judge < 1.0f &&
            ImageStatus.Left_Line < 9 &&
@@ -1780,7 +1790,7 @@ static void Element_Handle_Right_Rings(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 2;
         }
     }
         //进环  补线
@@ -2215,7 +2225,7 @@ void ImageProcess(void)
     DrawLinesProcess();   //搜边线
 
     Search_Border_OTSU(Pixle, LCDH, LCDW, LCDH - 2);//58行位底行
-    
+
     Element_Test();       //元素判断
     DrawExtensionLine();  /* 绘制延长线，补线。 */
     RouteFilter();        /* 中线滤波平滑。 */
