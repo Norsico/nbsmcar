@@ -5,7 +5,7 @@
 #include "dev_servo.h"
 #include "search_line.h"
 
-#define MOTOR_PWM_MAX 9900
+#define MOTOR_PWM_MAX 99
 #define WHELL_PWM_FREQ (17000)
 #define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 电机输出百分比限幅。 */
 #define CAR_WHEEL_ACKERMAN_CENTER_ANGLE  CAR_SERVO_CENTER_ANGLE /* 阿克曼角度按左负右正换算。 */
@@ -205,7 +205,7 @@ static void car_wheel_update_reference_target(void)
 
     base_speed = car_wheel_get_runtime_target_speed();
     // 扩大1000倍用于阿克曼输入，实际最大应该为20000
-    steer_angle = (CAR_WHEEL_ACKERMAN_CENTER_ANGLE - car_servo_get_current_angle())*1000;
+    steer_angle = (CAR_WHEEL_ACKERMAN_CENTER_ANGLE - car_servo_get_current_angle());
 
     ackerman_calc_wheel_speeds(base_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();
@@ -235,7 +235,7 @@ static void car_wheel_update_left(void)
 	
 		if(pwm>0){
 			//正转
-			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
+			speed_percent = (pwm/MOTOR_PWM_MAX);
 			
 			// 二次限幅
 			if(speed_percent > CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
@@ -243,7 +243,7 @@ static void car_wheel_update_left(void)
 		}
 		else{
 			//反转
-			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
+			speed_percent = (pwm/MOTOR_PWM_MAX);
 			if(speed_percent < -CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = -CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 		}
 		car_wheel_set_speed(LEFT_MOTOR,speed_percent);
@@ -257,7 +257,7 @@ static void car_wheel_update_right(void)
 	
 		if(pwm>0){
 			//正转
-			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
+			speed_percent = (pwm/MOTOR_PWM_MAX);
 			
 			// 二次限幅
 			if(speed_percent > CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
@@ -265,7 +265,7 @@ static void car_wheel_update_right(void)
 		}
 		else{
 			//反转
-			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
+			speed_percent = (pwm/MOTOR_PWM_MAX);
 			if(speed_percent < -CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = -CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 		}
 		

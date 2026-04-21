@@ -1,11 +1,8 @@
 #include "dev_adc.h"
 
-/********* 初始化后默认ADC能够使用，不需要标志位 ********/
+static float voltage=0.0;
 
-static float power_adc_calc_voltage(uint16 value)
-{
-	return value * 3.3f / ADC_RANGE * 11;
-}
+/********* 初始化后默认ADC能够使用，不需要标志位 ********/
 
 // ADC初始化
 /* 初始化电池电压 ADC。 */
@@ -22,7 +19,7 @@ uint8 power_adc_judge(void){
 	uint8 sign = 0;
 	uint16 value = power_adc_update(); // 获取
 	float voltage = 0.0f;
-	voltage = power_adc_calc_voltage(value);
+	voltage = value * 3.3f / ADC_RANGE * 11;
 	if(voltage < 11.1){
 		// 电压过低
 		sign = 1;
@@ -32,5 +29,5 @@ uint8 power_adc_judge(void){
 
 float power_adc_get_voltage(void)
 {
-	return power_adc_calc_voltage(power_adc_update());
+	return voltage;
 }

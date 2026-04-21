@@ -40,7 +40,7 @@ void pid_incremental_pi(pid_control_t* pid,int16 value,int16 target)
 	pid->prev_error = prev_error;
 	// 增量式PI算法：Δu = Kp*(e(k)-e(k-1)) + Ki*e(k)
     // 先除10确保两位小数有效，再除100得到正常值
-	pid->output += pid->param.kp/10 * (error - prev_error)/100 + pid->param.ki/10 * error/100;
+	pid->output += (int32)pid->param.kp/10 * (error - prev_error)/100 + (int32)pid->param.ki/10 * error/100;
 	// 限幅
 	pid->output = pid_output_limit(pid->output,pid->param.max_out,pid->param.min_out);
 }
