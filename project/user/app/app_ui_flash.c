@@ -60,12 +60,18 @@ static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
 
 static void ui_flash_apply_servo_limit_page(const flash_servo_limit_page_t *page)
 {
+    uint16 servo_min_angle = 0;
+    uint16 servo_max_angle = 0;
+
     if(0 == page)
     {
         return;
     }
 
-    car_servo_set_limit(page->servo_min_angle, page->servo_max_angle);
+    /* Flash/UI 里存的是整度，运行时舵机口径是 0.01°。 */
+    servo_min_angle = (uint16)page->servo_min_angle * 100;
+    servo_max_angle = (uint16)page->servo_max_angle * 100;
+    car_servo_set_limit(servo_min_angle, servo_max_angle);
 }
 
 static void ui_flash_fill_default_start_page(flash_start_page_t *page)

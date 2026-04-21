@@ -11,14 +11,14 @@ static uint16 SteerImuDTenth = 0;
 static float SteerLastError = 0.0f;
 int S3010_Duty = steer_middle;
 
-static uint16 Steer_Round_Float(uint16 value)
+static int16 Steer_Round_Float(float value)
 {
-    if(value >= 0)
+    if(value >= 0.0f)
     {
-        return (value + 50);
+        return (int16)(value + 0.5f);
     }
 
-    return (value - 50);
+    return (int16)(0 - (int16)((-value) + 0.5f));
 }
 
 void Steer_init(void)
@@ -35,31 +35,42 @@ void SteerControl(int duty)
 {
     int command_duty = duty;
     uint16 command_angle = 0;
-    uint16 angle = 0;
+    int16 angle = 0;
+    int16 duty_offset = 0;
+    int16 duty_span = 0;
+    int16 angle_span = 0;
     uint16 min_angle = car_servo_get_min_angle();
     uint16 max_angle = car_servo_get_max_angle();
     uint16 center_angle = CAR_SERVO_CENTER_ANGLE;
+    int16 min_angle_deg = (int16)(min_angle / 100);
+    int16 max_angle_deg = (int16)(max_angle / 100);
+    int16 center_angle_deg = (int16)(center_angle / 100);
 
     LimitLeft(command_duty);
     LimitRight(command_duty);
     S3010_Duty = command_duty;
- 
+
+    /* 按整度做整数映射，最后再乘 100 回到舵机 0.01° 口径。 */
     if(command_duty >= steer_middle)
     {
-        angle = center_angle +
-                (command_duty - steer_middle) *
-                (max_angle - center_angle) /
-                (steer_left - steer_middle);
+        duty_offset = (int16)(command_duty - steer_middle);
+        duty_span = (int16)(steer_left - steer_middle);
+        angle_span = (int16)(max_angle_deg - center_angle_deg);
+        angle = center_angle_deg +
+                (int16)((duty_offset * angle_span + duty_span / 2) /
+                        duty_span);
     }
     else
     {
-        angle = center_angle -
-                (steer_middle - command_duty) *
-                (center_angle - min_angle) /
-                (steer_middle - steer_right);
+        duty_offset = (int16)(steer_middle - command_duty);
+        duty_span = (int16)(steer_middle - steer_right);
+        angle_span = (int16)(center_angle_deg - min_angle_deg);
+        angle = center_angle_deg -
+                (int16)((duty_offset * angle_span + duty_span / 2) /
+                        duty_span);
     }
 
-    command_angle = Steer_Round_Float(angle);
+    command_angle = (uint16)angle * 100;
     car_servo_set_angle(command_angle);
 }
 

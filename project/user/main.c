@@ -16,7 +16,7 @@
 #include "app_key.h"
 #include "app_line.h"
 #include "app_ui_display.h"
-#include "my_delay.h"
+
 
 /* 主循环入口。 */
 void main(void)
