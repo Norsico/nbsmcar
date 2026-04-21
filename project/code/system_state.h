@@ -36,9 +36,9 @@ typedef enum {
 
 /*********** 运行设定 ****************/
 /* WiFi 功能编译开关：打开后可通过拨码切到 WiFi 调参模式。 */
-#define WIFI_ENABLE (1)
+#define WIFI_ENABLE (0)
 /* 屏幕功能编译开关：打开后可通过拨码切到 UI 屏幕模式。 */
-#define IPS_ENABLE  (1)
+#define IPS_ENABLE  (0)
 /* WiFi 参数下行编译开关：0 只发示波器，1 额外打开调参下行。 */
 #define WIFI_TUNING_PARAM_ENABLE (0)
 /************ 全局变量 ************/

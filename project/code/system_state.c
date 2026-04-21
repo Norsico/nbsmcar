@@ -69,11 +69,11 @@ void system_tick_handler(void)
         g_encoder_ticks = g_system_ticks;
         g_flag_encoder = 1;
     }
-		// 图像处理
-		if(g_system_ticks - g_center_ticks >=  CENTER_PERIOD){
-			g_center_ticks = g_system_ticks;
-			g_flag_center = 1;
-		}
+	// 图像处理
+	if(g_system_ticks - g_center_ticks >=  CENTER_PERIOD){
+		g_center_ticks = g_system_ticks;
+		g_flag_center = 1;
+	}
 #if IPS_ENABLE
     // 显示 100ms
     if(g_system_ticks - g_display_ticks >= DISPLAY_PERIOD){

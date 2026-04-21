@@ -16,7 +16,6 @@
 #include "app_key.h"
 #include "app_line.h"
 #include "app_ui_display.h"
-#include "my_delay.h"
 
 /* 主循环入口。 */
 void main(void)
@@ -72,14 +71,18 @@ void main(void)
 #endif
 
     /* 上电默认先清执行器输出。 */
-    bldc_motor_stop();
-    car_wheel_stop_all();
-    car_wheel_set_target(0.0f);
-    car_servo_set_center();
-    display_menu_init(); // 屏幕参数初始化，flash初始化取值
+    /***** 测试部分，使用时删除 *****/
+    car_servo_set_angle(9080);
+    car_wheel_set_dual(20,20);
+    system_delay_ms(200);
+    car_servo_set_angle(7060);
+    system_delay_ms(10080);
 
+    
+    display_menu_init(); // 屏幕参数初始化，flash初始化取值
     /* 相机链路统一在这里初始化。 */
-    line_app_init();
+    // line_app_init();
+    // 由于摄像头排线问题，暂不初始化
 
     /* 开屏时补一帧初始界面。 */
 #if IPS_ENABLE
@@ -130,48 +133,48 @@ void main(void)
         // 系统错误时进入紧急状态
         if(system_error) g_system_state = SYS_EMERGENCY;
 
-        if(g_flag_buzzer){
-            /* 蜂鸣器时序独立轮询，短响长响都从底层自行关断。 */
-            g_flag_buzzer = 0;
-            buzzer_task();
-        }
-
+        
         switch(g_system_state){
-
+            
             // 正常运行
             case SYS_RUNNING:
             {
-
+                
                 /****************** 预判断开始 ******************/
-                if(switch_ui_enabled())
-                {
-                    // UI打开，电机和风扇停止
-                    bldc_motor_stop();
-                    car_wheel_stop_all();
-                    if(!display_menu_in_camera_view())
-                    {
-                        car_servo_set_center();
-                    }
-                }
-                else if(switch_wifi_enabled() && !wifi_is_initialized())
-                {
-                    // WIFI开启，但未连接成功时，不开启风扇、电机，舵机居中
-                    bldc_motor_stop();
-                    car_wheel_stop_all();
-                    car_servo_set_center();
-                }
-                else
-                {
-                    // 关屏打开风扇跑
-                    bldc_motor_set_duty(20, 20);
-                    if(!bldc_motor_is_ready())
-                    {
-                        /* 负压风扇没起稳前，后轮先待转。 */
-                        car_wheel_hold();
-                    }
-                }
+                // if(switch_ui_enabled())
+                // {
+                //     // UI打开，电机和风扇停止
+                //     bldc_motor_stop();
+                //     car_wheel_stop_all();
+                //     if(!display_menu_in_camera_view())
+                //     {
+                //         car_servo_set_center();
+                //     }
+                // }
+                // else if(switch_wifi_enabled() && !wifi_is_initialized())
+                // {
+                //     // WIFI开启，但未连接成功时，不开启风扇、电机，舵机居中
+                //     bldc_motor_stop();
+                //     car_wheel_stop_all();
+                //     car_servo_set_center();
+                // }
+                // else
+                // {
+                //     // 关屏打开风扇跑
+                //     // bldc_motor_set_duty(20, 20);
+                //     if(!bldc_motor_is_ready())
+                //     {
+                //         /* 负压风扇没起稳前，后轮先待转。 */
+                //         car_wheel_hold();
+                //     }
+                // }
                 /****************** 预判断结束 ******************/
-
+                
+                if(g_flag_buzzer){
+                    /* 蜂鸣器 */
+                    g_flag_buzzer = 0;
+                    buzzer_task();
+                }
                 if(g_flag_imu){
                     // 陀螺仪 10ms
                     g_flag_imu = 0;
@@ -181,13 +184,12 @@ void main(void)
                     g_flag_steer = 0;
                     // 开屏时，仅View页面允许舵机跟随图像输出
                     // 关屏时，WiFi准备好就允许舵机更新
-                    if((SYS_RUNNING == g_system_state) &&
-                       (((switch_ui_enabled()) && display_menu_in_camera_view()) ||
+                    if((((switch_ui_enabled()) && display_menu_in_camera_view()) ||
                         ((!switch_ui_enabled()) &&
                          ((!switch_wifi_enabled()) || wifi_is_initialized()))))
                     {
                         // 前轮PD控制
-                        line_app_process_steer();
+                        // line_app_process_steer();
                     }
                 }
                 if(g_flag_key){
@@ -199,20 +201,19 @@ void main(void)
                 if(g_flag_encoder){
                     // 编码器 5ms
                     g_flag_encoder = 0;
-                    if((SYS_RUNNING != g_system_state) ||
-                       switch_ui_enabled() ||
+                    if(switch_ui_enabled() ||
                        (switch_wifi_enabled() && !wifi_is_initialized()) ||
                        !bldc_motor_is_ready())
                     {
                         // 屏幕打开 or WiFi没连成功 or 负压未起稳，不开后轮
-                        car_wheel_hold();
+                        // car_wheel_hold();
                     }
                     else
                     {
                         // 更新编码器
                         encoder_update();
                         // 更新电机
-                        car_wheel_update();
+                        // car_wheel_update();
                     }
                 }
                 if(g_flag_center){
@@ -224,13 +225,13 @@ void main(void)
                         if(display_menu_in_camera_view())
                         {
                             // 图像处理
-                            line_app_process_frame();
+                            // line_app_process_frame();
                         }
                     }
                     else
                     {
                         // 关屏状态直接处理
-                        line_app_process_frame();
+                        // line_app_process_frame();
                     }
                 }
 #if IPS_ENABLE

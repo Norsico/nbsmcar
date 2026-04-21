@@ -7,7 +7,7 @@
 
 #define BLDC_MOTOR_1 (PWME_CH1N_PA1)
 #define BLDC_MOTOR_2 (PWME_CH2N_PA3)
-#define BLDC_MOTOR_FREQ (50) // 控制频率50，最高支持300
+#define BLDC_MOTOR_FREQ (300) // 控制频率50，最高支持300
 
 
 void bldc_motor_init(void);

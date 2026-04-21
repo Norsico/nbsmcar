@@ -130,7 +130,7 @@ static void car_wheel_apply_target(int16 left_speed, int16 right_speed)
 /* 设置整车基础速度。 */
 void car_wheel_set_target(int16 speed)
 {
-    if(speed > FlashStartSpeedConfig.max)
+    if(speed > (int16)FlashStartSpeedConfig.max)
     {
         speed = FlashStartSpeedConfig.max;
     }
@@ -185,7 +185,7 @@ void car_wheel_hold(void)
 }
 
 /* 按国一直道/非直道口径切当前整车目标速度。 */
-static float car_wheel_get_runtime_target_speed(void)
+static uint16 car_wheel_get_runtime_target_speed(void)
 {
     if(car_wheel_run_request_speed <= 0)
     {
@@ -200,11 +200,12 @@ static float car_wheel_get_runtime_target_speed(void)
 /* 按当前舵机角解算阿克曼左右轮目标。 */
 static void car_wheel_update_reference_target(void)
 {
-    float base_speed = 0;
-    float steer_angle = 0;
+    uint16 base_speed = 0;
+    uint16 steer_angle = 0;
 
     base_speed = car_wheel_get_runtime_target_speed();
-    steer_angle = CAR_WHEEL_ACKERMAN_CENTER_ANGLE - car_servo_get_current_angle();
+    // 扩大1000倍用于阿克曼输入，实际最大应该为20000
+    steer_angle = (CAR_WHEEL_ACKERMAN_CENTER_ANGLE - car_servo_get_current_angle())*1000;
 
     ackerman_calc_wheel_speeds(base_speed, steer_angle);
     ref_left_target = ackerman_get_left_speed();
@@ -256,7 +257,7 @@ static void car_wheel_update_right(void)
 	
 		if(pwm>0){
 			//正转
-			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
+			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
 			
 			// 二次限幅
 			if(speed_percent > CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
@@ -264,7 +265,7 @@ static void car_wheel_update_right(void)
 		}
 		else{
 			//反转
-			speed_percent = (int8)(pwm*100.0f/MOTOR_PWM_MAX);
+			speed_percent = (int8)(pwm*100/MOTOR_PWM_MAX);
 			if(speed_percent < -CAR_WHEEL_OUTPUT_LIMIT_PERCENT) speed_percent = -CAR_WHEEL_OUTPUT_LIMIT_PERCENT;
 		}
 		

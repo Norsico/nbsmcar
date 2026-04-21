@@ -9,14 +9,14 @@ static uint16 SteerErr2Tenth = 0;
 static float SteerLastError = 0.0f;
 int S3010_Duty = steer_middle;
 
-static int Steer_Round_Float(float value)
+static float Steer_Round_Float(float value)
 {
     if(value >= 0.0f)
     {
-        return (int)(value + 0.5f);
+        return (value + 0.5f);
     }
 
-    return (int)(value - 0.5f);
+    return (value - 0.5f);
 }
 
 void Steer_init(void)
@@ -57,7 +57,7 @@ void SteerControl(int duty)
     }
 
     command_angle = Steer_Round_Float(angle);
-    car_servo_set_angle((uint8)command_angle);
+    car_servo_set_angle((uint16)(command_angle*100));
 }
 
 void SteerPID_Realize(float offset)
