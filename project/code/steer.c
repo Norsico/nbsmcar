@@ -112,7 +112,7 @@ void SteerPID_Realize(float offset)
 
     abs_error = (iError < 0.0f) ? (-iError) : iError;
     err2_gain = (float)SteerErr2Tenth / 10.0f;
-    imu_d_gain = (float)SteerImuDTenth / 10.0f;
+    imu_d_gain = (float)SteerImuDTenth / 100.0f;
     gyro_z = (float)(imu_get_gyro_z() - imu_get_offset_z());
 
     /* z 轴右转为正、左转为负 */

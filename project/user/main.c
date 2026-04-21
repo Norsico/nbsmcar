@@ -73,6 +73,7 @@ void main(void)
 #endif
 
     /* 上电默认先清执行器输出。 */
+    power_adc_update();
     bldc_motor_stop();
     car_wheel_stop_all();
     car_wheel_set_target(0.0f);

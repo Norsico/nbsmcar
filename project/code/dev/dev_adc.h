@@ -10,5 +10,5 @@
 void power_adc_init(void);
 uint8 power_adc_judge(void);
 float power_adc_get_voltage(void);
-
+uint16 power_adc_update(void);
 #endif
