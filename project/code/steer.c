@@ -66,24 +66,18 @@ void SteerPID_Realize(float offset)
     float SteerErr = 0.0f;
     float abs_error = 0.0f;
     float err2_gain = 0.0f;
+    float dynamic_kp = 0.0f;
     int PWM = 0;
-
-    abs_error = (iError < 0.0f) ? (-iError) : iError;
-    if(abs_error < 3.0f)
-    {
-        iError = 0.3f * iError;
-    }
-    if(abs_error > 15.0f)
-    {
-        iError = 1.2f * iError;
-    }
 
     abs_error = (iError < 0.0f) ? (-iError) : iError;
     err2_gain = (float)SteerErr2Tenth / 10.0f;
 
-    /* 大小误差缩放要先完成，再参与当前拍 P/D 计算。 */
-    SteerErr = (float)SteerP * iError +
-               err2_gain * iError * abs_error +
+    /* 改成动态 Kp 口径：基础 P 之外，再按误差平方抬高 Kp。
+     * 额外除以 20 是为了继续沿用当前 err2 k 的调参量级，
+     * 避免旧常用值（例如 3）直接把前轮打得过猛。 */
+    dynamic_kp = (float)SteerP + (err2_gain * abs_error * abs_error / 20.0f);
+
+    SteerErr = dynamic_kp * iError +
                (float)SteerD * (iError - SteerLastError);  /* 位置式 PID 算式。 */
 
     SteerLastError = iError;

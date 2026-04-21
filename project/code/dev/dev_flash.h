@@ -35,7 +35,7 @@ static const flash_value_config_t FlashSteerDConfig =
 static const flash_value_config_t FlashSteerErr2Config =
 {
     0,   /* min */
-    6,   /* max */
+    20,   /* max */
     1,   /* step */
     0    /* default */
 };

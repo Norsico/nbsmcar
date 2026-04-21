@@ -1056,8 +1056,8 @@ static void GetDet(void)
     int speed_normal = 0;
 
     // 能改的
-    int speed_straight = 320;       // 直道速度
-    int speed_min = 250;            // 最低速度，一般为稳定速度
+    int speed_straight = 380;       // 直道速度
+    int speed_min = 255;            // 最低速度，一般为稳定速度
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
