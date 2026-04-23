@@ -1402,6 +1402,8 @@ static void Element_Judgment_Right_Rings(void)
         }
     }
 
+    
+
     if((Right_RingsFlag_Point1_Ysite <= ring_ysite) ||
        (Right_RingsFlag_Point2_Ysite <= ring_ysite))
     {
@@ -1410,6 +1412,9 @@ static void Element_Judgment_Right_Rings(void)
         Ring_Help_Flag = 0;
         return;
     }
+
+    
+
     for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
         if(ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder &&
