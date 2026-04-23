@@ -5,8 +5,33 @@
 
 #define FLASH_STORE_ADDR                (0x0000)
 #define FLASH_STORE_MAGIC               (0x4653)
-#define FLASH_STORE_VERSION             (0x0006)
+#define FLASH_STORE_VERSION             (0x0007)
+#define FLASH_STORE_VERSION_PREVIOUS    (0x0006)
 /* 掉电参数写在用户 EEPROM 第一个扇区。 */
+
+typedef struct
+{
+    int16 first_value;
+    int16 second_value;
+    int16 third_value;
+    int16 fourth_value;
+} flash_param_page_v6_t;
+
+typedef struct
+{
+    flash_param_page_v6_t param_page;
+    flash_camera_page_t camera_page;
+    flash_servo_limit_page_t servo_limit_page;
+    flash_start_page_t start_page;
+} flash_store_data_v6_t;
+
+typedef struct
+{
+    uint16 magic;
+    uint16 version;
+    flash_store_data_v6_t store_data;
+    uint16 checksum;
+} flash_store_image_v6_t;
 
 typedef struct
 {
@@ -18,6 +43,21 @@ typedef struct
 
 static flash_store_image_t g_flash_store_cache;
 static uint8 g_flash_store_ready = 0;
+
+static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr);
+
+static uint16 flash_store_calc_checksum_raw(const uint8 *raw_ptr, uint16 size)
+{
+    uint16 checksum = 0;
+    uint16 i = 0;
+
+    for(i = 0; i < size; i++)
+    {
+        checksum = (uint16)(checksum + raw_ptr[i]);
+    }
+
+    return checksum;
+}
 
 /* 校验 Steer PD 存档范围。 */
 static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 value)
@@ -36,6 +76,9 @@ static uint8 flash_store_steer_pd_value_in_range(flash_param_slot_t slot, int16 
         case FLASH_PARAM_SLOT_FOURTH:
             return (value >= (int16)FlashSteerImuDConfig.min &&
                     value <= (int16)FlashSteerImuDConfig.max) ? 1 : 0;
+        case FLASH_PARAM_SLOT_FIFTH:
+            return (value >= (int16)FlashAckermanKConfig.min &&
+                    value <= (int16)FlashAckermanKConfig.max) ? 1 : 0;
         default:
             return 0;
     }
@@ -102,17 +145,14 @@ static uint8 flash_store_servo_limit_page_is_valid(const flash_servo_limit_page_
 /* 计算存档校验和。 */
 static uint16 flash_store_calc_checksum(const flash_store_image_t *image)
 {
-    const uint8 *raw_ptr = 0;
-    uint16 checksum = 0;
-    uint16 i = 0;
+    return flash_store_calc_checksum_raw((const uint8 *)image,
+                                         (uint16)(sizeof(flash_store_image_t) - sizeof(image->checksum)));
+}
 
-    raw_ptr = (const uint8 *)image;
-    for(i = 0; i < (uint16)(sizeof(flash_store_image_t) - sizeof(image->checksum)); i++)
-    {
-        checksum = (uint16)(checksum + raw_ptr[i]);
-    }
-
-    return checksum;
+static uint16 flash_store_calc_checksum_v6(const flash_store_image_v6_t *image)
+{
+    return flash_store_calc_checksum_raw((const uint8 *)image,
+                                         (uint16)(sizeof(flash_store_image_v6_t) - sizeof(image->checksum)));
 }
 
 /* 填充默认参数。 */
@@ -123,6 +163,7 @@ static void flash_store_fill_default_data(flash_store_data_t *store_ptr)
     store_ptr->param_page.second_value = (int16)FlashSteerDConfig.default_value;
     store_ptr->param_page.third_value = (int16)FlashSteerErr2Config.default_value;
     store_ptr->param_page.fourth_value = (int16)FlashSteerImuDConfig.default_value;
+    store_ptr->param_page.fifth_value = (int16)FlashAckermanKConfig.default_value;
     store_ptr->camera_page.auto_exp = (uint8)FlashCameraAutoExpConfig.default_value;
     store_ptr->camera_page.exp_time = FlashCameraExpTimeConfig.default_value;
     store_ptr->camera_page.gain = (uint8)FlashCameraGainConfig.default_value;
@@ -141,6 +182,49 @@ static void flash_store_fill_default_image(flash_store_image_t *image)
     image->version = FLASH_STORE_VERSION;
     flash_store_fill_default_data(&image->store_data);
     image->checksum = flash_store_calc_checksum(image);
+}
+
+static uint8 flash_store_migrate_image_v6(const flash_store_image_v6_t *old_image,
+                                          flash_store_image_t *new_image)
+{
+    if(0 == old_image || 0 == new_image)
+    {
+        return 0;
+    }
+
+    if(FLASH_STORE_MAGIC != old_image->magic)
+    {
+        return 0;
+    }
+
+    if(FLASH_STORE_VERSION_PREVIOUS != old_image->version)
+    {
+        return 0;
+    }
+
+    if(flash_store_calc_checksum_v6(old_image) != old_image->checksum)
+    {
+        return 0;
+    }
+
+    flash_store_fill_default_image(new_image);
+    new_image->store_data.param_page.first_value = old_image->store_data.param_page.first_value;
+    new_image->store_data.param_page.second_value = old_image->store_data.param_page.second_value;
+    new_image->store_data.param_page.third_value = old_image->store_data.param_page.third_value;
+    new_image->store_data.param_page.fourth_value = old_image->store_data.param_page.fourth_value;
+    new_image->store_data.camera_page = old_image->store_data.camera_page;
+    new_image->store_data.servo_limit_page = old_image->store_data.servo_limit_page;
+    new_image->store_data.start_page = old_image->store_data.start_page;
+
+    if(!flash_store_data_is_valid(&new_image->store_data))
+    {
+        return 0;
+    }
+
+    new_image->magic = FLASH_STORE_MAGIC;
+    new_image->version = FLASH_STORE_VERSION;
+    new_image->checksum = flash_store_calc_checksum(new_image);
+    return 1;
 }
 
 /* 校验掉电参数内容。 */
@@ -162,6 +246,11 @@ static uint8 flash_store_data_is_valid(const flash_store_data_t *store_ptr)
     }
 
     if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_FOURTH, store_ptr->param_page.fourth_value))
+    {
+        return 0;
+    }
+
+    if(!flash_store_steer_pd_value_in_range(FLASH_PARAM_SLOT_FIFTH, store_ptr->param_page.fifth_value))
     {
         return 0;
     }
@@ -253,6 +342,7 @@ static void flash_store_save_cache(void)
 static void flash_store_load_cache(void)
 {
     flash_store_image_t image;
+    flash_store_image_v6_t old_image;
 
     flash_store_hw_begin();
     iap_read_buff(FLASH_STORE_ADDR, (uint8 *)&image, sizeof(image));
@@ -261,6 +351,11 @@ static void flash_store_load_cache(void)
     if(flash_store_image_is_valid(&image))
     {
         memcpy(&g_flash_store_cache, &image, sizeof(g_flash_store_cache));
+    }
+    else if(flash_store_migrate_image_v6((memcpy(&old_image, &image, sizeof(old_image)), &old_image),
+                                         &g_flash_store_cache))
+    {
+        flash_store_save_cache();
     }
     else
     {
@@ -349,6 +444,8 @@ int16 flash_store_get_param_value(flash_param_slot_t slot)
             return g_flash_store_cache.store_data.param_page.third_value;
         case FLASH_PARAM_SLOT_FOURTH:
             return g_flash_store_cache.store_data.param_page.fourth_value;
+        case FLASH_PARAM_SLOT_FIFTH:
+            return g_flash_store_cache.store_data.param_page.fifth_value;
         default:
             return 0;
     }
@@ -393,6 +490,13 @@ uint8 flash_store_set_param_value(flash_param_slot_t slot, int16 value)
                 return 0;
             }
             target_value = &g_flash_store_cache.store_data.param_page.fourth_value;
+            break;
+        case FLASH_PARAM_SLOT_FIFTH:
+            if(!flash_store_steer_pd_value_in_range(slot, value))
+            {
+                return 0;
+            }
+            target_value = &g_flash_store_cache.store_data.param_page.fifth_value;
             break;
         default:
             return 0;

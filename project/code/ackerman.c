@@ -27,6 +27,7 @@ static const int16 tan_table[61] = {
 
 /************ 全局状态 ************/
 static ackerman_kinematic_t ackerman_kinematic = {0};
+static int16 g_ackerman_k = 505;
 
 /**
  * @brief 初始化阿克曼运动学状态
@@ -37,6 +38,22 @@ void ackerman_init(void)
     ackerman_kinematic.speed = 0;
     ackerman_kinematic.left_wheel_speed = 0;
     ackerman_kinematic.right_wheel_speed = 0;
+    g_ackerman_k = 505;
+}
+
+void ackerman_set_k(int16 ackerman_k)
+{
+    if(ackerman_k < 0)
+    {
+        ackerman_k = 0;
+    }
+
+    g_ackerman_k = ackerman_k;
+}
+
+int16 ackerman_get_k(void)
+{
+    return g_ackerman_k;
 }
 
 /**
@@ -103,8 +120,9 @@ void ackerman_set_steer_angle(int16 steer_angle)
  */
 void ackerman_calc_wheel_speeds(int16 speed, int16 steer_angle)
 {
-    int16 v_dif;
+    int32 v_dif;
     int16 tan_val;
+    int16 ackerman_k;
 
     ackerman_set_steer_angle(steer_angle);
     steer_angle = ackerman_kinematic.steer_angle;
@@ -114,14 +132,13 @@ void ackerman_calc_wheel_speeds(int16 speed, int16 steer_angle)
 
     // 阿克曼差速因子: v_dif = (tread_width / wheelbase) * tan(δ)
     // tan_val = tan(δ) * 1000
-    // v_dif = 809 * tan_val / 1000 (809 = 0.8088 * 1000)
+    // v_dif = ackerman_k * tan_val / 100
     // 结果 v_dif 为速度缩放值 (无单位)
     tan_val = ackerman_tan(steer_angle);
+    ackerman_k = ackerman_get_k();
 
-    // 使 v_dif必须使用int32暂存
-    // v_dif = ACKerman_K * tan_val  max ： 809 * 580 = 469220 
-    // 预期 v_dif在 int16内，4位有效数字 除100 max ： 469220/100 = 4692
-    v_dif = ((int32)ACKerman_K * tan_val) / 100;  
+    /* 阿克曼 K 已开放大范围调参，这里保持 int32 中间量避免放大后先溢出。 */
+    v_dif = ((int32)ackerman_k * (int32)tan_val) / 100;
 
     /* 右转时左轮走外侧，左转时右轮走外侧。 */
     /* 外侧轮保持基础速度，内侧轮按国一口径减速。 */

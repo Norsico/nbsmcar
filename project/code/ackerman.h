@@ -23,9 +23,6 @@
 #define CAR_MAX_STEER_ANGLE  3000    // 最大转向角 (0.01度, 即30度)
 #define CAR_WHEEL_RADIUS     30      // 轮子半径 (mm)
 
-/* 内部计算用缩放因子 */
-#define ACKerman_K          809      // (TREAD_WIDTH/WHEELBASE)*1000*1000 = 0.8088*1000000
-
 /************ 阿克曼运动学状态结构体 ************/
 typedef struct
 {
@@ -83,6 +80,18 @@ extern int16 ackerman_get_steer_angle(void);
  * @return 当前基础车速（0.01m/s）
  */
 extern int16 ackerman_get_speed(void);
+
+/**
+ * @brief 设置阿克曼缩放原始值
+ * @param ackerman_k 阿克曼缩放原始值
+ */
+extern void ackerman_set_k(int16 ackerman_k);
+
+/**
+ * @brief 获取阿克曼缩放原始值
+ * @return 阿克曼缩放原始值
+ */
+extern int16 ackerman_get_k(void);
 
 /**
  * @brief 获取阿克曼运动学状态

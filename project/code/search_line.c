@@ -1057,7 +1057,7 @@ static void GetDet(void)
 
     // 能改的
     int speed_straight = 300;       // 直道速度
-    int speed_min = 190;            // 最低速度
+    int speed_min = 260;            // 最低速度
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
@@ -1077,7 +1077,9 @@ static void GetDet(void)
     speed_now = (speed_left + speed_right) / 2;
     if(ImageStatus.straight_acc == 1)
     {
-        Speed_Goal = (uint16)speed_straight;
+        // 暂时关闭直道加速
+        // Speed_Goal = (uint16)speed_straight;
+        Speed_Goal = (uint16)speed_normal;
     }
     else
     {

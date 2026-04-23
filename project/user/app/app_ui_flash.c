@@ -22,6 +22,7 @@ static void ui_flash_fill_default_steer_pd_page(flash_param_page_t *page)
     page->second_value = (int16)FlashSteerDConfig.default_value;
     page->third_value = (int16)FlashSteerErr2Config.default_value;
     page->fourth_value = (int16)FlashSteerImuDConfig.default_value;
+    page->fifth_value = (int16)FlashAckermanKConfig.default_value;
 }
 
 static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
@@ -51,6 +52,12 @@ static uint8 ui_flash_steer_pd_page_is_valid(const flash_param_page_t *page)
 
     if((page->fourth_value < (int16)FlashSteerImuDConfig.min) ||
        (page->fourth_value > (int16)FlashSteerImuDConfig.max))
+    {
+        return 0;
+    }
+
+    if((page->fifth_value < (int16)FlashAckermanKConfig.min) ||
+       (page->fifth_value > (int16)FlashAckermanKConfig.max))
     {
         return 0;
     }
@@ -201,6 +208,11 @@ void ui_flash_get_steer_pd_range(flash_param_slot_t slot, uint16 *min_value, uin
             min_value_local = FlashSteerImuDConfig.min;
             max_value_local = FlashSteerImuDConfig.max;
             step_value_local = FlashSteerImuDConfig.step;
+            break;
+        case FLASH_PARAM_SLOT_FIFTH:
+            min_value_local = FlashAckermanKConfig.min;
+            max_value_local = FlashAckermanKConfig.max;
+            step_value_local = FlashAckermanKConfig.step;
             break;
         default:
             break;

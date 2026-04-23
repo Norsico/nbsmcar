@@ -55,6 +55,7 @@ typedef enum
     STEER_PAGE_SLOT_P = 0,
     STEER_PAGE_SLOT_D,
     STEER_PAGE_SLOT_ERR2,
+    STEER_PAGE_SLOT_ACKERMAN,
     STEER_PAGE_SLOT_IMU_D,
     STEER_PAGE_SLOT_SERVO_MIN,
     STEER_PAGE_SLOT_SERVO_MAX
@@ -411,6 +412,8 @@ static const char *display_menu_get_steer_pd_label(steer_page_slot_t slot)
             return "steer d";
         case STEER_PAGE_SLOT_ERR2:
             return "err2 k";
+        case STEER_PAGE_SLOT_ACKERMAN:
+            return "ackerman";
         case STEER_PAGE_SLOT_IMU_D:
             return "imu d";
         case STEER_PAGE_SLOT_SERVO_MIN:
@@ -432,12 +435,14 @@ static uint8 display_menu_get_steer_pd_row_index(steer_page_slot_t slot)
             return 1;
         case STEER_PAGE_SLOT_ERR2:
             return 2;
-        case STEER_PAGE_SLOT_IMU_D:
+        case STEER_PAGE_SLOT_ACKERMAN:
             return 3;
-        case STEER_PAGE_SLOT_SERVO_MIN:
+        case STEER_PAGE_SLOT_IMU_D:
             return 4;
-        case STEER_PAGE_SLOT_SERVO_MAX:
+        case STEER_PAGE_SLOT_SERVO_MIN:
             return 5;
+        case STEER_PAGE_SLOT_SERVO_MAX:
+            return 6;
         default:
             return 0;
     }
@@ -468,6 +473,10 @@ static void display_menu_draw_steer_pd_row(steer_page_slot_t slot)
         case STEER_PAGE_SLOT_ERR2:
             value = ui_flash_get_steer_pd_value(FLASH_PARAM_SLOT_THIRD);
             ui_library_format_tenths(value, value_text);
+            break;
+        case STEER_PAGE_SLOT_ACKERMAN:
+            value = ui_flash_get_steer_pd_value(FLASH_PARAM_SLOT_FIFTH);
+            ui_library_format_uint16(value, value_text);
             break;
         case STEER_PAGE_SLOT_IMU_D:
             value = ui_flash_get_steer_pd_value(FLASH_PARAM_SLOT_FOURTH);
@@ -553,6 +562,12 @@ static void display_menu_draw_steer_pd_info(void)
             ui_library_format_tenths(max_value, max_text);
             ui_library_format_tenths(step_value, step_text);
             break;
+        case STEER_PAGE_SLOT_ACKERMAN:
+            ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FIFTH, &min_value, &max_value, &step_value);
+            ui_library_format_uint16(min_value, min_text);
+            ui_library_format_uint16(max_value, max_text);
+            ui_library_format_uint16(step_value, step_text);
+            break;
         case STEER_PAGE_SLOT_IMU_D:
             ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FOURTH, &min_value, &max_value, &step_value);
             ui_library_format_tenths(min_value, min_text);
@@ -595,6 +610,7 @@ static void display_menu_draw_steer_pd_page_full(void)
     display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_P);
     display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_D);
     display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_ERR2);
+    display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_ACKERMAN);
     display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_IMU_D);
     display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_SERVO_MIN);
     display_menu_draw_steer_pd_row(STEER_PAGE_SLOT_SERVO_MAX);
@@ -661,6 +677,9 @@ static void display_menu_steer_pd_adjust(int16 delta)
         case STEER_PAGE_SLOT_ERR2:
             changed = ui_flash_adjust_steer_pd_value(FLASH_PARAM_SLOT_THIRD, delta);
             break;
+        case STEER_PAGE_SLOT_ACKERMAN:
+            changed = ui_flash_adjust_steer_pd_value(FLASH_PARAM_SLOT_FIFTH, delta);
+            break;
         case STEER_PAGE_SLOT_IMU_D:
             changed = ui_flash_adjust_steer_pd_value(FLASH_PARAM_SLOT_FOURTH, delta);
             break;
@@ -695,6 +714,9 @@ static void display_menu_steer_pd_adjust_by_step_mul(int8 direction, uint8 step_
             break;
         case STEER_PAGE_SLOT_ERR2:
             ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_THIRD, 0, 0, &step_value);
+            break;
+        case STEER_PAGE_SLOT_ACKERMAN:
+            ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FIFTH, 0, 0, &step_value);
             break;
         case STEER_PAGE_SLOT_IMU_D:
             ui_flash_get_steer_pd_range(FLASH_PARAM_SLOT_FOURTH, 0, 0, &step_value);

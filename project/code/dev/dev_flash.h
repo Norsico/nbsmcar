@@ -1,6 +1,7 @@
 #ifndef _DEV_FLASH_H_
 #define _DEV_FLASH_H_
 
+#include "ackerman.h"
 #include "zf_common_typedef.h"
 #include "zf_device_mt9v03x.h"
 
@@ -46,6 +47,14 @@ static const flash_value_config_t FlashSteerImuDConfig =
     100,  /* max */
     1,   /* step */
     0    /* default */
+};
+// 阿克曼差速缩放因子，直接按原始整数调节
+static const flash_value_config_t FlashAckermanKConfig =
+{
+    0,   /* min */
+    32767,  /* max */
+    10,  /* step */
+    505  /* default */
 };
 
 /****************************** Camera 页 ******************************/
@@ -121,6 +130,7 @@ typedef enum
     FLASH_PARAM_SLOT_SECOND,        /* Steer D。 */
     FLASH_PARAM_SLOT_THIRD,         /* 二次误差系数。 */
     FLASH_PARAM_SLOT_FOURTH,        /* 陀螺仪抑制系数。 */
+    FLASH_PARAM_SLOT_FIFTH,         /* 阿克曼差速缩放因子。 */
     FLASH_PARAM_SLOT_COUNT
 } flash_param_slot_t;
 
@@ -139,6 +149,7 @@ typedef struct
     int16 second_value;       /* Steer D。 */
     int16 third_value;        /* 舵机二次误差系数，单位 0.1。 */
     int16 fourth_value;       /* 陀螺仪抑制系数，单位 0.1。 */
+    int16 fifth_value;        /* 阿克曼差速缩放因子，直接存原始整数。 */
 } flash_param_page_t;
 
 typedef struct
