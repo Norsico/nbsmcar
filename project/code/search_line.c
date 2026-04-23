@@ -1057,10 +1057,16 @@ static void GetDet(void)
 
     // 能改的
     int speed_straight = 300;       // 直道速度
-    int speed_min = 260;            // 最低速度
+    int speed_min = 0;              // 动态前瞻速度基准下限
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
+    speed_min = speed_normal - 10;
+    if(speed_min < 0)
+    {
+        /* Car Speed 页速度较低时，最低速度基准不再继续下探。 */
+        speed_min = 0;
+    }
 
     speed_left = encoder_get_left();
     if(speed_left < 0)
@@ -1940,7 +1946,7 @@ void Element_Test(void)
        &&ImageStatus.Road_type != Barn_out)
     {
         // Element_Judgment_Left_Rings();   //左圆环检测
-        // Element_Judgment_Right_Rings();  //右圆环检测
+        Element_Judgment_Right_Rings();  //右圆环检测
     }
 }
 
