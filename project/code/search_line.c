@@ -63,6 +63,7 @@ static uint8 CompressColMap[LCDW] = {0};
 static uint8 CompressMapReady = 0;
 static uint8 OtsuRefreshCountdown = 0;
 static uint8 OtsuRawThreshold = 0;
+static uint8 OutTrackStopHitCount = 0;
 static uint16 Speed_Goal = 150;
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
@@ -2214,6 +2215,54 @@ void Get01change_roi_mix(void)
     }
 }
 
+/* 检查底部黑点占比是否持续超阈值，超时后切紧急停车。 */
+static void CheckOutTrackEmergency(void)
+{
+    const uint8 outtrack_stop_black_percent = 90;  /* 黑点占比阈值，超过这个比例开始记命中。 */
+    const uint8 outtrack_stop_confirm_count = 10;  /* 连续命中次数阈值，达到后切紧急状态。 */
+    const uint8 outtrack_stop_sample_rows = 2;     /* 从图像最底部往上取 2 行做黑点统计。 */
+    uint8 row = 0;
+    uint8 col = 0;
+    uint16 black_count = 0;
+    uint16 total_count = 0;
+    uint16 threshold_count = 0;
+
+    /* 统计底部 2 行黑点数。 */
+    for(row = (uint8)(LCDH - outtrack_stop_sample_rows); row < LCDH; row++)
+    {
+        for(col = 0; col < LCDW; col++)
+        {
+            if(0 == Pixle[row][col])
+            {
+                black_count++;
+            }
+        }
+    }
+
+    total_count = (uint16)(LCDW * outtrack_stop_sample_rows);
+    threshold_count = (uint16)((total_count * outtrack_stop_black_percent) / 100U);
+
+    /* 本帧黑点占比超过阈值时，累计连续命中次数。 */
+    if(black_count > threshold_count)
+    {
+        if(OutTrackStopHitCount < outtrack_stop_confirm_count)
+        {
+            OutTrackStopHitCount++;
+        }
+    }
+    else
+    {
+        /* 中间只要恢复，连续命中计数立即清零。 */
+        OutTrackStopHitCount = 0;
+    }
+
+    /* 连续命中达到 10 帧后切紧急状态。 */
+    if(OutTrackStopHitCount >= outtrack_stop_confirm_count)
+    {
+        g_system_state = SYS_EMERGENCY;
+    }
+}
+
 // 图像处理
 void ImageProcess(void)
 {
@@ -2234,6 +2283,10 @@ void ImageProcess(void)
 
     // Get01change_roi_mix();  /* 图像二值化，当前按参考代码切到底部参考均值阈值。 */
     Get01change_dajin();       /* 图像二值化，当前切回大津法，并做 10 帧阈值复用。 */
+
+    // 出界停车检测
+    CheckOutTrackEmergency();
+
     DrawLinesFirst();     //绘制底边
     DrawLinesProcess();   //搜边线
 
