@@ -64,6 +64,7 @@ static uint8 CompressMapReady = 0;
 static uint8 OtsuRefreshCountdown = 0;
 static uint8 OtsuRawThreshold = 0;
 static uint8 OutTrackStopHitCount = 0;
+static uint8 runtime_tow_point = 0;
 static uint16 Speed_Goal = 150;
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
@@ -1043,12 +1044,56 @@ static void RouteFilter(void)
     }
 }
 
-/*误差按权重重新整定*/
-static void GetDet(void)
+// 中线压缩补偿
+static int SearchLine_GetCompensatedCenter(int center, uint8 row, uint8 base_row)
 {
-    float DetTemp = 0;
+    int offset = 0;
+    int compensate = 0;
+    int compensated_center = 0;
+
+    if(0 == base_row)
+    {
+        return center;
+    }
+
+    offset = center - ImageSensorMid;
+    compensate = (offset * (int)row * 13) / ((int)base_row * 20);  /* 学长 HtoE=0.65，这里按 13/20 等价落地。 */
+    compensated_center = center + compensate;
+
+    if(compensated_center < 0)
+    {
+        compensated_center = 0;
+    }
+    else if(compensated_center >= LCDW)
+    {
+        compensated_center = LCDW - 1;
+    }
+
+    return compensated_center;
+}
+
+/* 按当前前瞻行把整条图像中线做一次压缩补偿。 */
+static void SearchLine_ApplyCenterCompensation(uint8 base_row)
+{
+    uint8 row = 0;
+
+    if(0 == base_row)
+    {
+        return;
+    }
+
+    for(row = ImageStatus.OFFLine; row < LCDH; row++)
+    {
+        ImageDeal[row].Center = SearchLine_GetCompensatedCenter(ImageDeal[row].Center,
+                                                                row,
+                                                                base_row);
+    }
+}
+
+/* 按当前赛道状态和车速口径求本帧前瞻行。 */
+static uint8 SearchLine_GetRuntimeTowPoint(void)
+{
     int TowPoint = 0;
-    float UnitAll = 0;
     float SpeedGain = 0.0f;
     flash_start_page_t start_page;
     int speed_left = 0;
@@ -1062,7 +1107,7 @@ static void GetDet(void)
 
     flash_store_get_start_page(&start_page);
     speed_normal = (int)start_page.target_speed;
-    speed_min = speed_normal - 10;
+    speed_min = speed_normal - 10;  // 速度最小值先暂时就 -10
     if(speed_min < 0)
     {
         /* Car Speed 页速度较低时，最低速度基准不再继续下探。 */
@@ -1122,6 +1167,20 @@ static void GetDet(void)
 
     if(TowPoint >= 49)
         TowPoint = 49;
+
+    if(TowPoint <= 0)
+    {
+        TowPoint = 1;
+    }
+
+    return (uint8)TowPoint;
+}
+
+/*误差按权重重新整定*/
+static void GetDet(uint8 TowPoint)
+{
+    float DetTemp = 0;
+    float UnitAll = 0;
 
     if((TowPoint - 5) >= ImageStatus.OFFLine) {                                             //前瞻取设定前瞻还是可视距离  需要分情况讨论
         for(Ysite = (TowPoint - 5); Ysite < TowPoint; Ysite++) {
@@ -2298,7 +2357,9 @@ void ImageProcess(void)
 
     /***元素处理*****/
     Element_Handle();     //环岛执行
-    GetDet();             //获取动态前瞻  并且计算图像偏差
+    runtime_tow_point = SearchLine_GetRuntimeTowPoint();
+    SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
+    GetDet(runtime_tow_point);             //获取动态前瞻  并且计算图像偏差
 
 }
 
