@@ -60,7 +60,7 @@ void main(void)
     bldc_motor_init();   // 无刷电机
     car_wheel_init();    // 直流电机
     car_wheel_pid_init(); // 电机pid结构体初始化
-    encoder_init();      // 编码器初始化
+    encoder_init();      // 编码器初始化7
     key_event_init();    // 按键事件初始化
     ackerman_init();     // 阿克曼运动学初始化
 
@@ -274,16 +274,23 @@ void main(void)
 
             // 紧急状态
             case SYS_EMERGENCY:
+                /* 进紧急状态后仍保留蜂鸣器轮询，避免测试短响一直不关。 */
+                buzzer_task();
                 // 停风扇
                 bldc_motor_stop();
+                if(g_flag_encoder)
+                {
+                    g_flag_encoder = 0;
+                    /* 紧急状态下继续读编码器，用反拖把后轮尽快刹停。 */
+                    encoder_update();
+                }
                 // 停直流电机
-                car_wheel_control_reset();
+                car_wheel_emergency_brake();
                 // 停舵机
                 car_servo_set_center();
 
                 // 清空标志位
                 g_flag_buzzer = 0;
-                g_flag_encoder = 0;
                 g_flag_steer = 0;
                 g_flag_center = 0;
 #if IPS_ENABLE

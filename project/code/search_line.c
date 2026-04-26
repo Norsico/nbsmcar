@@ -64,6 +64,10 @@ static uint8 CompressMapReady = 0;
 static uint8 OtsuRefreshCountdown = 0;
 static uint8 OtsuRawThreshold = 0;
 static uint8 OutTrackStopHitCount = 0;
+static uint8 ZebraDetectCount = 0;
+static uint8 ZebraFrameLatch = 0;
+static uint8 ZebraMissFrames = 0;
+static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
 static uint16 Speed_Goal = 150;
 float variance = 0, variance_acc = 25;  //方差
@@ -111,11 +115,11 @@ void compressimage(void)
     uint8 *src_row;
     /* 原图左右各裁 4 列。 */
     const int cut_col = 1;
-    /* 原图底部裁 20 行。 */
-    const int cut_row_bottom = 20;
+    /* 原图底部裁 10 行。 */
+    const int cut_row_bottom = 10;
     /* 原图顶部当前不裁。 */
     const int cut_row_top = 0;
-    /* 裁剪后输入窗口：180x100。 */
+    /* 裁剪后输入窗口：180x110。 */
     const int src_h = MT9V03X_H - cut_row_top - cut_row_bottom;
     const int src_w = MT9V03X_W - (cut_col * 2);
 
@@ -1139,7 +1143,7 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
     }
 
     if((ImageStatus.Road_type == RightCirque || ImageStatus.Road_type == LeftCirque) && ImageStatus.CirqueOff == 'F')
-        TowPoint = 30;                                                                      //圆环前瞻
+        TowPoint = 30;    //圆环前瞻
     else if(ImageStatus.Road_type == Straight)
         TowPoint = ImageStatus.TowPoint;
     else if(ImageStatus.Road_type == Cross_ture)
@@ -2010,7 +2014,7 @@ void Element_Test(void)
        &&ImageStatus.Road_type != Cross_ture
        &&ImageStatus.Road_type != Barn_out)
     {
-        // Element_Judgment_Left_Rings();   //左圆环检测
+        Element_Judgment_Left_Rings();   //左圆环检测
         Element_Judgment_Right_Rings();  //右圆环检测
     }
 }
@@ -2274,6 +2278,97 @@ void Get01change_roi_mix(void)
     }
 }
 
+/* 按 19 国一斑马线口径，扫描中下部多次黑白跳变。 */
+static uint8 ZebraScanHit(void)
+{
+    int row = 0;
+    int col = 0;
+    int left_limit = 0;
+    int right_limit = 0;
+    uint8 edge_count = 0;
+
+    if(ImageStatus.Road_type == LeftCirque
+       || ImageStatus.Road_type == RightCirque
+       || ImageStatus.Road_type == Ramp)
+    {
+        return 0;
+    }
+
+    for(row = 45; row < 55; row++)
+    {
+        edge_count = 0;
+        left_limit = Limit(ImageDeal[row].LeftBoundary - 5, 77, 0);
+        right_limit = Limit(ImageDeal[row].RightBoundary + 5, 78, 1);
+        if(left_limit >= right_limit)
+        {
+            continue;
+        }
+
+        for(col = left_limit; col < right_limit; col++)
+        {
+            if(Pixle[row][col] == 0 && Pixle[row][col + 1] == 1)
+            {
+                edge_count++;
+                if(edge_count > 4)
+                {
+                    return 1;
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+/* 第一次斑马线只记数并鸣叫，第二次有效命中直接切紧急停车。 */
+static void CheckZebraEmergency(void)
+{
+    const uint8 zebra_release_confirm_count = 3;  /* 连续 3 帧没命中后，允许下一次重新计数。 */
+    const uint8 zebra_detect_cooldown_frames = 80;  /* 同一条斑马线过车时，留一段冷却防止重复计数。 */
+    uint8 zebra_hit = 0;
+
+    if(ZebraCooldownFrames > 0)
+    {
+        ZebraCooldownFrames--;
+    }
+
+    zebra_hit = ZebraScanHit();
+    if(zebra_hit)
+    {
+        ZebraMissFrames = 0;
+        if(0 == ZebraFrameLatch)
+        {
+            ZebraFrameLatch = 1;
+            if(0 == ZebraCooldownFrames)
+            {
+                if(ZebraDetectCount < 2)
+                {
+                    ZebraDetectCount++;
+                }
+
+                buzzer_short();
+                if(ZebraDetectCount >= 2)
+                {
+                    g_system_state = SYS_EMERGENCY;
+                }
+
+                ZebraCooldownFrames = zebra_detect_cooldown_frames;
+            }
+        }
+    }
+    else
+    {
+        if(ZebraMissFrames < zebra_release_confirm_count)
+        {
+            ZebraMissFrames++;
+        }
+        if(ZebraMissFrames >= zebra_release_confirm_count)
+        {
+            ZebraFrameLatch = 0;
+        }
+    }
+}
+
 /* 检查底部黑点占比是否持续超阈值，超时后切紧急停车。 */
 static void CheckOutTrackEmergency(void)
 {
@@ -2354,11 +2449,12 @@ void ImageProcess(void)
     Element_Test();       //元素判断
     DrawExtensionLine();  /* 绘制延长线，补线。 */
     RouteFilter();        /* 中线滤波平滑。 */
+    CheckZebraEmergency();  /* 斑马线第一次只记数，第二次命中切紧急状态。 */
 
-    /***元素处理*****/
+
     Element_Handle();     //环岛执行
     runtime_tow_point = SearchLine_GetRuntimeTowPoint();
-    SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
+    // SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
     GetDet(runtime_tow_point);             //获取动态前瞻  并且计算图像偏差
 
 }

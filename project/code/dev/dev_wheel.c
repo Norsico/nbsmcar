@@ -7,7 +7,7 @@
 
 #define MOTOR_PWM_MAX 99
 #define WHELL_PWM_FREQ (17000)
-#define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (75)      /* 电机输出百分比限幅。 */
+#define CAR_WHEEL_OUTPUT_LIMIT_PERCENT (90)      /* 电机输出百分比限幅。 */
 #define CAR_WHEEL_ACKERMAN_CENTER_ANGLE  CAR_SERVO_CENTER_ANGLE /* 阿克曼角度按左负右正换算。 */
 static int16 car_wheel_run_request_speed = 0.0f;  /* Start 页速度当前只保留作运行开关。 */
 int16 car_wheel_target_speed = 0.0f;  // 整车目标速度
@@ -169,6 +169,49 @@ void car_wheel_control_reset(void)
     car_wheel_pid_reset_single(&wheel_pid_right);
     encoder_clear();
     car_wheel_stop_all();
+}
+
+/* 紧急状态下按当前轮速给反向小占空比，尽快把后轮拖停。 */
+void car_wheel_emergency_brake(void)
+{
+    const int16 emergency_release_speed = 12;   /* 编码器绝对值低于这个门槛后，认为车轮已基本停住。 */
+    const int8 emergency_brake_percent = 35;    /* 反拖刹车占空比，先用中等力度避免明显倒窜。 */
+    int16 current_left = 0;
+    int16 current_right = 0;
+    int8 left_output = 0;
+    int8 right_output = 0;
+
+    car_wheel_run_request_speed = 0;
+    car_wheel_target_speed = 0;
+    ref_left_target = 0;
+    ref_right_target = 0;
+    car_wheel_apply_target(0, 0);
+    car_wheel_pid_reset_single(&wheel_pid_left);
+    car_wheel_pid_reset_single(&wheel_pid_right);
+
+    current_left = encoder_get_left();
+    current_right = encoder_get_right();
+
+    if(current_left > emergency_release_speed)
+    {
+        left_output = -emergency_brake_percent;
+    }
+    else if(current_left < -emergency_release_speed)
+    {
+        left_output = emergency_brake_percent;
+    }
+
+    if(current_right > emergency_release_speed)
+    {
+        right_output = -emergency_brake_percent;
+    }
+    else if(current_right < -emergency_release_speed)
+    {
+        right_output = emergency_brake_percent;
+    }
+
+    car_wheel_set_speed(LEFT_MOTOR, left_output);
+    car_wheel_set_speed(RIGHT_MOTOR, right_output);
 }
 
 /* 无刷未就绪时保持后轮待转，不清 Start 速度目标。 */
