@@ -2014,8 +2014,8 @@ void Element_Test(void)
        &&ImageStatus.Road_type != Cross_ture
        &&ImageStatus.Road_type != Barn_out)
     {
-        Element_Judgment_Left_Rings();   //左圆环检测
-        Element_Judgment_Right_Rings();  //右圆环检测
+        // Element_Judgment_Left_Rings();   //左圆环检测
+        // Element_Judgment_Right_Rings();  //右圆环检测
     }
 }
 

@@ -65,6 +65,7 @@ static void line_app_apply_steer_pd_page_from_flash(void)
                  (uint16)page.third_value,
                  (uint16)page.fourth_value);
     ackerman_set_k(page.fifth_value);
+    ImageStatus.TowPoint = (uint8)page.sixth_value;
 }
 
 #if IPS_ENABLE
@@ -276,6 +277,9 @@ uint8 line_app_set_steer_pd_value(flash_param_slot_t slot, int16 value)
         case FLASH_PARAM_SLOT_FIFTH:
             page.fifth_value = value;
             break;
+        case FLASH_PARAM_SLOT_SIXTH:
+            page.sixth_value = value;
+            break;
         default:
             return 0;
     }
@@ -290,5 +294,6 @@ uint8 line_app_set_steer_pd_value(flash_param_slot_t slot, int16 value)
                  (uint16)page.third_value,
                  (uint16)page.fourth_value);
     ackerman_set_k(page.fifth_value);
+    ImageStatus.TowPoint = (uint8)page.sixth_value;
     return 1;
 }

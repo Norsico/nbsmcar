@@ -22,7 +22,7 @@ static const flash_value_config_t FlashSteerPConfig =
     0,   /* min */
     600,  /* max */
     2,   /* step */
-    18       /* default */
+    28       /* default */
 };
 // 舵机D参数
 static const flash_value_config_t FlashSteerDConfig =
@@ -30,7 +30,7 @@ static const flash_value_config_t FlashSteerDConfig =
     0,   /* min */
     800,  /* max */
     2,   /* step */
-    8        /* default */
+    30       /* default */
 };
 // 舵机二次误差系数，单位 0.1，取值 3 对应一号常用量级 0.3
 static const flash_value_config_t FlashSteerErr2Config =
@@ -38,7 +38,7 @@ static const flash_value_config_t FlashSteerErr2Config =
     0,   /* min */
     200,   /* max */
     1,   /* step */
-    0    /* default */
+    8    /* default */
 };
 // 舵机陀螺仪抑制系数，单位 0.1，直接作用于原始 gyro z
 static const flash_value_config_t FlashSteerImuDConfig =
@@ -46,7 +46,7 @@ static const flash_value_config_t FlashSteerImuDConfig =
     0,   /* min */
     100,  /* max */
     1,   /* step */
-    0    /* default */
+    4    /* default */
 };
 // 阿克曼差速缩放因子，直接按原始整数调节
 static const flash_value_config_t FlashAckermanKConfig =
@@ -54,7 +54,15 @@ static const flash_value_config_t FlashAckermanKConfig =
     0,   /* min */
     32767,  /* max */
     10,  /* step */
-    505  /* default */
+    1105 /* default */
+};
+// 普通赛道基础前瞻，直接按图像行号调节
+static const flash_value_config_t FlashTowPointConfig =
+{
+    1,   /* min */
+    49,  /* max */
+    1,   /* step */
+    32   /* default */
 };
 
 /****************************** Camera 页 ******************************/
@@ -73,7 +81,7 @@ static const flash_value_config_t FlashCameraExpTimeConfig =
     1,    /* min */
     300,  /* max */
     10,   /* step */
-    100       /* default */
+    110       /* default */
 };
 
 // 增益参数
@@ -82,7 +90,7 @@ static const flash_value_config_t FlashCameraGainConfig =
     16,  /* min */
     64,  /* max */
     1,   /* step */
-    25       /* default */
+    36       /* default */
 };
 
 /****************************** Servo Limit 页 ******************************/
@@ -131,6 +139,7 @@ typedef enum
     FLASH_PARAM_SLOT_THIRD,         /* 二次误差系数。 */
     FLASH_PARAM_SLOT_FOURTH,        /* 陀螺仪抑制系数。 */
     FLASH_PARAM_SLOT_FIFTH,         /* 阿克曼差速缩放因子。 */
+    FLASH_PARAM_SLOT_SIXTH,         /* 基础前瞻。 */
     FLASH_PARAM_SLOT_COUNT
 } flash_param_slot_t;
 
@@ -150,6 +159,7 @@ typedef struct
     int16 third_value;        /* 舵机二次误差系数，单位 0.1。 */
     int16 fourth_value;       /* 陀螺仪抑制系数，单位 0.1。 */
     int16 fifth_value;        /* 阿克曼差速缩放因子，直接存原始整数。 */
+    int16 sixth_value;        /* 普通赛道基础前瞻。 */
 } flash_param_page_t;
 
 typedef struct
