@@ -70,6 +70,28 @@ static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
 static uint16 Speed_Goal = 150;
+static uint8 TargetRingFound = 0;
+static uint8 TargetRingCenterX = 0;
+static uint8 TargetRingCenterY = 0;
+static uint8 TargetRingLeftX = 0;
+static uint8 TargetRingRightX = 0;
+static uint8 TargetRingTopY = 0;
+static uint8 TargetRingBottomY = 0;
+static uint8 TargetRingWidth = 0;
+static uint8 TargetRingHeight = 0;
+static uint8 TargetRingScore = 0;
+static uint8 TargetRingCandidateRow = 0;
+static uint8 TargetRingStableCount = 0;
+static uint8 TargetRingMissFrames = 0;
+static uint8 TargetRingLaserActive = 0;
+static uint8 TargetRingFireHoldFrames = 0;
+static uint8 TargetRingShotDoneLatch = 0;
+static uint8 TargetRingLastCenterX = 0xFF;
+static uint8 TargetRingLastCenterY = 0xFF;
+static const uint8 TargetRingFireRowMin = 36;      /* 打靶窗口上沿，按 60 行压缩图口径估算。 */
+static const uint8 TargetRingFireRowMax = 42;      /* 打靶窗口下沿，目标靠近车头时才允许开激光。 */
+static const uint8 TargetRingFireCenterTol = 4;    /* 靶心距图像中心允许误差，超出不打。 */
+static const uint8 TargetRingFireHoldFrameMax = 3; /* 激光单次保持帧数，防止拖到靶外。 */
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
 {
@@ -2417,6 +2439,659 @@ static void CheckOutTrackEmergency(void)
     }
 }
 
+/* 清空本帧靶环识别结果。 */
+static void TargetRing_ResetFrameResult(void)
+{
+    TargetRingFound = 0;
+    TargetRingCenterX = 0;
+    TargetRingCenterY = 0;
+    TargetRingLeftX = 0;
+    TargetRingRightX = 0;
+    TargetRingTopY = 0;
+    TargetRingBottomY = 0;
+    TargetRingWidth = 0;
+    TargetRingHeight = 0;
+    TargetRingScore = 0;
+    TargetRingCandidateRow = 0;
+}
+
+/* 检查候选中心附近是否仍以白色为主，避免把黑块噪声误当成靶心。 */
+static uint8 TargetRing_IsCenterWhite(uint8 row, uint8 col)
+{
+    int row_start = 0;
+    int row_end = 0;
+    int col_start = 0;
+    int col_end = 0;
+    int i = 0;
+    int j = 0;
+    uint8 white_count = 0;
+
+    row_start = Limit((int)row - 1, LCDH - 1, 0);
+    row_end = Limit((int)row + 1, LCDH - 1, 0);
+    col_start = Limit((int)col - 1, LCDW - 1, 0);
+    col_end = Limit((int)col + 1, LCDW - 1, 0);
+
+    for(i = row_start; i <= row_end; i++)
+    {
+        for(j = col_start; j <= col_end; j++)
+        {
+            if(1 == Pixle[i][j])
+            {
+                white_count++;
+            }
+        }
+    }
+
+    return (white_count >= 5U) ? 1U : 0U;
+}
+
+/* 在一行内搜索白-黑-白-黑-白模式，提取靶环左右边界。 */
+static uint8 TargetRing_FindHorizontalPattern(uint8 row,
+                                              uint8 left_limit,
+                                              uint8 right_limit,
+                                              uint8 *left_outer,
+                                              uint8 *left_inner,
+                                              uint8 *right_inner,
+                                              uint8 *right_outer)
+{
+    uint8 col = 0;
+    uint8 state = 0;
+    uint8 candidate_left_outer = 0;
+    uint8 candidate_left_inner = 0;
+    uint8 candidate_right_inner = 0;
+    uint8 candidate_right_outer = 0;
+    uint8 outer_width = 0;
+    uint8 inner_width = 0;
+    uint8 center_col = 0;
+    int inner_center = 0;
+    int outer_center = 0;
+    int symmetry_error = 0;
+    int score = 0;
+    int best_score = 0;
+
+    if((0 == left_outer) || (0 == left_inner) ||
+       (0 == right_inner) || (0 == right_outer))
+    {
+        return 0;
+    }
+
+    if(right_limit <= (uint8)(left_limit + 4U))
+    {
+        return 0;
+    }
+
+    for(col = (uint8)(left_limit + 1U); col <= right_limit; col++)
+    {
+        if(0 == state)
+        {
+            if((1U == Pixle[row][col - 1U]) && (0U == Pixle[row][col]))
+            {
+                candidate_left_outer = col;
+                state = 1;
+            }
+        }
+        else if(1U == state)
+        {
+            if((0U == Pixle[row][col - 1U]) && (1U == Pixle[row][col]))
+            {
+                candidate_left_inner = col;
+                state = 2;
+            }
+        }
+        else if(2U == state)
+        {
+            if((1U == Pixle[row][col - 1U]) && (0U == Pixle[row][col]))
+            {
+                candidate_right_inner = col;
+                state = 3;
+            }
+        }
+        else
+        {
+            if((0U == Pixle[row][col - 1U]) && (1U == Pixle[row][col]))
+            {
+                candidate_right_outer = col;
+                if((candidate_right_outer > candidate_left_outer) &&
+                   (candidate_right_inner > candidate_left_inner))
+                {
+                    outer_width = (uint8)(candidate_right_outer - candidate_left_outer);
+                    inner_width = (uint8)(candidate_right_inner - candidate_left_inner);
+                    if((outer_width >= 4U) &&
+                       (inner_width >= 2U) &&
+                       (inner_width < outer_width))
+                    {
+                        center_col = (uint8)((candidate_left_inner + candidate_right_inner) / 2U);
+                        if(TargetRing_IsCenterWhite(row, center_col))
+                        {
+                            outer_center = ((int)candidate_left_outer + (int)candidate_right_outer) / 2;
+                            inner_center = ((int)candidate_left_inner + (int)candidate_right_inner) / 2;
+                            symmetry_error = abs(outer_center - inner_center);
+                            score = (int)outer_width + (int)inner_width - symmetry_error;
+                            if(score > best_score)
+                            {
+                                *left_outer = candidate_left_outer;
+                                *left_inner = candidate_left_inner;
+                                *right_inner = candidate_right_inner;
+                                *right_outer = candidate_right_outer;
+                                best_score = score;
+                            }
+                        }
+                    }
+                }
+                state = 0;
+            }
+        }
+    }
+
+    return (best_score > 0) ? 1U : 0U;
+}
+
+/* 在一列内搜索白-黑-白-黑-白模式，提取靶环上下边界。 */
+static uint8 TargetRing_FindVerticalPattern(uint8 col,
+                                            uint8 top_limit,
+                                            uint8 bottom_limit,
+                                            uint8 *top_outer,
+                                            uint8 *top_inner,
+                                            uint8 *bottom_inner,
+                                            uint8 *bottom_outer)
+{
+    uint8 row = 0;
+    uint8 state = 0;
+    uint8 candidate_top_outer = 0;
+    uint8 candidate_top_inner = 0;
+    uint8 candidate_bottom_inner = 0;
+    uint8 candidate_bottom_outer = 0;
+    uint8 outer_height = 0;
+    uint8 inner_height = 0;
+    uint8 center_row = 0;
+    int inner_center = 0;
+    int outer_center = 0;
+    int symmetry_error = 0;
+    int score = 0;
+    int best_score = 0;
+
+    if((0 == top_outer) || (0 == top_inner) ||
+       (0 == bottom_inner) || (0 == bottom_outer))
+    {
+        return 0;
+    }
+
+    if(bottom_limit <= (uint8)(top_limit + 4U))
+    {
+        return 0;
+    }
+
+    for(row = (uint8)(top_limit + 1U); row <= bottom_limit; row++)
+    {
+        if(0 == state)
+        {
+            if((1U == Pixle[row - 1U][col]) && (0U == Pixle[row][col]))
+            {
+                candidate_top_outer = row;
+                state = 1;
+            }
+        }
+        else if(1U == state)
+        {
+            if((0U == Pixle[row - 1U][col]) && (1U == Pixle[row][col]))
+            {
+                candidate_top_inner = row;
+                state = 2;
+            }
+        }
+        else if(2U == state)
+        {
+            if((1U == Pixle[row - 1U][col]) && (0U == Pixle[row][col]))
+            {
+                candidate_bottom_inner = row;
+                state = 3;
+            }
+        }
+        else
+        {
+            if((0U == Pixle[row - 1U][col]) && (1U == Pixle[row][col]))
+            {
+                candidate_bottom_outer = row;
+                if((candidate_bottom_outer > candidate_top_outer) &&
+                   (candidate_bottom_inner > candidate_top_inner))
+                {
+                    outer_height = (uint8)(candidate_bottom_outer - candidate_top_outer);
+                    inner_height = (uint8)(candidate_bottom_inner - candidate_top_inner);
+                    if((outer_height >= 4U) &&
+                       (inner_height >= 2U) &&
+                       (inner_height < outer_height))
+                    {
+                        center_row = (uint8)((candidate_top_inner + candidate_bottom_inner) / 2U);
+                        if(TargetRing_IsCenterWhite(center_row, col))
+                        {
+                            outer_center = ((int)candidate_top_outer + (int)candidate_bottom_outer) / 2;
+                            inner_center = ((int)candidate_top_inner + (int)candidate_bottom_inner) / 2;
+                            symmetry_error = abs(outer_center - inner_center);
+                            score = (int)outer_height + (int)inner_height - symmetry_error;
+                            if(score > best_score)
+                            {
+                                *top_outer = candidate_top_outer;
+                                *top_inner = candidate_top_inner;
+                                *bottom_inner = candidate_bottom_inner;
+                                *bottom_outer = candidate_bottom_outer;
+                                best_score = score;
+                            }
+                        }
+                    }
+                }
+                state = 0;
+            }
+        }
+    }
+
+    return (best_score > 0) ? 1U : 0U;
+}
+
+/* 先在赛道内部逐行找横向候选，锁一条最像靶环直径的扫描线。 */
+static void TargetRing_FindCandidateRow(void)
+{
+    uint8 row = 0;
+    uint8 left_outer = 0;
+    uint8 left_inner = 0;
+    uint8 right_inner = 0;
+    uint8 right_outer = 0;
+    uint8 outer_width = 0;
+    uint8 inner_width = 0;
+    uint8 min_width = 0;
+    uint8 road_width = 0;
+    int left_limit = 0;
+    int right_limit = 0;
+    int inner_center = 0;
+    int outer_center = 0;
+    int symmetry_error = 0;
+    int score = 0;
+
+    for(row = (uint8)(ImageStatus.OFFLine + 2U); row < (uint8)(LCDH - 4U); row++)
+    {
+        left_limit = Limit(ImageDeal[row].LeftBorder + 2, LCDW - 2, 1);
+        right_limit = Limit(ImageDeal[row].RightBorder - 2, LCDW - 2, 1);
+        if(left_limit >= (right_limit - 6))
+        {
+            continue;
+        }
+
+        left_outer = 0;
+        left_inner = 0;
+        right_inner = 0;
+        right_outer = 0;
+        if(!TargetRing_FindHorizontalPattern(row,
+                                             (uint8)left_limit,
+                                             (uint8)right_limit,
+                                             &left_outer,
+                                             &left_inner,
+                                             &right_inner,
+                                             &right_outer))
+        {
+            continue;
+        }
+
+        road_width = (uint8)(right_limit - left_limit);
+        outer_width = (uint8)(right_outer - left_outer);
+        inner_width = (uint8)(right_inner - left_inner);
+        min_width = (uint8)(road_width / 8U);
+        if(min_width < 6U)
+        {
+            min_width = 6U;
+        }
+
+        if((outer_width < min_width) ||
+           (outer_width >= road_width) ||
+           (inner_width <= (uint8)(outer_width / 2U)))
+        {
+            continue;
+        }
+
+        outer_center = ((int)left_outer + (int)right_outer) / 2;
+        inner_center = ((int)left_inner + (int)right_inner) / 2;
+        symmetry_error = abs(outer_center - inner_center);
+        if(symmetry_error > 3)
+        {
+            continue;
+        }
+
+        score = (int)outer_width + (int)inner_width - symmetry_error;
+        if(score > (int)TargetRingScore)
+        {
+            TargetRingCandidateRow = row;
+            TargetRingCenterX = (uint8)inner_center;
+            TargetRingLeftX = left_outer;
+            TargetRingRightX = right_outer;
+            TargetRingWidth = outer_width;
+            TargetRingScore = (uint8)score;
+        }
+    }
+}
+
+/* 以横向候选中心为起点，逐列精修上下边界。 */
+static void TargetRing_FindCandidateColumn(void)
+{
+    uint8 col = 0;
+    uint8 top_outer = 0;
+    uint8 top_inner = 0;
+    uint8 bottom_inner = 0;
+    uint8 bottom_outer = 0;
+    uint8 outer_height = 0;
+    uint8 inner_height = 0;
+    uint8 best_col = 0;
+    int search_col_left = 0;
+    int search_col_right = 0;
+    int outer_center = 0;
+    int inner_center = 0;
+    int symmetry_error = 0;
+    int score = 0;
+    int best_score = 0;
+
+    if(0 == TargetRingScore)
+    {
+        return;
+    }
+
+    search_col_left = Limit((int)TargetRingCenterX - 2, LCDW - 2, 1);
+    search_col_right = Limit((int)TargetRingCenterX + 2, LCDW - 2, 1);
+
+    for(col = (uint8)search_col_left; col <= (uint8)search_col_right; col++)
+    {
+        top_outer = 0;
+        top_inner = 0;
+        bottom_inner = 0;
+        bottom_outer = 0;
+        if(!TargetRing_FindVerticalPattern(col,
+                                           (uint8)ImageStatus.OFFLine,
+                                           (uint8)(LCDH - 2U),
+                                           &top_outer,
+                                           &top_inner,
+                                           &bottom_inner,
+                                           &bottom_outer))
+        {
+            continue;
+        }
+
+        outer_height = (uint8)(bottom_outer - top_outer);
+        inner_height = (uint8)(bottom_inner - top_inner);
+        outer_center = ((int)top_outer + (int)bottom_outer) / 2;
+        inner_center = ((int)top_inner + (int)bottom_inner) / 2;
+        symmetry_error = abs(outer_center - inner_center);
+
+        if((TargetRingCandidateRow <= top_outer) ||
+           (TargetRingCandidateRow >= bottom_outer) ||
+           (outer_height < 4U) ||
+           (inner_height <= (uint8)(outer_height / 3U)) ||
+           (symmetry_error > 3))
+        {
+            continue;
+        }
+
+        score = (int)outer_height + (int)inner_height - symmetry_error;
+        if(score > best_score)
+        {
+            best_col = col;
+            TargetRingTopY = top_outer;
+            TargetRingBottomY = bottom_outer;
+            TargetRingCenterY = (uint8)inner_center;
+            TargetRingHeight = outer_height;
+            best_score = score;
+        }
+    }
+
+    if(best_score > 0)
+    {
+        TargetRingCenterX = best_col;
+    }
+    else
+    {
+        TargetRingScore = 0;
+    }
+}
+
+/* 回到中心行附近再做一次横向精修，拿到更稳的左右边界和中心。 */
+static void TargetRing_RefineCenterRow(void)
+{
+    uint8 row = 0;
+    uint8 left_outer = 0;
+    uint8 left_inner = 0;
+    uint8 right_inner = 0;
+    uint8 right_outer = 0;
+    uint8 outer_width = 0;
+    uint8 inner_width = 0;
+    uint8 best_row = 0;
+    uint8 best_center_x = 0;
+    int search_row_top = 0;
+    int search_row_bottom = 0;
+    int left_limit = 0;
+    int right_limit = 0;
+    int inner_center = 0;
+    int row_penalty = 0;
+    int center_penalty = 0;
+    int score = 0;
+    int best_score = 0;
+
+    if((0 == TargetRingScore) || (0 == TargetRingHeight))
+    {
+        return;
+    }
+
+    search_row_top = Limit((int)TargetRingCenterY - 1, LCDH - 2, ImageStatus.OFFLine + 1);
+    search_row_bottom = Limit((int)TargetRingCenterY + 1, LCDH - 2, ImageStatus.OFFLine + 1);
+
+    for(row = (uint8)search_row_top; row <= (uint8)search_row_bottom; row++)
+    {
+        left_limit = Limit(ImageDeal[row].LeftBorder + 2, LCDW - 2, 1);
+        right_limit = Limit(ImageDeal[row].RightBorder - 2, LCDW - 2, 1);
+        if(left_limit >= (right_limit - 6))
+        {
+            continue;
+        }
+
+        left_outer = 0;
+        left_inner = 0;
+        right_inner = 0;
+        right_outer = 0;
+        if(!TargetRing_FindHorizontalPattern(row,
+                                             (uint8)left_limit,
+                                             (uint8)right_limit,
+                                             &left_outer,
+                                             &left_inner,
+                                             &right_inner,
+                                             &right_outer))
+        {
+            continue;
+        }
+
+        outer_width = (uint8)(right_outer - left_outer);
+        inner_width = (uint8)(right_inner - left_inner);
+        if((outer_width < 4U) || (inner_width >= outer_width))
+        {
+            continue;
+        }
+
+        inner_center = ((int)left_inner + (int)right_inner) / 2;
+        row_penalty = abs((int)row - (int)TargetRingCenterY);
+        center_penalty = abs(inner_center - (int)TargetRingCenterX);
+        if(center_penalty > 4)
+        {
+            continue;
+        }
+
+        score = (int)outer_width + (int)inner_width - row_penalty - center_penalty;
+        if(score > best_score)
+        {
+            best_row = row;
+            best_center_x = (uint8)inner_center;
+            TargetRingLeftX = left_outer;
+            TargetRingRightX = right_outer;
+            TargetRingWidth = outer_width;
+            best_score = score;
+        }
+    }
+
+    if(best_score > 0)
+    {
+        TargetRingCenterY = best_row;
+        TargetRingCenterX = best_center_x;
+    }
+    else
+    {
+        TargetRingScore = 0;
+    }
+}
+
+/* 结合宽高、中心白点和车道约束做最终验收。 */
+static void TargetRing_VerifyResult(void)
+{
+    uint8 row = 0;
+    uint8 lane_left = 0;
+    uint8 lane_right = 0;
+    int width_height_diff = 0;
+
+    if((0 == TargetRingScore) ||
+       (0 == TargetRingWidth) ||
+       (0 == TargetRingHeight))
+    {
+        return;
+    }
+
+    row = TargetRingCenterY;
+    lane_left = (uint8)Limit(ImageDeal[row].LeftBorder, LCDW - 1, 0);
+    lane_right = (uint8)Limit(ImageDeal[row].RightBorder, LCDW - 1, 0);
+    if((TargetRingLeftX <= lane_left) ||
+       (TargetRingRightX >= lane_right))
+    {
+        TargetRingScore = 0;
+        return;
+    }
+
+    if(!TargetRing_IsCenterWhite(TargetRingCenterY, TargetRingCenterX))
+    {
+        TargetRingScore = 0;
+        return;
+    }
+
+    width_height_diff = (int)TargetRingWidth - (int)TargetRingHeight;
+    if(width_height_diff < 0)
+    {
+        width_height_diff = -width_height_diff;
+    }
+
+    if((TargetRingWidth > (uint8)(TargetRingHeight * 3U)) ||
+       (TargetRingHeight > (uint8)(TargetRingWidth + 4U)) ||
+       (width_height_diff > (int)(TargetRingWidth + 2U)))
+    {
+        TargetRingScore = 0;
+        return;
+    }
+
+    TargetRingFound = 1;
+}
+
+/* 更新靶环稳定命中计数。 */
+static void TargetRing_UpdateState(void)
+{
+    int dx = 0;
+    int dy = 0;
+
+    if(TargetRingFound)
+    {
+        TargetRingMissFrames = 0;
+        if((0xFF != TargetRingLastCenterX) && (0xFF != TargetRingLastCenterY))
+        {
+            dx = abs((int)TargetRingCenterX - (int)TargetRingLastCenterX);
+            dy = abs((int)TargetRingCenterY - (int)TargetRingLastCenterY);
+            if((dx <= 3) && (dy <= 3))
+            {
+                if(TargetRingStableCount < 255U)
+                {
+                    TargetRingStableCount++;
+                }
+            }
+            else
+            {
+                TargetRingStableCount = 1;
+            }
+        }
+        else
+        {
+            TargetRingStableCount = 1;
+        }
+
+        TargetRingLastCenterX = TargetRingCenterX;
+        TargetRingLastCenterY = TargetRingCenterY;
+    }
+    else
+    {
+        if(TargetRingMissFrames < 255U)
+        {
+            TargetRingMissFrames++;
+        }
+        if(TargetRingMissFrames >= 3U)
+        {
+            TargetRingStableCount = 0;
+            TargetRingLastCenterX = 0xFF;
+            TargetRingLastCenterY = 0xFF;
+            TargetRingShotDoneLatch = 0;
+        }
+    }
+}
+
+/* 单激光笔打靶控制，只在真正开激光时蜂鸣。 */
+static void TargetRing_HandleLaserFire(void)
+{
+    uint8 fire_ready = 0;
+    int center_offset = 0;
+
+    if(SYS_RUNNING != g_system_state)
+    {
+        laser_off();
+        TargetRingLaserActive = 0;
+        TargetRingFireHoldFrames = 0;
+        return;
+    }
+
+    if(TargetRingFound &&
+       (TargetRingStableCount >= 2U) &&
+       (TargetRingCenterY >= TargetRingFireRowMin) &&
+       (TargetRingCenterY <= TargetRingFireRowMax))
+    {
+        center_offset = abs((int)TargetRingCenterX - (int)ImageSensorMid);
+        if(center_offset <= (int)TargetRingFireCenterTol)
+        {
+            fire_ready = 1;
+        }
+    }
+
+    if(TargetRingLaserActive)
+    {
+        if(TargetRingFireHoldFrames < 255U)
+        {
+            TargetRingFireHoldFrames++;
+        }
+
+        if((!fire_ready) || (TargetRingFireHoldFrames >= TargetRingFireHoldFrameMax))
+        {
+            laser_off();
+            TargetRingLaserActive = 0;
+            TargetRingFireHoldFrames = 0;
+            TargetRingShotDoneLatch = 1;
+        }
+        return;
+    }
+
+    if(fire_ready && (0U == TargetRingShotDoneLatch))
+    {
+        laser_on();
+        buzzer_short();
+        TargetRingLaserActive = 1;
+        TargetRingFireHoldFrames = 0;
+        return;
+    }
+
+    laser_off();
+}
+
 // 图像处理
 void ImageProcess(void)
 {
@@ -2456,6 +3131,15 @@ void ImageProcess(void)
     runtime_tow_point = SearchLine_GetRuntimeTowPoint();
     // SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
     GetDet(runtime_tow_point);             //获取动态前瞻  并且计算图像偏差
+
+    /* 靶环识别链，不用时直接注释下面几行调用即可。 */
+    TargetRing_ResetFrameResult();
+    TargetRing_FindCandidateRow();
+    TargetRing_FindCandidateColumn();
+    TargetRing_RefineCenterRow();
+    TargetRing_VerifyResult();
+    TargetRing_UpdateState();
+    TargetRing_HandleLaserFire();
 
 }
 
@@ -2558,6 +3242,82 @@ void SearchLine_ResetPreviewOverlay(void)
     PreviewLastRingStageNum = 0xFFFF;
     PreviewLastRingPointY = 0xFFFF;
     PreviewLastRingStraightJudgeTenth = 32767;
+}
+
+/* 在相机预览上叠加靶环框和靶心。 */
+static void DrawTargetRingPreview(uint16 preview_w, uint16 preview_h)
+{
+    uint16 fire_y_min = 0;
+    uint16 fire_y_max = 0;
+    uint16 fire_x_left = 0;
+    uint16 fire_x_right = 0;
+    uint16 x_center = 0;
+    uint16 y_center = 0;
+    uint16 x_left = 0;
+    uint16 x_right = 0;
+    uint16 y_top = 0;
+    uint16 y_bottom = 0;
+    int i = 0;
+
+    fire_y_min = (uint16)(((uint32)TargetRingFireRowMin * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                          (uint32)LCDH);
+    fire_y_max = (uint16)(((uint32)TargetRingFireRowMax * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                          (uint32)LCDH);
+    fire_x_left = (uint16)((((uint32)(ImageSensorMid - TargetRingFireCenterTol)) * (uint32)preview_w +
+                            (uint32)(LCDW / 2)) /
+                           (uint32)LCDW);
+    fire_x_right = (uint16)((((uint32)(ImageSensorMid + TargetRingFireCenterTol)) * (uint32)preview_w +
+                             (uint32)(LCDW / 2)) /
+                            (uint32)LCDW);
+
+    for(i = (int)fire_x_left; i <= (int)fire_x_right; i++)
+    {
+        ips200_draw_point((uint16)i, fire_y_min, RGB565_BLUE);
+        ips200_draw_point((uint16)i, fire_y_max, RGB565_BLUE);
+    }
+    for(i = (int)fire_y_min; i <= (int)fire_y_max; i++)
+    {
+        ips200_draw_point(fire_x_left, (uint16)i, RGB565_BLUE);
+        ips200_draw_point(fire_x_right, (uint16)i, RGB565_BLUE);
+    }
+
+    if(!TargetRingFound)
+    {
+        return;
+    }
+
+    x_center = (uint16)(((uint32)TargetRingCenterX * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                        (uint32)LCDW);
+    y_center = (uint16)(((uint32)TargetRingCenterY * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                        (uint32)LCDH);
+    x_left = (uint16)(((uint32)TargetRingLeftX * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                      (uint32)LCDW);
+    x_right = (uint16)(((uint32)TargetRingRightX * (uint32)preview_w + (uint32)(LCDW / 2)) /
+                       (uint32)LCDW);
+    y_top = (uint16)(((uint32)TargetRingTopY * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                     (uint32)LCDH);
+    y_bottom = (uint16)(((uint32)TargetRingBottomY * (uint32)preview_h + (uint32)(LCDH / 2)) /
+                        (uint32)LCDH);
+
+    for(i = (int)x_left; i <= (int)x_right; i++)
+    {
+        ips200_draw_point((uint16)i, y_top, RGB565_MAGENTA);
+        ips200_draw_point((uint16)i, y_bottom, RGB565_MAGENTA);
+    }
+    for(i = (int)y_top; i <= (int)y_bottom; i++)
+    {
+        ips200_draw_point(x_left, (uint16)i, RGB565_MAGENTA);
+        ips200_draw_point(x_right, (uint16)i, RGB565_MAGENTA);
+    }
+    for(i = -4; i <= 4; i++)
+    {
+        ips200_draw_point((uint16)Limit((int)x_center + i, preview_w - 1, 0),
+                          y_center,
+                          RGB565_RED);
+        ips200_draw_point(x_center,
+                          (uint16)Limit((int)y_center + i, preview_h - 1, 0),
+                          RGB565_RED);
+    }
 }
 
 static void DrawPreview(uint8 show_raw)
@@ -2864,6 +3624,8 @@ static void DrawPreview(uint8 show_raw)
                      (uint32)LCDW);
         ips200_draw_point(x, y, RGB565_CYAN);
     }
+
+    DrawTargetRingPreview(preview_w, preview_h);
 }
 
 /* 显示压缩二值图。 */
