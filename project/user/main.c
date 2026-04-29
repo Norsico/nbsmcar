@@ -149,12 +149,6 @@ void main(void)
         // 系统错误时进入紧急状态
         if(system_error) g_system_state = SYS_EMERGENCY;
 
-        if(g_flag_buzzer){
-            /* 蜂鸣器时序独立轮询，短响长响都从底层自行关断。 */
-            g_flag_buzzer = 0;
-            buzzer_task();
-        }
-
         switch(g_system_state){
 
             // 正常运行
@@ -202,6 +196,16 @@ void main(void)
                         // 前轮PD控制
                         line_app_process_steer();
                     }
+                }
+                if(g_flag_buzzer){
+                    /* 蜂鸣器时序独立轮询，短响长响都从底层自行关断。 */
+                    g_flag_buzzer = 0;
+                    buzzer_task();
+                }
+                if(g_flag_laser){
+                    /* 激光笔时序独立轮询，按需开关。 */
+                    g_flag_laser = 0;
+                    laser_task();
                 }
                 if(g_flag_key){
                     // 按键 20ms
@@ -276,21 +280,31 @@ void main(void)
             case SYS_EMERGENCY:
                 /* 进紧急状态后仍保留蜂鸣器轮询，避免测试短响一直不关。 */
                 buzzer_task();
+                /* 激光短打改成独立定时后，急停态也要继续轮询关断。 */
+                laser_task();
                 // 停风扇
                 bldc_motor_stop();
-                if(g_flag_encoder)
+                if(g_emergency_direct_stop)
                 {
-                    g_flag_encoder = 0;
-                    /* 紧急状态下继续读编码器，用反拖把后轮尽快刹停。 */
-                    encoder_update();
+                    // 其它急停直接断后轮输出
+                    car_wheel_stop_all();
                 }
-                // 停直流电机
-                car_wheel_emergency_brake();
+                else
+                {
+                    if(g_flag_encoder)
+                    {
+                        g_flag_encoder = 0;
+                        /* 斑马线第二次命中这一路保留编码器反拖，把车尽快刹住。 */
+                        encoder_update();
+                    }
+                    car_wheel_emergency_brake();
+                }
                 // 停舵机
                 car_servo_set_center();
 
                 // 清空标志位
                 g_flag_buzzer = 0;
+                g_flag_laser = 0;
                 g_flag_steer = 0;
                 g_flag_center = 0;
 #if IPS_ENABLE

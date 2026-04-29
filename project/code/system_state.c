@@ -7,10 +7,12 @@
 /************ 全局变量定义 ************/
 volatile system_state_t g_system_state = SYS_INIT;  // 系统状态：INIT/RUNNING/STOPED/EMERGENCY
 uint8 system_error = 0;                               // 系统错误标志：非0表示发生错误，进入紧急状态
-
+vuint8 g_emergency_direct_stop = 1;                  // 急停默认直接停轮
+ 
 vuint32 g_system_ticks = 0;                           // 系统Tick计数器，每1ms加1
 vuint32 g_key_ticks = 0;                              // 按键扫描计时器
 vuint32 g_buzzer_ticks = 0;                           // 蜂鸣器计时器
+vuint32 g_laser_ticks = 0;                           // 激光笔计时器
 vuint32 g_imu_ticks = 0;                              // IMU读取计时器
 vuint32 g_steer_ticks = 0;                            // 舵机控制计时器
 vuint32 g_encoder_ticks = 0;													// 编码器采样计时器
@@ -24,6 +26,7 @@ vuint32 g_wifi_ticks = 0;                             // WiFi任务计时器
 	
 vuint8 g_flag_key = 0;                                // 按键扫描标志：1表示需要执行按键扫描
 vuint8 g_flag_buzzer = 0;                             // 蜂鸣器轮询标志
+vuint8 g_flag_laser = 0;                              // 激光笔轮询标志
 vuint8 g_flag_imu = 0;                               // IMU读取标志：1表示需要读取IMU数据
 vuint8 g_flag_steer = 0;                             // 舵机控制标志
 vuint8 g_flag_encoder = 0;														// 编码器处理标志
@@ -52,6 +55,11 @@ void system_tick_handler(void)
     if(g_system_ticks - g_buzzer_ticks >= BUZZER_PERIOD){
         g_buzzer_ticks = g_system_ticks;
         g_flag_buzzer = 1;
+    }
+    // 激光笔独立按 20ms 节拍轮询，不占主链图像处理。
+    if(g_system_ticks - g_laser_ticks >= LASER_PERIOD){
+        g_laser_ticks = g_system_ticks;
+        g_flag_laser = 1;
     }
 
     // 陀螺仪读取 10ms

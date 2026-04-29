@@ -156,20 +156,6 @@ static void car_wheel_pid_reset_single(pid_control_t *pid)
     pid->output = 0;
 }
 
-// 进入紧急情况情况，清空PID参数
-/* 清空后轮闭环状态并停轮。 */
-void car_wheel_control_reset(void)
-{
-    car_wheel_run_request_speed = 0;
-    car_wheel_target_speed = 0;
-    ref_left_target = 0;
-    ref_right_target = 0;
-    car_wheel_apply_target(0, 0);
-    car_wheel_pid_reset_single(&wheel_pid_left);
-    car_wheel_pid_reset_single(&wheel_pid_right);
-    encoder_clear();
-    car_wheel_stop_all();
-}
 
 /* 紧急状态下按当前轮速给反向小占空比，尽快把后轮拖停。 */
 void car_wheel_emergency_brake(void)

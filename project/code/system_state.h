@@ -20,6 +20,7 @@ typedef enum {
 #define TICKS_MS 1                     // 系统tick 1ms
 #define KEY_SCAN_PERIOD 20              // 按键扫描周期 20ms (50Hz)
 #define BUZZER_PERIOD 20                // 蜂鸣器轮询周期 20ms
+#define LASER_PERIOD 2                 // 激光笔轮询周期 20ms
 #define IMU_PERIOD 10                   // IMU读取周期 10ms (100Hz)
 #define STEER_PERIOD 10                 // 舵机控制周期 10ms，对齐国一独立舵机节拍。
 #define ENCODER_PERIOD 5                // 编码器采样周期 5ms (200Hz)
@@ -45,11 +46,13 @@ typedef enum {
 // 系统状态
 extern volatile system_state_t g_system_state;  // 系统当前状态
 extern uint8 system_error;                       // 系统错误标志
-
+extern vuint8 g_emergency_direct_stop;          // 急停默认直接停轮，斑马线第二次命中再切反拖刹停
+ 
 // 任务计时器
 extern vuint32 g_system_ticks;           // 系统Tick计数器
 extern vuint32 g_key_ticks;              // 按键扫描计时器
 extern vuint32 g_buzzer_ticks;           // 蜂鸣器计时器
+extern vuint32 g_laser_ticks;
 extern vuint32 g_imu_ticks;              // IMU读取计时器
 extern vuint32 g_steer_ticks;            // 舵机控制计时器
 extern vuint32 g_encoder_ticks;          // 编码器采样计时器
@@ -63,6 +66,7 @@ extern vuint32 g_wifi_ticks;             // WiFi任务计时器
 // 任务标志位
 extern vuint8 g_flag_key;                         // 按键扫描标志
 extern vuint8 g_flag_buzzer;                      // 蜂鸣器轮询标志
+extern vuint8 g_flag_laser;                       // 激光笔轮询标志
 extern vuint8 g_flag_imu;                          // IMU读取标志
 extern vuint8 g_flag_steer;                       // 舵机控制标志
 extern vuint8 g_flag_encoder;                     // 编码器处理标志

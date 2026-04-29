@@ -19,6 +19,8 @@ void buzzer_task(void);
 // 激光笔
 void laser_on(void);
 void laser_off(void);
+void laser_short(void);
+void laser_task(void);
 // 拨码开关
 void switch_update(void);
 uint8 switch_debug_enabled(void);

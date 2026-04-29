@@ -88,10 +88,10 @@ static uint8 TargetRingFireHoldFrames = 0;
 static uint8 TargetRingShotDoneLatch = 0;
 static uint8 TargetRingLastCenterX = 0xFF;
 static uint8 TargetRingLastCenterY = 0xFF;
-static const uint8 TargetRingFireRowMin = 36;      /* 打靶窗口上沿，按 60 行压缩图口径估算。 */
-static const uint8 TargetRingFireRowMax = 42;      /* 打靶窗口下沿，目标靠近车头时才允许开激光。 */
-static const uint8 TargetRingFireCenterTol = 4;    /* 靶心距图像中心允许误差，超出不打。 */
-static const uint8 TargetRingFireHoldFrameMax = 3; /* 激光单次保持帧数，防止拖到靶外。 */
+static const uint8 TargetRingFireRowMin = 36-6;      /* 打靶窗口上沿，按 60 行压缩图口径估算。 */
+static const uint8 TargetRingFireRowMax = 42-2;      /* 打靶窗口下沿，目标靠近车头时才允许开激光。 */
+static const uint8 TargetRingFireCenterTol = 8;    /* 靶心距图像中心允许误差，超出不打。 */
+static const uint8 TargetRingFireHoldFrameMax = 1; /* 激光单次保持帧数，防止拖到靶外。 */
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
 {
@@ -2371,6 +2371,7 @@ static void CheckZebraEmergency(void)
                 buzzer_short();
                 if(ZebraDetectCount >= 2)
                 {
+                    g_emergency_direct_stop = 0;
                     g_system_state = SYS_EMERGENCY;
                 }
 
@@ -3082,7 +3083,7 @@ static void TargetRing_HandleLaserFire(void)
 
     if(fire_ready && (0U == TargetRingShotDoneLatch))
     {
-        laser_on();
+        laser_short();
         buzzer_short();
         TargetRingLaserActive = 1;
         TargetRingFireHoldFrames = 0;

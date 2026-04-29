@@ -3,6 +3,7 @@
 
 #define BUZZER_SHORT_MS (100)
 #define BUZZER_LONG_MS  (500)
+#define LASER_SHORT_MS (5)
 
 // 配置蜂鸣器、激光笔初始化
 static uint8 g_switch_debug_enable = 1;
@@ -10,6 +11,8 @@ static uint8 g_switch_ui_enable = 0;
 static uint8 g_switch_wifi_enable = 0;
 static uint8 g_buzzer_busy = 0;
 static uint32 g_buzzer_stop_tick = 0;
+static uint8 g_laser_busy = 0;
+static uint32 g_laser_stop_tick = 0;
 
 /* 蜂鸣器响铃期间不重复受理新的短响长响请求。 */
 static void buzzer_start(uint16 duration_ms)
@@ -22,6 +25,18 @@ static void buzzer_start(uint16 duration_ms)
     buzzer_on();
     g_buzzer_busy = 1;
     g_buzzer_stop_tick = g_system_ticks + duration_ms;
+}
+
+static void laser_start(uint16 duration_ms)
+{
+    if(0 != g_laser_busy)
+    {
+        return;
+    }
+
+    laser_on();
+    g_laser_busy = 1;
+    g_laser_stop_tick = g_system_ticks + duration_ms;
 }
 
 void other_init(void)
@@ -77,6 +92,24 @@ void laser_on(void)
 void laser_off(void)
 {
 	gpio_set_level(LASER_PIN,GPIO_LOW);
+}
+void laser_short(void)
+{
+    laser_start(LASER_SHORT_MS);
+}
+void laser_task(void)
+{
+    if(0 == g_laser_busy)
+    {
+        return;
+    }
+
+    if(g_system_ticks >= g_laser_stop_tick)
+    {
+        laser_off();
+        g_laser_busy = 0;
+        g_laser_stop_tick = 0;
+    }
 }
 
 void switch_update(void)

@@ -131,6 +131,9 @@ static uint8 line_app_handle_frame(void)
         return 0;
     }
 
+    /* 每帧先按直接停轮准备，只有斑马线第二次命中才改走反拖刹停。 */
+    g_emergency_direct_stop = 1;
+
     // 处理图像
     SearchLine_Process();
     raw_otsu_threshold = SearchLine_GetRawOtsuThreshold();
