@@ -70,29 +70,31 @@ static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
 static uint16 Speed_Goal = 150;
-static uint8 TargetRingFound = 0;
-static uint8 TargetRingCenterX = 0;
-static uint8 TargetRingCenterY = 0;
-static uint8 TargetRingLeftX = 0;
-static uint8 TargetRingRightX = 0;
-static uint8 TargetRingTopY = 0;
-static uint8 TargetRingBottomY = 0;
-static uint8 TargetRingWidth = 0;
-static uint8 TargetRingHeight = 0;
-static uint8 TargetRingScore = 0;
-static uint8 TargetRingCandidateRow = 0;
-static uint8 TargetRingStableCount = 0;
-static uint8 TargetRingMissFrames = 0;
-static uint8 TargetRingLaserActive = 0;
-static uint8 TargetRingFireHoldFrames = 0;
-static uint8 TargetRingShotDoneLatch = 0;
-static uint8 TargetRingLastCenterX = 0xFF;
-static uint8 TargetRingLastCenterY = 0xFF;
+static uint8 TargetRingFound = 0;          /* 本帧是否通过最终验收，确认为靶环。 */
+static uint8 TargetRingCenterX = 0;        /* 本帧靶环中心列坐标。 */
+static uint8 TargetRingCenterY = 0;        /* 本帧靶环中心行坐标。 */
+static uint8 TargetRingLeftX = 0;          /* 本帧靶环外侧左边界。 */
+static uint8 TargetRingRightX = 0;         /* 本帧靶环外侧右边界。 */
+static uint8 TargetRingTopY = 0;           /* 本帧靶环外侧上边界。 */
+static uint8 TargetRingBottomY = 0;        /* 本帧靶环外侧下边界。 */
+static uint8 TargetRingWidth = 0;          /* 本帧靶环外框宽度。 */
+static uint8 TargetRingHeight = 0;         /* 本帧靶环外框高度。 */
+static uint8 TargetRingScore = 0;          /* 当前候选得分，分数越高越像靶环。 */
+static uint8 TargetRingCandidateRow = 0;   /* 横向粗搜时命中的候选中心行。 */
+static uint8 TargetRingStableCount = 0;    /* 连续稳定识别计数，当前仅用于观察，不再参与开火门槛。 */
+static uint8 TargetRingMissFrames = 0;     /* 连续丢失靶环的帧数，用于超时清状态。 */
+static uint8 TargetRingShotDoneLatch = 0;  /* 同一次进入开火框期间只允许打一发；离开开火框后清零，下一次再允许打。 */
+static uint8 TargetRingLastCenterX = 0xFF; /* 上一帧靶环中心列，仅用于稳定性统计。 */
+static uint8 TargetRingLastCenterY = 0xFF; /* 上一帧靶环中心行，仅用于稳定性统计。 */
+
+// 直道加速
+float variance = 0, variance_acc = 25;  //方差
+
+// 打靶
 static const uint8 TargetRingFireRowMin = 36-6;      /* 打靶窗口上沿，按 60 行压缩图口径估算。 */
 static const uint8 TargetRingFireRowMax = 42-2;      /* 打靶窗口下沿，目标靠近车头时才允许开激光。 */
-static const uint8 TargetRingFireCenterTol = 8;    /* 靶心距图像中心允许误差，超出不打。 */
-static const uint8 TargetRingFireHoldFrameMax = 1; /* 激光单次保持帧数，防止拖到靶外。 */
-float variance = 0, variance_acc = 25;  //方差
+static const uint8 TargetRingFireCenterTol = 8;      /* 靶心距图像中心允许的左右误差，超出不打。 */
+
 static float Weighting[10] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
@@ -2456,37 +2458,33 @@ static void TargetRing_ResetFrameResult(void)
     TargetRingCandidateRow = 0;
 }
 
-/* 检查候选中心附近是否仍以白色为主，避免把黑块噪声误当成靶心。 */
+/* 3x3 白点快速判定，避免候选搜索里反复走边界裁剪循环。 */
 static uint8 TargetRing_IsCenterWhite(uint8 row, uint8 col)
 {
-    int row_start = 0;
-    int row_end = 0;
-    int col_start = 0;
-    int col_end = 0;
-    int i = 0;
-    int j = 0;
     uint8 white_count = 0;
+    uint8 *row_prev = 0;
+    uint8 *row_curr = 0;
+    uint8 *row_next = 0;
 
-    row_start = Limit((int)row - 1, LCDH - 1, 0);
-    row_end = Limit((int)row + 1, LCDH - 1, 0);
-    col_start = Limit((int)col - 1, LCDW - 1, 0);
-    col_end = Limit((int)col + 1, LCDW - 1, 0);
-
-    for(i = row_start; i <= row_end; i++)
+    if((0U == row) || (row >= (LCDH - 1U)) ||
+       (0U == col) || (col >= (LCDW - 1U)))
     {
-        for(j = col_start; j <= col_end; j++)
-        {
-            if(1 == Pixle[i][j])
-            {
-                white_count++;
-            }
-        }
+        return 0;
     }
+
+    row_prev = Pixle[row - 1U];
+    row_curr = Pixle[row];
+    row_next = Pixle[row + 1U];
+
+    white_count = row_prev[col - 1U] + row_prev[col] + row_prev[col + 1U] +
+                  row_curr[col - 1U] + row_curr[col] + row_curr[col + 1U] +
+                  row_next[col - 1U] + row_next[col] + row_next[col + 1U];
 
     return (white_count >= 5U) ? 1U : 0U;
 }
 
-/* 在一行内搜索白-黑-白-黑-白模式，提取靶环左右边界。 */
+/* 在一行内搜索白-黑-白-黑-白模式，提取靶环左右边界。
+ * 这里的“中心”取的是中间白芯的中心，不是整段最大白块的几何中心。 */
 static uint8 TargetRing_FindHorizontalPattern(uint8 row,
                                               uint8 left_limit,
                                               uint8 right_limit,
@@ -2711,6 +2709,7 @@ static void TargetRing_FindCandidateRow(void)
     {
         left_limit = Limit(ImageDeal[row].LeftBorder + 2, LCDW - 2, 1);
         right_limit = Limit(ImageDeal[row].RightBorder - 2, LCDW - 2, 1);
+
         if(left_limit >= (right_limit - 6))
         {
             continue;
@@ -2989,7 +2988,8 @@ static void TargetRing_VerifyResult(void)
     TargetRingFound = 1;
 }
 
-/* 更新靶环稳定命中计数。 */
+/* 更新靶环稳定命中计数。
+ * 这组状态现在不再控制“是否允许开火”，主要用于观测识别是否抖动，以及在连续丢失后清掉历史状态。 */
 static void TargetRing_UpdateState(void)
 {
     int dx = 0;
@@ -3038,7 +3038,14 @@ static void TargetRing_UpdateState(void)
     }
 }
 
-/* 单激光笔打靶控制，只在真正开激光时蜂鸣。 */
+/* 单激光笔打靶控制。
+ * 当前逻辑：
+ * 1. 本帧识别出合法靶环；
+ * 2. 靶环中心进入上下开火窗口；
+ * 3. 靶环中心左右偏差不超过容差；
+ * 4. 如果这一轮还没打过，就打一发 5ms 脉冲。
+ * 注意：ShotDoneLatch 只防止“同一个目标停留在窗口里时每帧都重复开火”，
+ * 目标离开窗口后会清零，下一次重新进入窗口时可再次开火。 */
 static void TargetRing_HandleLaserFire(void)
 {
     uint8 fire_ready = 0;
@@ -3047,13 +3054,10 @@ static void TargetRing_HandleLaserFire(void)
     if(SYS_RUNNING != g_system_state)
     {
         laser_off();
-        TargetRingLaserActive = 0;
-        TargetRingFireHoldFrames = 0;
         return;
     }
 
     if(TargetRingFound &&
-       (TargetRingStableCount >= 2U) &&
        (TargetRingCenterY >= TargetRingFireRowMin) &&
        (TargetRingCenterY <= TargetRingFireRowMax))
     {
@@ -3064,33 +3068,19 @@ static void TargetRing_HandleLaserFire(void)
         }
     }
 
-    if(TargetRingLaserActive)
-    {
-        if(TargetRingFireHoldFrames < 255U)
-        {
-            TargetRingFireHoldFrames++;
-        }
-
-        if((!fire_ready) || (TargetRingFireHoldFrames >= TargetRingFireHoldFrameMax))
-        {
-            laser_off();
-            TargetRingLaserActive = 0;
-            TargetRingFireHoldFrames = 0;
-            TargetRingShotDoneLatch = 1;
-        }
-        return;
-    }
-
     if(fire_ready && (0U == TargetRingShotDoneLatch))
     {
         laser_short();
         buzzer_short();
-        TargetRingLaserActive = 1;
-        TargetRingFireHoldFrames = 0;
+        TargetRingShotDoneLatch = 1;
         return;
     }
 
-    laser_off();
+    if(!fire_ready)
+    {
+        laser_off();
+        TargetRingShotDoneLatch = 0;
+    }
 }
 
 // 图像处理

@@ -56,7 +56,7 @@ void system_tick_handler(void)
         g_buzzer_ticks = g_system_ticks;
         g_flag_buzzer = 1;
     }
-    // 激光笔独立按 20ms 节拍轮询，不占主链图像处理。
+    /* 激光笔独立按 1ms 节拍轮询，用于短脉冲自动关断。 */
     if(g_system_ticks - g_laser_ticks >= LASER_PERIOD){
         g_laser_ticks = g_system_ticks;
         g_flag_laser = 1;
@@ -72,12 +72,12 @@ void system_tick_handler(void)
         g_steer_ticks = g_system_ticks;
         g_flag_steer = 1;
     }
-    // 编码器采样 5ms
+    // 编码器采样 10ms
     if(g_system_ticks - g_encoder_ticks >= ENCODER_PERIOD){
         g_encoder_ticks = g_system_ticks;
         g_flag_encoder = 1;
     }
-	// 图像处理
+	// 图像处理 16ms
 	if(g_system_ticks - g_center_ticks >=  CENTER_PERIOD){
 		g_center_ticks = g_system_ticks;
 		g_flag_center = 1;

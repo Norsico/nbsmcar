@@ -203,7 +203,7 @@ void main(void)
                     buzzer_task();
                 }
                 if(g_flag_laser){
-                    /* 激光笔时序独立轮询，按需开关。 */
+                    /* 激光笔按 1ms 倒计时轮询，短脉冲到点自动关断。 */
                     g_flag_laser = 0;
                     laser_task();
                 }
@@ -214,7 +214,7 @@ void main(void)
                     key_event_poll();
                 }
                 if(g_flag_encoder){
-                    // 编码器 5ms
+                    // 编码器 10ms
                     g_flag_encoder = 0;
                     if((SYS_RUNNING != g_system_state) ||
                        switch_ui_enabled() ||
@@ -232,7 +232,7 @@ void main(void)
                     }
                 }
                 if(g_flag_center){
-                    // 图像处理 10ms
+                    // 图像处理 16ms
                     g_flag_center = 0;
                     if(switch_ui_enabled())
                     {
@@ -278,10 +278,9 @@ void main(void)
 
             // 紧急状态
             case SYS_EMERGENCY:
-                /* 进紧急状态后仍保留蜂鸣器轮询，避免测试短响一直不关。 */
-                buzzer_task();
-                /* 激光短打改成独立定时后，急停态也要继续轮询关断。 */
-                laser_task();
+                /* 急停时直接关闭提示器件，不再保留脉冲收尾逻辑。 */
+                buzzer_off();
+                laser_off();
                 // 停风扇
                 bldc_motor_stop();
                 if(g_emergency_direct_stop)

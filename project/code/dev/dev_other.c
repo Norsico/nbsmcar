@@ -1,8 +1,10 @@
 #include "dev_other.h"
 #include "system_state.h"
 
+// 蜂鸣器时间
 #define BUZZER_SHORT_MS (100)
 #define BUZZER_LONG_MS  (500)
+// 激光笔时间
 #define LASER_SHORT_MS (5)
 
 // 配置蜂鸣器、激光笔初始化
@@ -11,8 +13,7 @@ static uint8 g_switch_ui_enable = 0;
 static uint8 g_switch_wifi_enable = 0;
 static uint8 g_buzzer_busy = 0;
 static uint32 g_buzzer_stop_tick = 0;
-static uint8 g_laser_busy = 0;
-static uint32 g_laser_stop_tick = 0;
+static uint8 g_laser_remain_ms = 0;
 
 /* 蜂鸣器响铃期间不重复受理新的短响长响请求。 */
 static void buzzer_start(uint16 duration_ms)
@@ -29,14 +30,15 @@ static void buzzer_start(uint16 duration_ms)
 
 static void laser_start(uint16 duration_ms)
 {
-    if(0 != g_laser_busy)
+    if(0 == duration_ms)
     {
+        g_laser_remain_ms = 0;
+        laser_off();
         return;
     }
 
     laser_on();
-    g_laser_busy = 1;
-    g_laser_stop_tick = g_system_ticks + duration_ms;
+    g_laser_remain_ms = (duration_ms > 255U) ? 255U : (uint8)duration_ms;
 }
 
 void other_init(void)
@@ -99,16 +101,16 @@ void laser_short(void)
 }
 void laser_task(void)
 {
-    if(0 == g_laser_busy)
+    if(0 == g_laser_remain_ms)
     {
+        laser_off();
         return;
     }
 
-    if(g_system_ticks >= g_laser_stop_tick)
+    g_laser_remain_ms--;
+    if(0 == g_laser_remain_ms)
     {
         laser_off();
-        g_laser_busy = 0;
-        g_laser_stop_tick = 0;
     }
 }
 
