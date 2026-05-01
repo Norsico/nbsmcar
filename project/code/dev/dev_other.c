@@ -5,7 +5,7 @@
 #define BUZZER_SHORT_MS (100)
 #define BUZZER_LONG_MS  (500)
 // 激光笔时间
-#define LASER_SHORT_MS (5)
+#define LASER_SHORT_MS (2)
 
 // 配置蜂鸣器、激光笔初始化
 static uint8 g_switch_debug_enable = 1;
