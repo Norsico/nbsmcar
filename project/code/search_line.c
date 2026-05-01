@@ -113,13 +113,14 @@ void compressimage(void)
     int i, j, row;
     uint8 *dst_row;
     uint8 *src_row;
-    /* 原图左右各裁 4 列。 */
+    
+    /* 原图左右各裁 */
     const int cut_col = 1;
-    /* 原图底部裁 10 行。 */
+    /* 原图底部裁 */
     const int cut_row_bottom = 10;
     /* 原图顶部当前不裁。 */
     const int cut_row_top = 0;
-    /* 裁剪后输入窗口：180x110。 */
+    /* 裁剪后输入窗口 */
     const int src_h = MT9V03X_H - cut_row_top - cut_row_bottom;
     const int src_w = MT9V03X_W - (cut_col * 2);
 
@@ -1754,7 +1755,6 @@ static void Element_Handle_Right_Rings(void)
     int flag_Xsite_1 = 0;
     int flag_Ysite_1 = 0;
     float Slope_Right_Rings = 0.0f;
-    float straight_judge = 0.0f;
 
     Ring_Stage_Num = 0;
     Ring_Point_Y = 0;
@@ -1825,15 +1825,7 @@ static void Element_Handle_Right_Rings(void)
         //出环后
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        straight_judge = Straight_Judge(1,
-                                        (uint8)Limit((int16)ImageStatus.OFFLine + 10,
-                                                     0,
-                                                     LCDH - 1),
-                                        45);
-        Ring_Straight_Judge_Tenth = (int16)(straight_judge * 10.0f + 0.5f);
-        if(straight_judge < 1.0f &&
-           ImageStatus.Left_Line < 9 &&
-           ImageStatus.OFFLine < 20)
+        if(ImageStatus.Left_Line < 9 && ImageStatus.OFFLine < 10)
         {
             ImageFlag.image_element_rings_flag = 9;
         }
@@ -1962,13 +1954,13 @@ static void Element_Handle_Right_Rings(void)
         //大圆环出环 补线
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        Repair_Point_Xsite = 20;
+        Repair_Point_Xsite = 59;
         Repair_Point_Ysite = 0;
-        for(Ysite = 40; Ysite > 8; Ysite--)
+        for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if(Pixle[Ysite][28] == 1 && Pixle[Ysite - 1][28] == 0)
+            if(Pixle[Ysite][51] == 1 && Pixle[Ysite - 1][51] == 0)
             {
-                Repair_Point_Xsite = 28;
+                Repair_Point_Xsite = 51;
                 Repair_Point_Ysite = Ysite - 1;
                 ImageStatus.OFFLine = Ysite + 1;
                 break;
@@ -2014,8 +2006,8 @@ void Element_Test(void)
        &&ImageStatus.Road_type != Cross_ture
        &&ImageStatus.Road_type != Barn_out)
     {
-        // Element_Judgment_Left_Rings();   //左圆环检测
-        // Element_Judgment_Right_Rings();  //右圆环检测
+        Element_Judgment_Left_Rings();   //左圆环检测
+        Element_Judgment_Right_Rings();  //右圆环检测
     }
 }
 
