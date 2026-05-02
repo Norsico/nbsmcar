@@ -242,41 +242,23 @@ static void ui_move_selected(int8 direction)
     ui_dirty = 1;
 }
 
-/* 限幅 */
-static int16 ui_limit_value(int16 value, int16 min_value, int16 max_value)
-{
-    if(value < min_value)
-    {
-        return min_value;
-    }
-
-    if(value > max_value)
-    {
-        return max_value;
-    }
-
-    return value;
-}
-
 /* 调相机值 */
 static void ui_adjust_camera_value(int8 direction)
 {
-    int16 min_value;
-    int16 max_value;
     int16 step_value;
     int16 value;
 
-    flash_get_camera_range((flash_camera_slot_t)ui_camera_selected, &min_value, &max_value, &step_value);
+    step_value = flash_get_camera_step((flash_camera_slot_t)ui_camera_selected);
 
     if(UI_CAMERA_EXP_TIME == ui_camera_selected)
     {
         value = (int16)(ui_camera_page.exp_time + (direction < 0 ? -step_value : step_value));
-        ui_camera_page.exp_time = ui_limit_value(value, min_value, max_value);
+        ui_camera_page.exp_time = flash_limit_camera_value(FLASH_CAMERA_EXP_TIME, value);
     }
     else if(UI_CAMERA_GAIN == ui_camera_selected)
     {
         value = (int16)(ui_camera_page.gain + (direction < 0 ? -step_value : step_value));
-        ui_camera_page.gain = ui_limit_value(value, min_value, max_value);
+        ui_camera_page.gain = flash_limit_camera_value(FLASH_CAMERA_GAIN, value);
     }
 
     ui_dirty = 1;
@@ -285,15 +267,13 @@ static void ui_adjust_camera_value(int8 direction)
 /* 调电机值 */
 static void ui_adjust_motor_value(int8 direction)
 {
-    int16 min_value;
-    int16 max_value;
     int16 step_value;
     int16 value;
 
-    flash_get_motor_range(FLASH_MOTOR_TARGET_SPEED, &min_value, &max_value, &step_value);
+    step_value = flash_get_motor_step(FLASH_MOTOR_TARGET_SPEED);
 
     value = (int16)(ui_motor_page.target_speed + (direction < 0 ? -step_value : step_value));
-    ui_motor_page.target_speed = ui_limit_value(value, min_value, max_value);
+    ui_motor_page.target_speed = flash_limit_motor_value(FLASH_MOTOR_TARGET_SPEED, value);
     ui_dirty = 1;
 }
 
@@ -393,6 +373,14 @@ static void ui_draw_title_red(const char *title)
     ips200_show_string(0, UI_TITLE_Y, title);
 }
 
+/* 画步进 */
+static void ui_draw_step_value(int16 step_value)
+{
+    ips200_set_color(RGB565_PURPLE, RGB565_WHITE);
+    ips200_show_string(0, UI_STATUS_Y, "step");
+    ips200_show_int16(48, UI_STATUS_Y, step_value);
+}
+
 /* 画文本行 */
 static void ui_draw_text_row(uint8 row, const char *name, uint8 selected)
 {
@@ -451,7 +439,11 @@ static void ui_draw_param_menu_page(void)
 /* 相机参数界面 */
 static void ui_draw_camera_param_page(void)
 {
+    int16 step_value;
+
     ui_draw_title("Camera");
+    step_value = flash_get_camera_step((flash_camera_slot_t)ui_camera_selected);
+    ui_draw_step_value(step_value);
 
     ui_draw_value_row(0, ui_camera_name[0], ui_camera_page.exp_time, (0 == ui_camera_selected) ? 1 : 0);
     ui_draw_value_row(1, ui_camera_name[1], ui_camera_page.gain, (1 == ui_camera_selected) ? 1 : 0);
@@ -461,6 +453,7 @@ static void ui_draw_camera_param_page(void)
 static void ui_draw_motor_param_page(void)
 {
     ui_draw_title("Motor");
+    ui_draw_step_value(flash_get_motor_step(FLASH_MOTOR_TARGET_SPEED));
 
     ui_draw_value_row(0, ui_motor_name[0], ui_motor_page.target_speed, 1);
 }

@@ -1,16 +1,12 @@
 #include "flash.h"
 #include "motor.h"
 
-#define FLASH_CAMERA_EXP_TIME_MIN    (0)                   /* 曝光下限 */
-#define FLASH_CAMERA_EXP_TIME_MAX    (1000)                /* 曝光上限 */
 #define FLASH_CAMERA_EXP_TIME_STEP   (10)                  /* 曝光步进 */
 
-#define FLASH_CAMERA_GAIN_MIN        (0)                   /* 增益下限 */
+#define FLASH_CAMERA_GAIN_MIN        (16)                  /* 增益下限 */
 #define FLASH_CAMERA_GAIN_MAX        (64)                  /* 增益上限 */
 #define FLASH_CAMERA_GAIN_STEP       (1)                   /* 增益步进 */
 
-#define FLASH_MOTOR_TARGET_MIN       (0)                   /* 目标下限 */
-#define FLASH_MOTOR_TARGET_MAX       (4000)                /* 目标上限 */
 #define FLASH_MOTOR_TARGET_STEP      (10)                  /* 目标步进 */
 
 typedef struct
@@ -28,19 +24,53 @@ static uint8 flash_ready = 0;
 
 static const flash_value_config_t flash_camera_config[FLASH_CAMERA_COUNT] =
 {
-    {FLASH_CAMERA_EXP_TIME_MIN, FLASH_CAMERA_EXP_TIME_MAX, FLASH_CAMERA_EXP_TIME_STEP},
-    {FLASH_CAMERA_GAIN_MIN, FLASH_CAMERA_GAIN_MAX, FLASH_CAMERA_GAIN_STEP}
+    {FLASH_CAMERA_EXP_TIME_STEP},
+    {FLASH_CAMERA_GAIN_STEP}
 };
 
 static const flash_value_config_t flash_motor_config[FLASH_MOTOR_COUNT] =
 {
-    {FLASH_MOTOR_TARGET_MIN, FLASH_MOTOR_TARGET_MAX, FLASH_MOTOR_TARGET_STEP}
+    {FLASH_MOTOR_TARGET_STEP}
 };
 
 /* 方案索引 */
 static uint8 flash_plan_is_valid(uint8 plan_index)
 {
     return (plan_index < FLASH_PLAN_COUNT) ? 1 : 0;
+}
+
+/* 相机限值 */
+int16 flash_limit_camera_value(flash_camera_slot_t slot, int16 value)
+{
+    switch(slot)
+    {
+        case FLASH_CAMERA_EXP_TIME:
+            return (value < 0) ? 0 : value;
+        case FLASH_CAMERA_GAIN:
+            if(value < FLASH_CAMERA_GAIN_MIN)
+            {
+                return FLASH_CAMERA_GAIN_MIN;
+            }
+            if(value > FLASH_CAMERA_GAIN_MAX)
+            {
+                return FLASH_CAMERA_GAIN_MAX;
+            }
+            return value;
+        default:
+            return 0;
+    }
+}
+
+/* 电机限值 */
+int16 flash_limit_motor_value(flash_motor_slot_t slot, int16 value)
+{
+    switch(slot)
+    {
+        case FLASH_MOTOR_TARGET_SPEED:
+            return (value < 0) ? 0 : value;
+        default:
+            return 0;
+    }
 }
 
 /* 相机参数校验 */
@@ -51,8 +81,7 @@ static uint8 flash_camera_value_is_valid(flash_camera_slot_t slot, int16 value)
         return 0;
     }
 
-    return (value >= flash_camera_config[slot].min &&
-            value <= flash_camera_config[slot].max) ? 1 : 0;
+    return (value == flash_limit_camera_value(slot, value)) ? 1 : 0;
 }
 
 /* 电机参数校验 */
@@ -63,8 +92,7 @@ static uint8 flash_motor_value_is_valid(flash_motor_slot_t slot, int16 value)
         return 0;
     }
 
-    return (value >= flash_motor_config[slot].min &&
-            value <= flash_motor_config[slot].max) ? 1 : 0;
+    return (value == flash_limit_motor_value(slot, value)) ? 1 : 0;
 }
 
 /* 相机页校验 */
@@ -147,7 +175,7 @@ static uint16 flash_calc_checksum(const flash_store_image_t *image)
 static void flash_fill_plan0(flash_plan_t *plan)
 {
     plan->camera_page.exp_time = 0;
-    plan->camera_page.gain = 0;
+    plan->camera_page.gain = FLASH_CAMERA_GAIN_MIN;
     plan->motor_page.target_speed = 0;
 }
 
@@ -403,50 +431,24 @@ uint8 flash_set_motor_value(flash_motor_slot_t slot, int16 value)
     return 1;
 }
 
-void flash_get_camera_range(flash_camera_slot_t slot, int16 *min_value, int16 *max_value, int16 *step_value)
+int16 flash_get_camera_step(flash_camera_slot_t slot)
 {
     if(slot >= FLASH_CAMERA_COUNT)
     {
-        return;
+        return 0;
     }
 
-    if(min_value)
-    {
-        *min_value = flash_camera_config[slot].min;
-    }
-
-    if(max_value)
-    {
-        *max_value = flash_camera_config[slot].max;
-    }
-
-    if(step_value)
-    {
-        *step_value = flash_camera_config[slot].step;
-    }
+    return flash_camera_config[slot].step;
 }
 
-void flash_get_motor_range(flash_motor_slot_t slot, int16 *min_value, int16 *max_value, int16 *step_value)
+int16 flash_get_motor_step(flash_motor_slot_t slot)
 {
     if(slot >= FLASH_MOTOR_COUNT)
     {
-        return;
+        return 0;
     }
 
-    if(min_value)
-    {
-        *min_value = flash_motor_config[slot].min;
-    }
-
-    if(max_value)
-    {
-        *max_value = flash_motor_config[slot].max;
-    }
-
-    if(step_value)
-    {
-        *step_value = flash_motor_config[slot].step;
-    }
+    return flash_motor_config[slot].step;
 }
 
 void flash_reset(void)

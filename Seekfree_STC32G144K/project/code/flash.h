@@ -10,8 +10,6 @@
 
 typedef struct
 {
-    int16 min;                                              /* 下限 */
-    int16 max;                                              /* 上限 */
     int16 step;                                             /* 步进 */
 } flash_value_config_t;
 
@@ -54,8 +52,10 @@ int16 flash_get_camera_value(flash_camera_slot_t slot);
 int16 flash_get_motor_value(flash_motor_slot_t slot);
 uint8 flash_set_camera_value(flash_camera_slot_t slot, int16 value);
 uint8 flash_set_motor_value(flash_motor_slot_t slot, int16 value);
-void flash_get_camera_range(flash_camera_slot_t slot, int16 *min_value, int16 *max_value, int16 *step_value);
-void flash_get_motor_range(flash_motor_slot_t slot, int16 *min_value, int16 *max_value, int16 *step_value);
+int16 flash_limit_camera_value(flash_camera_slot_t slot, int16 value);
+int16 flash_limit_motor_value(flash_motor_slot_t slot, int16 value);
+int16 flash_get_camera_step(flash_camera_slot_t slot);
+int16 flash_get_motor_step(flash_motor_slot_t slot);
 void flash_reset(void);
 
 #endif
