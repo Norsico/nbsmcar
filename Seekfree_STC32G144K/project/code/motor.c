@@ -7,12 +7,12 @@ static int16 motor_last_error_left = 0;
 static int16 motor_last_error_right = 0;
 
 /******************** 左电机PID参数 ****************/
-static int16 motor_kp_left = 19;                      /* 左kp */
-static int16 motor_ki_left = 4;                       /* 左ki */
+static int16 motor_kp_left = 0;                      /* 左kp */
+static int16 motor_ki_left = 0;                       /* 左ki */
 
 /******************** 右电机PID参数 ****************/
-static int16 motor_kp_right = 19;                     /* 右kp */
-static int16 motor_ki_right = 4;                      /* 右ki */
+static int16 motor_kp_right = 0;                     /* 右kp */
+static int16 motor_ki_right = 0;                      /* 右ki */
 
 /******************** 参数倍率 ********************/
 static int16 motor_param_div_left = 10;               /* 左倍率 */
@@ -81,8 +81,8 @@ static void motor_driver_init(void)
 /* 编码器初始化 */
 static void motor_encoder_init(void)
 {
-    encoder_quad_init(MOTOR_ENCODER_LEFT, MOTOR_ENCODER_LEFT_CHA, MOTOR_ENCODER_LEFT_CHB);
-    encoder_quad_init(MOTOR_ENCODER_RIGHT, MOTOR_ENCODER_RIGHT_CHA, MOTOR_ENCODER_RIGHT_CHB);
+    encoder_dir_init(MOTOR_ENCODER_LEFT, MOTOR_ENCODER_LEFT_CHA, MOTOR_ENCODER_LEFT_CHB);
+    encoder_dir_init(MOTOR_ENCODER_RIGHT, MOTOR_ENCODER_RIGHT_CHA, MOTOR_ENCODER_RIGHT_CHB);
 }
 
 /* 编码器采样 */
@@ -120,6 +120,48 @@ void motor_set_target(int16 left_target, int16 right_target)
     motor_data.target_right = right_target;
 }
 
+/* 左PID */
+void motor_set_pid_left(int16 kp, int16 ki)
+{
+    motor_kp_left = kp;
+    motor_ki_left = ki;
+}
+
+/* 右PID */
+void motor_set_pid_right(int16 kp, int16 ki)
+{
+    motor_kp_right = kp;
+    motor_ki_right = ki;
+}
+
+/* 读左PID */
+void motor_get_pid_left(int16 *kp, int16 *ki)
+{
+    if(kp)
+    {
+        *kp = motor_kp_left;
+    }
+
+    if(ki)
+    {
+        *ki = motor_ki_left;
+    }
+}
+
+/* 读右PID */
+void motor_get_pid_right(int16 *kp, int16 *ki)
+{
+    if(kp)
+    {
+        *kp = motor_kp_right;
+    }
+
+    if(ki)
+    {
+        *ki = motor_ki_right;
+    }
+}
+
 /* 电机更新 */
 void motor_update(void)
 {
@@ -154,7 +196,7 @@ void motor_update(void)
         return;
     }
 
-    /* 当前误差 */
+    /* 算误差 */
     left_error = motor_data.target_left - left_count;
     right_error = motor_data.target_right - right_count;
 

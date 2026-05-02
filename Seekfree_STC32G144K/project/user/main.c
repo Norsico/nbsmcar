@@ -1,6 +1,7 @@
 #include "zf_common_headfile.h"
 #include "motor.h"
 #include "state.h"
+#include "wifi.h"
 
 void main(void)
 {
@@ -23,22 +24,20 @@ void main(void)
             /* UI状态 */
             case STATE_UI:
             {
-
                 break;
             }
             
             /* WiFi状态 */
             case STATE_WIFI:
             {
-
+                motor_update();
+                wifi_update();
                 break;
             }
             
             /* Run状态 */
             case STATE_RUN:
             {
-                
-
                 motor_update();
                 break;
             }
