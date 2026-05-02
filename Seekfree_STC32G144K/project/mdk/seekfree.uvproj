@@ -839,6 +839,16 @@
               <FileType>5</FileType>
               <FilePath>..\code\motor.h</FilePath>
             </File>
+            <File>
+              <FileName>state.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\state.c</FilePath>
+            </File>
+            <File>
+              <FileName>state.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\state.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
