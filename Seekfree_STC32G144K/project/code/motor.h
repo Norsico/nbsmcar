@@ -37,6 +37,7 @@ typedef struct
 extern motor_data_t motor_data;
 
 void motor_init(void);
+void motor_stop(void);
 void motor_set_target(int16 left_target, int16 right_target);
 void motor_set_pid_left(int16 kp, int16 ki);
 void motor_set_pid_right(int16 kp, int16 ki);

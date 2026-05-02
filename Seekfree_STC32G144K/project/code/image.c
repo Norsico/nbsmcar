@@ -2352,7 +2352,6 @@ static void CheckZebraEmergency(void)
                 buzzer_short();
                 if(ZebraDetectCount >= 2)
                 {
-                    motor_set_target(0, 0);
                     state_set_mode(STATE_STOP);
                 }
 
@@ -2415,7 +2414,6 @@ static void CheckOutTrackEmergency(void)
     /* 连续命中达到 10 帧后切停车状态。 */
     if(OutTrackStopHitCount >= IMAGE_OUTTRACK_CONFIRM_COUNT)
     {
-        motor_set_target(0, 0);
         state_set_mode(STATE_STOP);
     }
 }
@@ -2488,7 +2486,6 @@ void image_update(void)
     if((STATE_RUN == state_get_mode()) && (OtsuRawThreshold < IMAGE_STOP_RAW_THRESHOLD))
     {
         image_result_ready = 0;
-        motor_set_target(0, 0);
         state_set_mode(STATE_STOP);
         return;
     }

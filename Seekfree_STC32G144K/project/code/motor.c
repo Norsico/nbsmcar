@@ -7,12 +7,12 @@ static int16 motor_last_error_left = 0;
 static int16 motor_last_error_right = 0;
 
 /******************** 左电机PID参数 ****************/
-static int16 motor_kp_left = 62;                      /* 左kp */
-static int16 motor_ki_left = 16;                       /* 左ki */
+static int16 motor_kp_left = 58;                      /* 左kp */
+static int16 motor_ki_left = 5;                       /* 左ki */
 
 /******************** 右电机PID参数 ****************/
-static int16 motor_kp_right = 62;                     /* 右kp */
-static int16 motor_ki_right = 16;                      /* 右ki */
+static int16 motor_kp_right = 50;                     /* 右kp */
+static int16 motor_ki_right = 5;                      /* 右ki */
 
 /******************** 参数倍率 ********************/
 static int16 motor_param_div_left = 100;               /* 左倍率 */
@@ -111,6 +111,18 @@ void motor_init(void)
     motor_set_output(0, 0);
     pit_ms_init(MOTOR_CTRL_PIT, MOTOR_CTRL_PERIOD_MS, motor_pit_handler);
     interrupt_set_priority(TIMER1_IRQn, 2);
+}
+
+/* 电机停轮 */
+void motor_stop(void)
+{
+    motor_data.target_left = 0;
+    motor_data.target_right = 0;
+    motor_data.pwm_left = 0;
+    motor_data.pwm_right = 0;
+    motor_last_error_left = 0;
+    motor_last_error_right = 0;
+    motor_set_output(0, 0);
 }
 
 /* 目标值 */

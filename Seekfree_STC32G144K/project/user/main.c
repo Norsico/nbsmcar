@@ -63,12 +63,6 @@ void main(void)
             case STATE_RUN:
             {
                 image_update();
-                if(STATE_RUN != state_get_mode())
-                {
-                    motor_set_target(0, 0);
-                    servo_set_center();
-                    break;
-                }
                 servo_update();
                 motor_update();
                 break;
@@ -78,9 +72,8 @@ void main(void)
             case STATE_STOP:
             default:
             {
-                
                 // 停止电机
-                motor_set_target(0, 0);
+                motor_stop();
                 servo_set_center();
                 break;
             }
