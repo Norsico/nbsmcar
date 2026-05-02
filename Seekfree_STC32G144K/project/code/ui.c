@@ -80,6 +80,7 @@ static const char *ui_motor_name[UI_MOTOR_COUNT] =
 };
 
 static uint8 ui_ready = 0;
+static uint8 ui_task_ready = 0;
 static uint8 ui_dirty = 1;
 static uint8 ui_editing = 0;
 static ui_page_t ui_page = UI_PAGE_ROOT;
@@ -92,10 +93,24 @@ static uint8 ui_key_stable_level[4] = {1, 1, 1, 1};
 static uint8 ui_key_raw_level[4] = {1, 1, 1, 1};
 static uint8 ui_key_debounce_count[4] = {0, 0, 0, 0};
 static uint8 ui_key_pressed[4] = {0, 0, 0, 0};
+static volatile uint8 ui_key_tick_ready = 0;
+static volatile uint8 ui_screen_tick_ready = 0;
 static flash_camera_page_t ui_camera_page;
 static flash_motor_page_t ui_motor_page;
 static flash_camera_page_t ui_camera_backup;
 static flash_motor_page_t ui_motor_backup;
+
+/* 按键定时器 */
+static void ui_key_pit_handler(void)
+{
+    ui_key_tick_ready = 1;
+}
+
+/* 屏幕定时器 */
+static void ui_screen_pit_handler(void)
+{
+    ui_screen_tick_ready = 1;
+}
 
 /* 读当前值 */
 static void ui_load_page_value(void)
@@ -133,6 +148,21 @@ static void ui_screen_init(void)
 {
     ips200_set_dir(IPS200_PORTAIT);
     ips200_init();
+}
+
+/* UI定时器初始化 */
+static void ui_task_init(void)
+{
+    if(ui_task_ready)
+    {
+        return;
+    }
+
+    pit_ms_init(UI_KEY_PIT, UI_KEY_PERIOD_MS, ui_key_pit_handler);
+    pit_ms_init(UI_SCREEN_PIT, UI_SCREEN_PERIOD_MS, ui_screen_pit_handler);
+    interrupt_set_priority(TIM5_IRQn, UI_KEY_PIT_PRIORITY);
+    interrupt_set_priority(TIM6_IRQn, UI_SCREEN_PIT_PRIORITY);
+    ui_task_ready = 1;
 }
 
 /* 当前行数 */
@@ -653,30 +683,57 @@ static void ui_handle_event(ui_event_t event)
 /* 初始化 */
 void ui_init(void)
 {
+    /* 初始化按键 */
     ui_key_init();
+    /* 初始化屏幕 */
     ui_screen_init();
+    /* 初始化UI定时器 */
+    ui_task_init();
+    /* 读取当前页面参数 */
     ui_load_page_value();
+    /* 备份当前页面参数 */
     ui_backup_page_value();
+    /* 允许UI运行 */
     ui_ready = 1;
+    /* 首次进入强制刷新 */
     ui_dirty = 1;
+    /* 绘制首帧界面 */
     ui_render();
     ui_dirty = 0;
 }
 
+/* UI更新 */
 void ui_update(void)
 {
     ui_event_t event;
+    uint8 key_tick_ready;
+    uint8 screen_tick_ready;
 
+    /* 未初始化时先初始化 */
     if(!ui_ready)
     {
         ui_init();
     }
 
-    event = ui_key_update();
-    ui_handle_event(event);
+    /* 读定时器标志 */
+    interrupt_global_disable();
+    key_tick_ready = ui_key_tick_ready;
+    screen_tick_ready = ui_screen_tick_ready;
+    ui_key_tick_ready = 0;
+    ui_screen_tick_ready = 0;
+    interrupt_global_enable();
 
-    if(ui_dirty)
+    if(key_tick_ready)
     {
+        /* 读按键事件 */
+        event = ui_key_update();
+        /* 处理页面逻辑 */
+        ui_handle_event(event);
+    }
+
+    if(screen_tick_ready && ui_dirty)
+    {
+        /* 有变化时刷新界面 */
         ui_render();
         ui_dirty = 0;
     }

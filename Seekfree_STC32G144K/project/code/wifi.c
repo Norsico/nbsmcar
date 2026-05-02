@@ -91,9 +91,9 @@ static uint8 wifi_socket_init(void)
 }
 
 /* 电机参数下行 */
+#if WIFI_PARAM_ENABLE
 static void wifi_update_parameter(void)
 {
-#if WIFI_PARAM_ENABLE
     int16 left_kp;
     int16 left_ki;
     int16 right_kp;
@@ -161,8 +161,8 @@ static void wifi_update_parameter(void)
     }
 
     wifi_sync_parameter_buffer();
-#endif
 }
+#endif
 
 /* 示波器上行 */
 static void wifi_send_oscilloscope(void)
