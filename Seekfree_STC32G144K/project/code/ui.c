@@ -998,6 +998,7 @@ static void ui_enter_page(void)
                 ui_page = UI_PAGE_CAMERA_VIEW;
                 break;
             case UI_ROOT_PARAM_TUNING:
+                ui_param_selected = UI_PARAM_CAMERA;
                 ui_page = UI_PAGE_PARAM_MENU;
                 break;
             case UI_ROOT_PLAN_SELECT:
@@ -1015,6 +1016,7 @@ static void ui_enter_page(void)
     {
         if(UI_PARAM_CAMERA == ui_param_selected)
         {
+            ui_camera_selected = UI_CAMERA_EXP_TIME;
             ui_page = UI_PAGE_CAMERA_PARAM;
         }
         else if(UI_PARAM_SERVO == ui_param_selected)

@@ -5,6 +5,8 @@ motor_data_t motor_data = {0, 0, 0, 0, 0, 0};
 static volatile uint8 motor_tick_ready = 0;
 static int16 motor_last_error_left = 0;
 static int16 motor_last_error_right = 0;
+static uint8 motor_left_started = 0;                  /* 左轮已起步 */
+static uint8 motor_right_started = 0;                 /* 右轮已起步 */
 
 /******************** 左电机PID参数 ****************/
 static int16 motor_kp_left = 58;                      /* 左kp */
@@ -122,14 +124,33 @@ void motor_stop(void)
     motor_data.pwm_right = 0;
     motor_last_error_left = 0;
     motor_last_error_right = 0;
+    motor_left_started = 0;
+    motor_right_started = 0;
     motor_set_output(0, 0);
 }
 
 /* 目标值 */
 void motor_set_target(int16 left_target, int16 right_target)
 {
+    if((0 == motor_data.target_left) && (0 == motor_data.target_right) &&
+       ((0 != left_target) || (0 != right_target)))
+    {
+        motor_data.pwm_left = 0;
+        motor_data.pwm_right = 0;
+        motor_last_error_left = 0;
+        motor_last_error_right = 0;
+        motor_left_started = 0;
+        motor_right_started = 0;
+    }
+
     motor_data.target_left = left_target;
     motor_data.target_right = right_target;
+
+    if((0 == left_target) && (0 == right_target))
+    {
+        motor_left_started = 0;
+        motor_right_started = 0;
+    }
 }
 
 /* 左PID */
@@ -204,8 +225,22 @@ void motor_update(void)
         motor_last_error_right = 0;
         motor_data.pwm_left = 0;
         motor_data.pwm_right = 0;
+        motor_left_started = 0;
+        motor_right_started = 0;
         motor_set_output(0, 0);
         return;
+    }
+
+    if(0 != left_count)
+    {
+        /* 编码器出数后再开左积分 */
+        motor_left_started = 1;
+    }
+
+    if(0 != right_count)
+    {
+        /* 编码器出数后再开右积分 */
+        motor_right_started = 1;
     }
 
     /* 算误差 */
@@ -214,9 +249,11 @@ void motor_update(void)
 
     /* 增量PI */
     left_output = motor_data.pwm_left +
-                  (int16)((motor_kp_left * (left_error - motor_last_error_left) + motor_ki_left * left_error) / motor_param_div_left);
+                  (int16)((motor_kp_left * (left_error - motor_last_error_left) +
+                           (motor_left_started ? (motor_ki_left * left_error) : 0)) / motor_param_div_left);
     right_output = motor_data.pwm_right +
-                   (int16)((motor_kp_right * (right_error - motor_last_error_right) + motor_ki_right * right_error) / motor_param_div_right);
+                   (int16)((motor_kp_right * (right_error - motor_last_error_right) +
+                            (motor_right_started ? (motor_ki_right * right_error) : 0)) / motor_param_div_right);
 
     /* 输出限幅 */
     motor_data.pwm_left = (int8)motor_limit_value(left_output, motor_output_limit_left);
