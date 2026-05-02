@@ -3,7 +3,7 @@
 
 #include "zf_common_headfile.h"
 
-#define WIFI_PARAM_ENABLE           (1)                  /* 调参开关 */
+#define WIFI_PARAM_ENABLE           (0)                  /* 调参开关 */
 #define WIFI_TASK_PIT               (TIM3_PIT)           /* WiFi定时器 */
 #define WIFI_TASK_PERIOD_MS         (20)                 /* WiFi周期 */
 #define WIFI_OSC_CHANNEL_NUM        (3)                  /* 示波器通道数 */
