@@ -1,6 +1,7 @@
 #include "zf_common_headfile.h"
 #include "flash.h"
 #include "motor.h"
+#include "power.h"
 #include "state.h"
 #include "ui.h"
 #include "wifi.h"
@@ -15,6 +16,7 @@ void main(void)
 
     /********** 模块初始化 *********/
     motor_init();
+    power_init();
 
     /********** flash初始化 *********/
     flash_init();

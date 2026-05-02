@@ -1,4 +1,5 @@
 #include "flash.h"
+#include "power.h"
 #include "ui.h"
 
 #define UI_TITLE_Y                   (0)                    /* 标题行 */
@@ -7,6 +8,7 @@
 #define UI_ROW_HEIGHT                (16)                   /* 行高 */
 #define UI_LABEL_X                   (16)                   /* 标签X */
 #define UI_VALUE_X                   (152)                  /* 数值X */
+#define UI_POWER_X                   (200)                  /* 电量X */
 
 typedef enum
 {
@@ -381,6 +383,14 @@ static void ui_draw_step_value(int16 step_value)
     ips200_show_int16(48, UI_STATUS_Y, step_value);
 }
 
+/* 画电量 */
+static void ui_draw_power_percent(void)
+{
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+    ips200_show_uint8(UI_POWER_X, UI_TITLE_Y, power_get_percent());
+    ips200_show_string((uint16)(UI_POWER_X + 24), UI_TITLE_Y, "%");
+}
+
 /* 画文本行 */
 static void ui_draw_text_row(uint8 row, const char *name, uint8 selected)
 {
@@ -523,6 +533,8 @@ static void ui_render(void)
         default:
             break;
     }
+
+    ui_draw_power_percent();
 }
 
 /* 进入页面 */

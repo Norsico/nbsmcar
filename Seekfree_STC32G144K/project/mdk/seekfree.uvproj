@@ -879,6 +879,16 @@
               <FileType>5</FileType>
               <FilePath>..\code\ui.h</FilePath>
             </File>
+            <File>
+              <FileName>power.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\power.c</FilePath>
+            </File>
+            <File>
+              <FileName>power.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\power.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
