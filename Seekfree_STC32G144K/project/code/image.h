@@ -116,5 +116,6 @@ uint8 image_set_camera_value(flash_camera_slot_t slot, int16 value);
 void image_reload_camera_page(void);
 const uint8 *image_get_raw_buffer(void);
 const uint8 *image_get_binary_buffer(void);
+uint16 image_get_speed_goal(void);
 
 #endif

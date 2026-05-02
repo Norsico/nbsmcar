@@ -4,12 +4,23 @@
 
 #define SERVO_PWM_DUTY(angle)         ((PWM_DUTY_MAX / 1000 * SERVO_PWM_FREQ) / 100 * (50 + (angle) / 90))
 
+static const int16 servo_ackerman_tan_table[61] =
+{
+    0,10,20,30,30,40,50,60,70,80,90,
+    100,110,110,120,130,140,150,160,170,180,
+    190,190,200,210,220,230,240,250,260,270,
+    280,290,300,310,320,320,330,340,350,360,
+    370,380,390,400,410,420,440,450,460,470,
+    480,490,500,510,520,530,540,550,570,580
+};
+
 static volatile uint8 servo_tick_ready = 0;
 static int16 servo_p = 28;                                      /* 舵机p */
 static int16 servo_d = 30;                                      /* 舵机d */
 static int16 servo_err2_k = 8;                                  /* 二次误差 */
 static int16 servo_imu_d = 4;                                   /* 陀螺仪d */
 static int16 servo_tow_point = 32;                              /* 前瞻 */
+static int16 servo_ackerman = SERVO_ACKERMAN_DEFAULT;           /* 阿克曼 */
 static float servo_last_error = 0.0f;                           /* 上次误差 */
 static uint16 servo_min_angle = SERVO_ANGLE_MIN;                /* 左限幅 */
 static uint16 servo_max_angle = SERVO_ANGLE_MAX;                /* 右限幅 */
@@ -144,6 +155,62 @@ static int16 servo_round_float(float value)
     return (int16)(0 - (int16)((-value) + 0.5f));
 }
 
+/* 阿克曼转角限幅 */
+static int16 servo_limit_ackerman_angle(int16 steer_angle)
+{
+    if(steer_angle > SERVO_ACKERMAN_MAX_ANGLE)
+    {
+        return SERVO_ACKERMAN_MAX_ANGLE;
+    }
+
+    if(steer_angle < -SERVO_ACKERMAN_MAX_ANGLE)
+    {
+        return -SERVO_ACKERMAN_MAX_ANGLE;
+    }
+
+    return steer_angle;
+}
+
+/* 阿克曼查tan */
+static int16 servo_get_ackerman_tan(int16 steer_angle)
+{
+    uint8 idx;
+    int16 sign;
+    int16 tan_value;
+    int16 angle_base;
+
+    if(0 == steer_angle)
+    {
+        return 0;
+    }
+
+    sign = 1;
+    if(steer_angle < 0)
+    {
+        steer_angle = -steer_angle;
+        sign = -1;
+    }
+
+    if(steer_angle >= SERVO_ACKERMAN_MAX_ANGLE)
+    {
+        return (int16)(sign * servo_ackerman_tan_table[60]);
+    }
+
+    for(idx = 1; idx < 61; idx++)
+    {
+        if(steer_angle < (int16)(idx * 50))
+        {
+            angle_base = (int16)((idx - 1) * 50);
+            tan_value = servo_ackerman_tan_table[idx - 1] +
+                        (int16)(((int32)(steer_angle - angle_base) *
+                                 (servo_ackerman_tan_table[idx] - servo_ackerman_tan_table[idx - 1])) / 50);
+            return (int16)(sign * tan_value);
+        }
+    }
+
+    return (int16)(sign * servo_ackerman_tan_table[60]);
+}
+
 /* 设置舵机角度 */
 static void servo_drive_set_angle(uint16 angle)
 {
@@ -249,6 +316,7 @@ void servo_init(void)
     servo_err2_k = 8;
     servo_imu_d = 4;
     servo_tow_point = 32;
+    servo_ackerman = SERVO_ACKERMAN_DEFAULT;
     servo_last_error = 0.0f;
     servo_min_angle = SERVO_ANGLE_MIN;
     servo_max_angle = SERVO_ANGLE_MAX;
@@ -361,4 +429,45 @@ void servo_set_limit(int16 min_angle, int16 max_angle)
     servo_min_angle = safe_min;
     servo_max_angle = safe_max;
     servo_drive_set_angle(servo_current_angle);
+}
+
+/* 阿克曼参数 */
+void servo_set_ackerman(int16 ackerman_value)
+{
+    if(ackerman_value < 0)
+    {
+        ackerman_value = 0;
+    }
+
+    servo_ackerman = ackerman_value;
+}
+
+/* 算左右轮目标 */
+void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
+{
+    int16 steer_angle;
+    int16 tan_value;
+    int32 diff_scale;
+
+    if((0 == left_speed) || (0 == right_speed))
+    {
+        return;
+    }
+
+    steer_angle = (int16)SERVO_ANGLE_CENTER - (int16)servo_current_angle;
+    steer_angle = servo_limit_ackerman_angle(steer_angle);
+    tan_value = servo_get_ackerman_tan(steer_angle);
+    diff_scale = ((int32)servo_ackerman * (int32)tan_value) / 100;
+
+    *left_speed = speed;
+    *right_speed = speed;
+
+    if(steer_angle > 0)
+    {
+        *right_speed = speed - (int16)(((int32)speed * diff_scale) / 10000);
+    }
+    else if(steer_angle < 0)
+    {
+        *left_speed = speed + (int16)(((int32)speed * diff_scale) / 10000);
+    }
 }

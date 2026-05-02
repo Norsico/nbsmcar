@@ -25,11 +25,16 @@
 #define SERVO_IMU_INIT_DELAY_MS        (100)                  /* 陀螺仪重试间隔 */
 #define SERVO_IMU_CALIBRATE_SAMPLES    (100)                  /* 陀螺仪校准次数 */
 
+#define SERVO_ACKERMAN_MAX_ANGLE       (3000)                 /* 阿克曼最大转角 */
+#define SERVO_ACKERMAN_DEFAULT         (505)                  /* 阿克曼默认值 */
+
 void servo_init(void);
 void servo_update(void);
 void servo_set_center(void);
 void servo_set_pid(int16 steer_p, int16 steer_d, int16 err2_k, int16 imu_d);
 void servo_set_tow_point(int16 tow_point);
 void servo_set_limit(int16 min_angle, int16 max_angle);
+void servo_set_ackerman(int16 ackerman_value);
+void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed);
 
 #endif

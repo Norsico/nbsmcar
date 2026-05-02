@@ -1,5 +1,8 @@
 #include "zf_common_headfile.h"
+#include "image.h"
 #include "motor.h"
+#include "servo.h"
+#include "state.h"
 
 motor_data_t motor_data = {0, 0, 0, 0, 0, 0};
 static volatile uint8 motor_tick_ready = 0;
@@ -200,6 +203,9 @@ void motor_update(void)
 {
     int16 left_count;
     int16 right_count;
+    int16 runtime_speed;
+    int16 runtime_left_target;
+    int16 runtime_right_target;
     int16 left_error;
     int16 right_error;
     int16 left_output;
@@ -217,6 +223,31 @@ void motor_update(void)
     right_count = motor_data.count_right;
     motor_tick_ready = 0;
     interrupt_global_enable();
+
+    if(STATE_STOP == state_get_mode())
+    {
+        /* 停车状态直接停轮 */
+        motor_stop();
+        return;
+    }
+
+    if(STATE_RUN == state_get_mode())
+    {
+        if(!image_is_result_ready())
+        {
+            /* 图像结果没准备好先不出力 */
+            motor_data.target_left = 0;
+            motor_data.target_right = 0;
+        }
+        else
+        {
+            /* 按基础速度和当前舵角算左右轮目标 */
+            runtime_speed = (int16)image_get_speed_goal();
+            servo_calc_motor_target(runtime_speed, &runtime_left_target, &runtime_right_target);
+            motor_data.target_left = runtime_left_target;
+            motor_data.target_right = runtime_right_target;
+        }
+    }
 
     if((0 == motor_data.target_left) && (0 == motor_data.target_right))
     {

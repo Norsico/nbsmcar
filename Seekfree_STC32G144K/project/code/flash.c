@@ -581,6 +581,7 @@ static void flash_apply_current_plan(void)
                   plan->servo_page.steer_d,
                   plan->servo_page.err2_k,
                   plan->servo_page.imu_d);
+    servo_set_ackerman(plan->servo_page.ackerman);
     servo_set_tow_point(plan->servo_page.tow_point);
     servo_set_limit(plan->servo_page.servo_min_angle, plan->servo_page.servo_max_angle);
     motor_set_target(plan->motor_page.target_speed, plan->motor_page.target_speed);

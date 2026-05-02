@@ -231,13 +231,20 @@ static uint8 ZebraFrameLatch = 0;
 static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
-static uint16 Speed_Goal = 150;
+static uint16 Speed_Goal = 0;
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
     0.71f, 0.65f, 0.59f, 0.53f, 0.47f
 };
+
+/* 当前速度目标 */
+uint16 image_get_speed_goal(void)
+{
+    return Speed_Goal;
+}
+
 static const uint8 Half_Road_Wide[LCDH] =
 {
     6, 7, 7, 8, 8, 9, 9, 9, 10, 10,
