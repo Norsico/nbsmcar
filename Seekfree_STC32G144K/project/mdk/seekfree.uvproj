@@ -840,6 +840,16 @@
               <FilePath>..\code\motor.h</FilePath>
             </File>
             <File>
+              <FileName>servo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\servo.c</FilePath>
+            </File>
+            <File>
+              <FileName>servo.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\servo.h</FilePath>
+            </File>
+            <File>
               <FileName>state.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\code\state.c</FilePath>
@@ -880,14 +890,14 @@
               <FilePath>..\code\ui.h</FilePath>
             </File>
             <File>
-              <FileName>power.c</FileName>
+              <FileName>image.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\code\power.c</FilePath>
+              <FilePath>..\code\image.c</FilePath>
             </File>
             <File>
-              <FileName>power.h</FileName>
+              <FileName>image.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\code\power.h</FilePath>
+              <FilePath>..\code\image.h</FilePath>
             </File>
           </Files>
         </Group>

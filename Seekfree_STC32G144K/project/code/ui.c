@@ -1,5 +1,5 @@
 #include "flash.h"
-#include "power.h"
+#include "image.h"
 #include "ui.h"
 
 #define UI_TITLE_Y                   (0)                    /* 标题行 */
@@ -25,6 +25,7 @@ typedef enum
     UI_PAGE_CAMERA_VIEW,                                    /* 相机预览 */
     UI_PAGE_PARAM_MENU,                                     /* 参数页 */
     UI_PAGE_CAMERA_PARAM,                                   /* 相机参数 */
+    UI_PAGE_SERVO_PARAM,                                    /* 舵机参数 */
     UI_PAGE_MOTOR_PARAM,                                    /* 电机参数 */
     UI_PAGE_PLAN_SELECT                                     /* 方案选择 */
 } ui_page_t;
@@ -40,6 +41,7 @@ typedef enum
 typedef enum
 {
     UI_PARAM_CAMERA = 0,                                    /* 相机 */
+    UI_PARAM_SERVO,                                         /* 舵机 */
     UI_PARAM_MOTOR,                                         /* 电机 */
     UI_PARAM_COUNT                                          /* 参数分类数量 */
 } ui_param_row_t;
@@ -53,9 +55,28 @@ typedef enum
 
 typedef enum
 {
+    UI_SERVO_P = 0,                                         /* 舵机p */
+    UI_SERVO_D,                                             /* 舵机d */
+    UI_SERVO_ERR2,                                          /* 二次误差 */
+    UI_SERVO_ACKERMAN,                                      /* 阿克曼 */
+    UI_SERVO_IMU_D,                                         /* 陀螺仪d */
+    UI_SERVO_TOW_POINT,                                     /* 前瞻 */
+    UI_SERVO_MIN_ANGLE,                                     /* 左限幅 */
+    UI_SERVO_MAX_ANGLE,                                     /* 右限幅 */
+    UI_SERVO_COUNT                                          /* 舵机参数数量 */
+} ui_servo_row_t;
+
+typedef enum
+{
     UI_MOTOR_TARGET_SPEED = 0,                              /* 目标速度 */
     UI_MOTOR_COUNT                                          /* 电机参数数量 */
 } ui_motor_row_t;
+
+typedef enum
+{
+    UI_CAMERA_PREVIEW_BINARY = 0,                           /* 二值图 */
+    UI_CAMERA_PREVIEW_RAW                                   /* 灰度图 */
+} ui_camera_preview_t;
 
 static const char *ui_root_name[UI_ROOT_COUNT] =
 {
@@ -67,6 +88,7 @@ static const char *ui_root_name[UI_ROOT_COUNT] =
 static const char *ui_param_name[UI_PARAM_COUNT] =
 {
     "camera",
+    "servo",
     "motor"
 };
 
@@ -74,6 +96,18 @@ static const char *ui_camera_name[UI_CAMERA_COUNT] =
 {
     "exp time",
     "gain"
+};
+
+static const char *ui_servo_name[UI_SERVO_COUNT] =
+{
+    "steer p",
+    "steer d",
+    "err2 k",
+    "ackerman",
+    "imu d",
+    "tow point",
+    "servo min",
+    "servo max"
 };
 
 static const char *ui_motor_name[UI_MOTOR_COUNT] =
@@ -89,8 +123,10 @@ static ui_page_t ui_page = UI_PAGE_ROOT;
 static uint8 ui_root_selected = 0;
 static uint8 ui_param_selected = 0;
 static uint8 ui_camera_selected = 0;
+static uint8 ui_servo_selected = 0;
 static uint8 ui_motor_selected = 0;
 static uint8 ui_plan_selected = 0;
+static uint8 ui_camera_preview_mode = UI_CAMERA_PREVIEW_BINARY;
 static uint8 ui_key_stable_level[4] = {1, 1, 1, 1};
 static uint8 ui_key_raw_level[4] = {1, 1, 1, 1};
 static uint8 ui_key_debounce_count[4] = {0, 0, 0, 0};
@@ -98,9 +134,41 @@ static uint8 ui_key_pressed[4] = {0, 0, 0, 0};
 static volatile uint8 ui_key_tick_ready = 0;
 static volatile uint8 ui_screen_tick_ready = 0;
 static flash_camera_page_t ui_camera_page;
+static flash_servo_page_t ui_servo_page;
 static flash_motor_page_t ui_motor_page;
 static flash_camera_page_t ui_camera_backup;
+static flash_servo_page_t ui_servo_backup;
 static flash_motor_page_t ui_motor_backup;
+static uint8 ui_power_percent = 0;
+
+/* 电量百分比 */
+static uint8 ui_power_calc_percent(uint16 voltage_deci)
+{
+    if(voltage_deci <= UI_POWER_EMPTY_DECI)
+    {
+        return 0;
+    }
+
+    if(voltage_deci >= UI_POWER_FULL_DECI)
+    {
+        return 100;
+    }
+
+    return (uint8)(((uint16)(voltage_deci - UI_POWER_EMPTY_DECI) * 100U) /
+                   (UI_POWER_FULL_DECI - UI_POWER_EMPTY_DECI));
+}
+
+/* 电量采样 */
+static void ui_power_init(void)
+{
+    uint16 adc_value;
+    uint32 voltage_calc;
+
+    adc_init(UI_POWER_ADC_PIN, UI_POWER_ADC_RESOLUTION);
+    adc_value = adc_mean_filter_convert(UI_POWER_ADC_PIN, UI_POWER_ADC_SAMPLE_COUNT);
+    voltage_calc = (uint32)adc_value * 363U + 2047U;
+    ui_power_percent = ui_power_calc_percent((uint16)(voltage_calc / 4095U));
+}
 
 /* 按键定时器 */
 static void ui_key_pit_handler(void)
@@ -118,6 +186,7 @@ static void ui_screen_pit_handler(void)
 static void ui_load_page_value(void)
 {
     flash_get_camera_page(&ui_camera_page);
+    flash_get_servo_page(&ui_servo_page);
     flash_get_motor_page(&ui_motor_page);
     ui_plan_selected = flash_get_active_plan();
 }
@@ -126,6 +195,7 @@ static void ui_load_page_value(void)
 static void ui_backup_page_value(void)
 {
     memcpy(&ui_camera_backup, &ui_camera_page, sizeof(ui_camera_backup));
+    memcpy(&ui_servo_backup, &ui_servo_page, sizeof(ui_servo_backup));
     memcpy(&ui_motor_backup, &ui_motor_page, sizeof(ui_motor_backup));
 }
 
@@ -133,6 +203,7 @@ static void ui_backup_page_value(void)
 static void ui_restore_page_value(void)
 {
     memcpy(&ui_camera_page, &ui_camera_backup, sizeof(ui_camera_page));
+    memcpy(&ui_servo_page, &ui_servo_backup, sizeof(ui_servo_page));
     memcpy(&ui_motor_page, &ui_motor_backup, sizeof(ui_motor_backup));
 }
 
@@ -178,6 +249,8 @@ static uint8 ui_get_row_count(void)
             return UI_PARAM_COUNT;
         case UI_PAGE_CAMERA_PARAM:
             return UI_CAMERA_COUNT;
+        case UI_PAGE_SERVO_PARAM:
+            return UI_SERVO_COUNT;
         case UI_PAGE_MOTOR_PARAM:
             return UI_MOTOR_COUNT;
         case UI_PAGE_PLAN_SELECT:
@@ -198,6 +271,8 @@ static uint8 *ui_get_selected_ptr(void)
             return &ui_param_selected;
         case UI_PAGE_CAMERA_PARAM:
             return &ui_camera_selected;
+        case UI_PAGE_SERVO_PARAM:
+            return &ui_servo_selected;
         case UI_PAGE_MOTOR_PARAM:
             return &ui_motor_selected;
         case UI_PAGE_PLAN_SELECT:
@@ -244,6 +319,54 @@ static void ui_move_selected(int8 direction)
     ui_dirty = 1;
 }
 
+/* 无符号数转文本 */
+static uint8 ui_format_uint16_text(uint16 value, char *text)
+{
+    char temp[6];
+    uint8 count;
+    uint8 index;
+
+    count = 0;
+    index = 0;
+
+    do
+    {
+        temp[count++] = (char)('0' + (value % 10U));
+        value = (uint16)(value / 10U);
+    } while(value && (count < sizeof(temp)));
+
+    while(count > 0)
+    {
+        text[index++] = temp[--count];
+    }
+    text[index] = '\0';
+
+    return index;
+}
+
+/* 0.1单位转文本 */
+static void ui_format_tenths_text(int16 value, char *text)
+{
+    uint8 index;
+    uint16 abs_value;
+
+    index = 0;
+    if(value < 0)
+    {
+        text[index++] = '-';
+        abs_value = (uint16)(-value);
+    }
+    else
+    {
+        abs_value = (uint16)value;
+    }
+
+    index = (uint8)(index + ui_format_uint16_text((uint16)(abs_value / 10U), &text[index]));
+    text[index++] = '.';
+    text[index++] = (char)('0' + (abs_value % 10U));
+    text[index] = '\0';
+}
+
 /* 调相机值 */
 static void ui_adjust_camera_value(int8 direction)
 {
@@ -266,6 +389,63 @@ static void ui_adjust_camera_value(int8 direction)
     ui_dirty = 1;
 }
 
+/* 调舵机值 */
+static void ui_adjust_servo_value(int8 direction)
+{
+    int16 step_value;
+    int16 value;
+
+    step_value = flash_get_servo_step((flash_servo_slot_t)ui_servo_selected);
+
+    switch(ui_servo_selected)
+    {
+        case UI_SERVO_P:
+            value = (int16)(ui_servo_page.steer_p + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.steer_p = flash_limit_servo_value(FLASH_SERVO_P, value);
+            break;
+        case UI_SERVO_D:
+            value = (int16)(ui_servo_page.steer_d + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.steer_d = flash_limit_servo_value(FLASH_SERVO_D, value);
+            break;
+        case UI_SERVO_ERR2:
+            value = (int16)(ui_servo_page.err2_k + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.err2_k = flash_limit_servo_value(FLASH_SERVO_ERR2, value);
+            break;
+        case UI_SERVO_ACKERMAN:
+            value = (int16)(ui_servo_page.ackerman + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.ackerman = flash_limit_servo_value(FLASH_SERVO_ACKERMAN, value);
+            break;
+        case UI_SERVO_IMU_D:
+            value = (int16)(ui_servo_page.imu_d + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.imu_d = flash_limit_servo_value(FLASH_SERVO_IMU_D, value);
+            break;
+        case UI_SERVO_TOW_POINT:
+            value = (int16)(ui_servo_page.tow_point + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.tow_point = flash_limit_servo_value(FLASH_SERVO_TOW_POINT, value);
+            break;
+        case UI_SERVO_MIN_ANGLE:
+            value = (int16)(ui_servo_page.servo_min_angle + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.servo_min_angle = flash_limit_servo_value(FLASH_SERVO_MIN_ANGLE, value);
+            if(ui_servo_page.servo_min_angle >= ui_servo_page.servo_max_angle)
+            {
+                ui_servo_page.servo_min_angle = (int16)(ui_servo_page.servo_max_angle - 1);
+            }
+            break;
+        case UI_SERVO_MAX_ANGLE:
+            value = (int16)(ui_servo_page.servo_max_angle + (direction < 0 ? -step_value : step_value));
+            ui_servo_page.servo_max_angle = flash_limit_servo_value(FLASH_SERVO_MAX_ANGLE, value);
+            if(ui_servo_page.servo_max_angle <= ui_servo_page.servo_min_angle)
+            {
+                ui_servo_page.servo_max_angle = (int16)(ui_servo_page.servo_min_angle + 1);
+            }
+            break;
+        default:
+            break;
+    }
+
+    ui_dirty = 1;
+}
+
 /* 调电机值 */
 static void ui_adjust_motor_value(int8 direction)
 {
@@ -282,8 +462,24 @@ static void ui_adjust_motor_value(int8 direction)
 /* 保存相机值 */
 static void ui_save_camera_value(void)
 {
-    flash_set_camera_value(FLASH_CAMERA_EXP_TIME, ui_camera_page.exp_time);
-    flash_set_camera_value(FLASH_CAMERA_GAIN, ui_camera_page.gain);
+    image_set_camera_value(FLASH_CAMERA_EXP_TIME, ui_camera_page.exp_time);
+    image_set_camera_value(FLASH_CAMERA_GAIN, ui_camera_page.gain);
+    ui_editing = 0;
+    ui_dirty = 1;
+}
+
+/* 保存舵机值 */
+static void ui_save_servo_value(void)
+{
+    if(flash_set_servo_page(&ui_servo_page))
+    {
+        ui_load_page_value();
+        ui_backup_page_value();
+    }
+    else
+    {
+        ui_restore_page_value();
+    }
     ui_editing = 0;
     ui_dirty = 1;
 }
@@ -383,12 +579,207 @@ static void ui_draw_step_value(int16 step_value)
     ips200_show_int16(48, UI_STATUS_Y, step_value);
 }
 
+/* 画步进文本 */
+static void ui_draw_step_text(const char *text)
+{
+    ips200_set_color(RGB565_PURPLE, RGB565_WHITE);
+    ips200_show_string(0, UI_STATUS_Y, "step");
+    ips200_show_string(48, UI_STATUS_Y, text);
+}
+
 /* 画电量 */
 static void ui_draw_power_percent(void)
 {
     ips200_set_color(RGB565_BLACK, RGB565_WHITE);
-    ips200_show_uint8(UI_POWER_X, UI_TITLE_Y, power_get_percent());
+    ips200_show_uint8(UI_POWER_X, UI_TITLE_Y, ui_power_percent);
     ips200_show_string((uint16)(UI_POWER_X + 24), UI_TITLE_Y, "%");
+}
+
+/* 相机页底图 */
+static void ui_prepare_camera_view(void)
+{
+    ips200_clear(RGB565_BLACK);
+}
+
+/* 画辅助线 */
+static void ui_draw_camera_overlay(void)
+{
+    uint8 row;
+    uint8 row_start;
+    uint8 row_end;
+    uint8 boundary_start;
+    int left_col;
+    int right_col;
+    int center_col;
+    int boundary_col;
+    uint16 x;
+    uint16 y;
+
+    row_start = ImageStatus.OFFLine;
+    if(row_start >= LCDH)
+    {
+        return;
+    }
+
+    row_end = (uint8)(LCDH - 1);
+    for(row = row_start; row <= row_end; row++)
+    {
+        left_col = ImageDeal[row].LeftBorder;
+        right_col = ImageDeal[row].RightBorder;
+        center_col = ImageDeal[row].Center;
+
+        if(left_col < 0)
+        {
+            left_col = 0;
+        }
+        else if(left_col >= LCDW)
+        {
+            left_col = LCDW - 1;
+        }
+
+        if(right_col < 0)
+        {
+            right_col = 0;
+        }
+        else if(right_col >= LCDW)
+        {
+            right_col = LCDW - 1;
+        }
+
+        if(center_col < 0)
+        {
+            center_col = 0;
+        }
+        else if(center_col >= LCDW)
+        {
+            center_col = LCDW - 1;
+        }
+
+        y = (uint16)(UI_CAMERA_VIEW_Y + ((uint16)row * UI_CAMERA_VIEW_H + (LCDH / 2)) / LCDH);
+
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)left_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_GREEN);
+        if(y < (uint16)(UI_CAMERA_VIEW_Y + UI_CAMERA_VIEW_H - 1))
+        {
+            ips200_draw_point(x, (uint16)(y + 1), RGB565_GREEN);
+        }
+
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)right_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_GREEN);
+        if(y < (uint16)(UI_CAMERA_VIEW_Y + UI_CAMERA_VIEW_H - 1))
+        {
+            ips200_draw_point(x, (uint16)(y + 1), RGB565_GREEN);
+        }
+
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)center_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_RED);
+        if(y < (uint16)(UI_CAMERA_VIEW_Y + UI_CAMERA_VIEW_H - 1))
+        {
+            ips200_draw_point(x, (uint16)(y + 1), RGB565_RED);
+        }
+    }
+
+    if(ImageStatus.OFFLineBoundary < 0)
+    {
+        boundary_start = 0;
+    }
+    else if(ImageStatus.OFFLineBoundary >= (LCDH - 1))
+    {
+        boundary_start = (uint8)(LCDH - 2);
+    }
+    else
+    {
+        boundary_start = (uint8)ImageStatus.OFFLineBoundary;
+    }
+
+    for(row = boundary_start; row < (uint8)(LCDH - 1); row++)
+    {
+        y = (uint16)(UI_CAMERA_VIEW_Y + ((uint16)row * UI_CAMERA_VIEW_H + (LCDH / 2)) / LCDH);
+
+        boundary_col = ImageDeal[row].LeftBoundary_First;
+        if(boundary_col < 0)
+        {
+            boundary_col = 0;
+        }
+        else if(boundary_col >= LCDW)
+        {
+            boundary_col = LCDW - 1;
+        }
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)boundary_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_YELLOW);
+
+        boundary_col = ImageDeal[row].RightBoundary_First;
+        if(boundary_col < 0)
+        {
+            boundary_col = 0;
+        }
+        else if(boundary_col >= LCDW)
+        {
+            boundary_col = LCDW - 1;
+        }
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)boundary_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_YELLOW);
+
+        boundary_col = ImageDeal[row].LeftBoundary;
+        if(boundary_col < 0)
+        {
+            boundary_col = 0;
+        }
+        else if(boundary_col >= LCDW)
+        {
+            boundary_col = LCDW - 1;
+        }
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)boundary_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_CYAN);
+
+        boundary_col = ImageDeal[row].RightBoundary;
+        if(boundary_col < 0)
+        {
+            boundary_col = 0;
+        }
+        else if(boundary_col >= LCDW)
+        {
+            boundary_col = LCDW - 1;
+        }
+        x = (uint16)(UI_CAMERA_VIEW_X + (((uint16)boundary_col * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
+        ips200_draw_point(x, y, RGB565_CYAN);
+    }
+}
+
+/* 画相机预览 */
+static void ui_draw_camera_preview(void)
+{
+    if(!image_is_ready() || !image_is_result_ready())
+    {
+        ips200_set_color(RGB565_WHITE, RGB565_BLACK);
+        ips200_show_string(UI_CAMERA_VIEW_X, UI_CAMERA_VIEW_Y, "not ready");
+        return;
+    }
+
+    if(UI_CAMERA_PREVIEW_RAW == ui_camera_preview_mode)
+    {
+        ips200_show_gray_image(UI_CAMERA_VIEW_X,
+                               UI_CAMERA_VIEW_Y,
+                               image_get_raw_buffer(),
+                               LCDW,
+                               LCDH,
+                               UI_CAMERA_VIEW_W,
+                               UI_CAMERA_VIEW_H,
+                               0);
+    }
+    else
+    {
+        ips200_show_gray_image(UI_CAMERA_VIEW_X,
+                               UI_CAMERA_VIEW_Y,
+                               image_get_binary_buffer(),
+                               LCDW,
+                               LCDH,
+                               UI_CAMERA_VIEW_W,
+                               UI_CAMERA_VIEW_H,
+                               1);
+    }
+
+    ui_draw_camera_overlay();
 }
 
 /* 画文本行 */
@@ -418,6 +809,21 @@ static void ui_draw_value_row(uint8 row, const char *name, int16 value, uint8 se
     ips200_show_string(0, y, selected ? (ui_editing ? "*" : ">") : " ");
     ips200_show_string(UI_LABEL_X, y, name);
     ips200_show_int16(UI_VALUE_X, y, value);
+}
+
+/* 画文本数值行 */
+static void ui_draw_value_row_text(uint8 row, const char *name, const char *text, uint8 selected)
+{
+    uint16 y;
+    uint16 color;
+
+    y = (uint16)(UI_LIST_Y + (uint16)row * UI_ROW_HEIGHT);
+    color = selected ? (ui_editing ? RGB565_RED : RGB565_BLUE) : RGB565_BLACK;
+
+    ips200_set_color(color, RGB565_WHITE);
+    ips200_show_string(0, y, selected ? (ui_editing ? "*" : ">") : " ");
+    ips200_show_string(UI_LABEL_X, y, name);
+    ips200_show_string(UI_VALUE_X, y, text);
 }
 
 /* 主界面 */
@@ -457,6 +863,41 @@ static void ui_draw_camera_param_page(void)
 
     ui_draw_value_row(0, ui_camera_name[0], ui_camera_page.exp_time, (0 == ui_camera_selected) ? 1 : 0);
     ui_draw_value_row(1, ui_camera_name[1], ui_camera_page.gain, (1 == ui_camera_selected) ? 1 : 0);
+}
+
+/* 舵机参数界面 */
+static void ui_draw_servo_param_page(void)
+{
+    char value_text[8];
+    char step_text[8];
+    int16 step_value;
+
+    ui_draw_title("Servo");
+    step_value = flash_get_servo_step((flash_servo_slot_t)ui_servo_selected);
+    if((UI_SERVO_ERR2 == ui_servo_selected) || (UI_SERVO_IMU_D == ui_servo_selected))
+    {
+        ui_format_tenths_text(step_value, step_text);
+        ui_draw_step_text(step_text);
+    }
+    else
+    {
+        ui_draw_step_value(step_value);
+    }
+
+    ui_draw_value_row(0, ui_servo_name[0], ui_servo_page.steer_p, (0 == ui_servo_selected) ? 1 : 0);
+    ui_draw_value_row(1, ui_servo_name[1], ui_servo_page.steer_d, (1 == ui_servo_selected) ? 1 : 0);
+
+    ui_format_tenths_text(ui_servo_page.err2_k, value_text);
+    ui_draw_value_row_text(2, ui_servo_name[2], value_text, (2 == ui_servo_selected) ? 1 : 0);
+
+    ui_draw_value_row(3, ui_servo_name[3], ui_servo_page.ackerman, (3 == ui_servo_selected) ? 1 : 0);
+
+    ui_format_tenths_text(ui_servo_page.imu_d, value_text);
+    ui_draw_value_row_text(4, ui_servo_name[4], value_text, (4 == ui_servo_selected) ? 1 : 0);
+
+    ui_draw_value_row(5, ui_servo_name[5], ui_servo_page.tow_point, (5 == ui_servo_selected) ? 1 : 0);
+    ui_draw_value_row(6, ui_servo_name[6], ui_servo_page.servo_min_angle, (6 == ui_servo_selected) ? 1 : 0);
+    ui_draw_value_row(7, ui_servo_name[7], ui_servo_page.servo_max_angle, (7 == ui_servo_selected) ? 1 : 0);
 }
 
 /* 电机参数界面 */
@@ -500,14 +941,23 @@ static void ui_draw_plan_select_page(void)
 /* 相机预览界面 */
 static void ui_draw_camera_view_page(void)
 {
-    ui_draw_title("Camera view");
-    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
-    ips200_show_string(0, UI_LIST_Y, "not ready");
+    if(ui_dirty)
+    {
+        ui_prepare_camera_view();
+    }
+
+    ui_draw_camera_preview();
 }
 
 /* 重画 */
 static void ui_render(void)
 {
+    if(UI_PAGE_CAMERA_VIEW == ui_page)
+    {
+        ui_draw_camera_view_page();
+        return;
+    }
+
     ips200_clear(RGB565_WHITE);
 
     switch(ui_page)
@@ -515,14 +965,14 @@ static void ui_render(void)
         case UI_PAGE_ROOT:
             ui_draw_root_page();
             break;
-        case UI_PAGE_CAMERA_VIEW:
-            ui_draw_camera_view_page();
-            break;
         case UI_PAGE_PARAM_MENU:
             ui_draw_param_menu_page();
             break;
         case UI_PAGE_CAMERA_PARAM:
             ui_draw_camera_param_page();
+            break;
+        case UI_PAGE_SERVO_PARAM:
+            ui_draw_servo_param_page();
             break;
         case UI_PAGE_MOTOR_PARAM:
             ui_draw_motor_param_page();
@@ -567,6 +1017,10 @@ static void ui_enter_page(void)
         {
             ui_page = UI_PAGE_CAMERA_PARAM;
         }
+        else if(UI_PARAM_SERVO == ui_param_selected)
+        {
+            ui_page = UI_PAGE_SERVO_PARAM;
+        }
         else if(UI_PARAM_MOTOR == ui_param_selected)
         {
             ui_page = UI_PAGE_MOTOR_PARAM;
@@ -578,18 +1032,25 @@ static void ui_enter_page(void)
     if(UI_PAGE_PLAN_SELECT == ui_page)
     {
         flash_set_active_plan(ui_plan_selected);
+        image_reload_camera_page();
         ui_load_page_value();
         ui_dirty = 1;
         return;
     }
 
-    if((UI_PAGE_CAMERA_PARAM == ui_page) || (UI_PAGE_MOTOR_PARAM == ui_page))
+    if((UI_PAGE_CAMERA_PARAM == ui_page) ||
+       (UI_PAGE_SERVO_PARAM == ui_page) ||
+       (UI_PAGE_MOTOR_PARAM == ui_page))
     {
         if(ui_editing)
         {
             if(UI_PAGE_CAMERA_PARAM == ui_page)
             {
                 ui_save_camera_value();
+            }
+            else if(UI_PAGE_SERVO_PARAM == ui_page)
+            {
+                ui_save_servo_value();
             }
             else
             {
@@ -624,6 +1085,7 @@ static void ui_back_page(void)
             ui_page = UI_PAGE_ROOT;
             break;
         case UI_PAGE_CAMERA_PARAM:
+        case UI_PAGE_SERVO_PARAM:
         case UI_PAGE_MOTOR_PARAM:
             ui_page = UI_PAGE_PARAM_MENU;
             break;
@@ -637,6 +1099,33 @@ static void ui_back_page(void)
 /* 按键处理 */
 static void ui_handle_event(ui_event_t event)
 {
+    if(UI_PAGE_CAMERA_VIEW == ui_page)
+    {
+        switch(event)
+        {
+            case UI_EVENT_BACK:
+                ui_back_page();
+                break;
+            case UI_EVENT_UP:
+            case UI_EVENT_DOWN:
+                if(UI_CAMERA_PREVIEW_RAW == ui_camera_preview_mode)
+                {
+                    ui_camera_preview_mode = UI_CAMERA_PREVIEW_BINARY;
+                }
+                else
+                {
+                    ui_camera_preview_mode = UI_CAMERA_PREVIEW_RAW;
+                }
+                ui_dirty = 1;
+                break;
+            case UI_EVENT_ENTER:
+            case UI_EVENT_NONE:
+            default:
+                break;
+        }
+        return;
+    }
+
     switch(event)
     {
         case UI_EVENT_BACK:
@@ -648,6 +1137,10 @@ static void ui_handle_event(ui_event_t event)
                 if(UI_PAGE_CAMERA_PARAM == ui_page)
                 {
                     ui_adjust_camera_value(1);
+                }
+                else if(UI_PAGE_SERVO_PARAM == ui_page)
+                {
+                    ui_adjust_servo_value(1);
                 }
                 else if(UI_PAGE_MOTOR_PARAM == ui_page)
                 {
@@ -665,6 +1158,10 @@ static void ui_handle_event(ui_event_t event)
                 if(UI_PAGE_CAMERA_PARAM == ui_page)
                 {
                     ui_adjust_camera_value(-1);
+                }
+                else if(UI_PAGE_SERVO_PARAM == ui_page)
+                {
+                    ui_adjust_servo_value(-1);
                 }
                 else if(UI_PAGE_MOTOR_PARAM == ui_page)
                 {
@@ -692,6 +1189,8 @@ void ui_init(void)
     ui_key_init();
     /* 初始化屏幕 */
     ui_screen_init();
+    /* 读取电量 */
+    ui_power_init();
     /* 初始化UI定时器 */
     ui_task_init();
     /* 读取当前页面参数 */
@@ -736,10 +1235,16 @@ void ui_update(void)
         ui_handle_event(event);
     }
 
-    if(screen_tick_ready && ui_dirty)
+    if(screen_tick_ready && (ui_dirty || (UI_PAGE_CAMERA_VIEW == ui_page)))
     {
         /* 有变化时刷新界面 */
         ui_render();
         ui_dirty = 0;
     }
+}
+
+/* 相机预览页 */
+uint8 ui_is_camera_view(void)
+{
+    return (UI_PAGE_CAMERA_VIEW == ui_page) ? 1 : 0;
 }

@@ -1,7 +1,15 @@
 #include "zf_common_headfile.h"
 #include "state.h"
 
-state_data_t state_data = {0, 0, 0, STATE_RUN};
+typedef struct
+{
+    uint8 ui_selected;                                        /* UI拨码结果 */
+    uint8 wifi_selected;                                      /* WiFi拨码结果 */
+    uint8 switch_latched;                                     /* 拨码已锁存 */
+    state_mode_t current_mode;                                /* 当前状态 */
+} state_data_t;
+
+static state_data_t state_data = {0, 0, 0, STATE_RUN};
 
 /* 拨码初始化 */
 static void state_switch_init(void)
