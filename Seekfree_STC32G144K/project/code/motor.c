@@ -7,16 +7,16 @@ static int16 motor_last_error_left = 0;
 static int16 motor_last_error_right = 0;
 
 /******************** 左电机PID参数 ****************/
-static int16 motor_kp_left = 0;                      /* 左kp */
-static int16 motor_ki_left = 0;                       /* 左ki */
+static int16 motor_kp_left = 62;                      /* 左kp */
+static int16 motor_ki_left = 16;                       /* 左ki */
 
 /******************** 右电机PID参数 ****************/
-static int16 motor_kp_right = 0;                     /* 右kp */
-static int16 motor_ki_right = 0;                      /* 右ki */
+static int16 motor_kp_right = 62;                     /* 右kp */
+static int16 motor_ki_right = 16;                      /* 右ki */
 
 /******************** 参数倍率 ********************/
-static int16 motor_param_div_left = 10;               /* 左倍率 */
-static int16 motor_param_div_right = 10;              /* 右倍率 */
+static int16 motor_param_div_left = 100;               /* 左倍率 */
+static int16 motor_param_div_right = 100;              /* 右倍率 */
 
 /******************** 输出限幅 ********************/
 static int8 motor_output_limit_left = 90;             /* 左输出最大百分比 */
