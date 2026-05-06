@@ -9,6 +9,11 @@
 #define IMAGE_BUZZER_PERIOD_MS        (20)                   /* 蜂鸣器周期 */
 #define IMAGE_BUZZER_PRIORITY         (0)                    /* 蜂鸣器优先级 */
 #define IMAGE_BUZZER_SHORT_MS         (100)                  /* 短响时间 */
+#define IMAGE_LASER_PIN               (IO_P67)                /* 激光笔 */
+#define IMAGE_LASER_PIT               (TIM4_PIT)             /* 激光笔定时器 */
+#define IMAGE_LASER_PERIOD_MS         (1)                    /* 激光笔周期 */
+#define IMAGE_LASER_PRIORITY          (0)                    /* 激光笔优先级 */
+#define IMAGE_LASER_SHORT_MS          (5)                    /* 激光短打时间 */
 
 #define IMAGE_STOP_RAW_THRESHOLD      (25)                   /* 阈值停车线 */
 #define IMAGE_ZEBRA_MISS_COUNT        (3)                    /* 斑马释放帧数 */
@@ -110,6 +115,7 @@ extern ImageDealDatatypedef ImageDeal[LCDH];
 void image_init(void);
 void image_update(void);
 void image_buzzer_update(void);
+void image_laser_update(void);
 uint8 image_is_ready(void);
 uint8 image_is_result_ready(void);
 uint8 image_set_camera_value(flash_camera_slot_t slot, int16 value);

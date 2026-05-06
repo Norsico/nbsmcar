@@ -32,6 +32,7 @@ void main(void)
     while(1)
     {
         image_buzzer_update();
+        image_laser_update();
 
         switch(state_get_mode())
         {
