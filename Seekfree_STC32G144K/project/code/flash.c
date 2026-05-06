@@ -18,7 +18,11 @@ static uint8 flash_ready = 0;
 static const flash_value_config_t flash_camera_config[FLASH_CAMERA_COUNT] =
 {
     {FLASH_CAMERA_EXP_TIME_STEP},
-    {FLASH_CAMERA_GAIN_STEP}
+    {FLASH_CAMERA_GAIN_STEP},
+    {FLASH_CAMERA_THRESHOLD_OFFSET_STEP},
+    {FLASH_CAMERA_FIRE_ROW_MIN_STEP},
+    {FLASH_CAMERA_FIRE_ROW_MAX_STEP},
+    {FLASH_CAMERA_FIRE_CENTER_TOL_STEP}
 };
 
 static const flash_value_config_t flash_servo_config[FLASH_SERVO_COUNT] =
@@ -60,6 +64,46 @@ int16 flash_limit_camera_value(flash_camera_slot_t slot, int16 value)
             if(value > FLASH_CAMERA_GAIN_MAX)
             {
                 return FLASH_CAMERA_GAIN_MAX;
+            }
+            return value;
+        case FLASH_CAMERA_THRESHOLD_OFFSET:
+            if(value < FLASH_CAMERA_THRESHOLD_OFFSET_MIN)
+            {
+                return FLASH_CAMERA_THRESHOLD_OFFSET_MIN;
+            }
+            if(value > FLASH_CAMERA_THRESHOLD_OFFSET_MAX)
+            {
+                return FLASH_CAMERA_THRESHOLD_OFFSET_MAX;
+            }
+            return value;
+        case FLASH_CAMERA_FIRE_ROW_MIN:
+            if(value < FLASH_CAMERA_FIRE_ROW_MIN_MIN)
+            {
+                return FLASH_CAMERA_FIRE_ROW_MIN_MIN;
+            }
+            if(value > FLASH_CAMERA_FIRE_ROW_MIN_MAX)
+            {
+                return FLASH_CAMERA_FIRE_ROW_MIN_MAX;
+            }
+            return value;
+        case FLASH_CAMERA_FIRE_ROW_MAX:
+            if(value < FLASH_CAMERA_FIRE_ROW_MAX_MIN)
+            {
+                return FLASH_CAMERA_FIRE_ROW_MAX_MIN;
+            }
+            if(value > FLASH_CAMERA_FIRE_ROW_MAX_MAX)
+            {
+                return FLASH_CAMERA_FIRE_ROW_MAX_MAX;
+            }
+            return value;
+        case FLASH_CAMERA_FIRE_CENTER_TOL:
+            if(value < FLASH_CAMERA_FIRE_CENTER_TOL_MIN)
+            {
+                return FLASH_CAMERA_FIRE_CENTER_TOL_MIN;
+            }
+            if(value > FLASH_CAMERA_FIRE_CENTER_TOL_MAX)
+            {
+                return FLASH_CAMERA_FIRE_CENTER_TOL_MAX;
             }
             return value;
         default:
@@ -221,6 +265,46 @@ static uint8 flash_camera_store_value_is_valid(flash_camera_slot_t slot, int16 v
                 return 0;
             }
             return 1;
+        case FLASH_CAMERA_THRESHOLD_OFFSET:
+            if(value < FLASH_CAMERA_THRESHOLD_OFFSET_MIN)
+            {
+                return 0;
+            }
+            if(value > FLASH_CAMERA_THRESHOLD_OFFSET_MAX)
+            {
+                return 0;
+            }
+            return 1;
+        case FLASH_CAMERA_FIRE_ROW_MIN:
+            if(value < FLASH_CAMERA_FIRE_ROW_MIN_MIN)
+            {
+                return 0;
+            }
+            if(value > FLASH_CAMERA_FIRE_ROW_MIN_MAX)
+            {
+                return 0;
+            }
+            return 1;
+        case FLASH_CAMERA_FIRE_ROW_MAX:
+            if(value < FLASH_CAMERA_FIRE_ROW_MAX_MIN)
+            {
+                return 0;
+            }
+            if(value > FLASH_CAMERA_FIRE_ROW_MAX_MAX)
+            {
+                return 0;
+            }
+            return 1;
+        case FLASH_CAMERA_FIRE_CENTER_TOL:
+            if(value < FLASH_CAMERA_FIRE_CENTER_TOL_MIN)
+            {
+                return 0;
+            }
+            if(value > FLASH_CAMERA_FIRE_CENTER_TOL_MAX)
+            {
+                return 0;
+            }
+            return 1;
         default:
             return 0;
     }
@@ -240,6 +324,27 @@ static uint8 flash_camera_page_is_valid(const flash_camera_page_t *page)
     }
 
     if(!flash_camera_store_value_is_valid(FLASH_CAMERA_GAIN, page->gain))
+    {
+        return 0;
+    }
+
+    if(!flash_camera_store_value_is_valid(FLASH_CAMERA_THRESHOLD_OFFSET, page->threshold_offset))
+    {
+        return 0;
+    }
+    if(!flash_camera_store_value_is_valid(FLASH_CAMERA_FIRE_ROW_MIN, page->fire_row_min))
+    {
+        return 0;
+    }
+    if(!flash_camera_store_value_is_valid(FLASH_CAMERA_FIRE_ROW_MAX, page->fire_row_max))
+    {
+        return 0;
+    }
+    if(!flash_camera_store_value_is_valid(FLASH_CAMERA_FIRE_CENTER_TOL, page->fire_center_tol))
+    {
+        return 0;
+    }
+    if(page->fire_row_min > page->fire_row_max)
     {
         return 0;
     }
@@ -380,6 +485,36 @@ static uint8 flash_normalize_camera_page(flash_camera_page_t *page)
         page->gain = FLASH_CAMERA_GAIN_DEFAULT;
         changed = 1;
     }
+    if(page->threshold_offset < FLASH_CAMERA_THRESHOLD_OFFSET_MIN ||
+       page->threshold_offset > FLASH_CAMERA_THRESHOLD_OFFSET_MAX)
+    {
+        page->threshold_offset = FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT;
+        changed = 1;
+    }
+    if(page->fire_row_min < FLASH_CAMERA_FIRE_ROW_MIN_MIN ||
+       page->fire_row_min > FLASH_CAMERA_FIRE_ROW_MIN_MAX)
+    {
+        page->fire_row_min = FLASH_CAMERA_FIRE_ROW_MIN_DEFAULT;
+        changed = 1;
+    }
+    if(page->fire_row_max < FLASH_CAMERA_FIRE_ROW_MAX_MIN ||
+       page->fire_row_max > FLASH_CAMERA_FIRE_ROW_MAX_MAX)
+    {
+        page->fire_row_max = FLASH_CAMERA_FIRE_ROW_MAX_DEFAULT;
+        changed = 1;
+    }
+    if(page->fire_center_tol < FLASH_CAMERA_FIRE_CENTER_TOL_MIN ||
+       page->fire_center_tol > FLASH_CAMERA_FIRE_CENTER_TOL_MAX)
+    {
+        page->fire_center_tol = FLASH_CAMERA_FIRE_CENTER_TOL_DEFAULT;
+        changed = 1;
+    }
+    if(page->fire_row_min > page->fire_row_max)
+    {
+        page->fire_row_min = FLASH_CAMERA_FIRE_ROW_MIN_DEFAULT;
+        page->fire_row_max = FLASH_CAMERA_FIRE_ROW_MAX_DEFAULT;
+        changed = 1;
+    }
 
     return changed;
 }
@@ -506,6 +641,10 @@ static void flash_fill_plan0(flash_plan_t *plan)
 {
     plan->camera_page.exp_time = FLASH_CAMERA_EXP_TIME_DEFAULT;
     plan->camera_page.gain = FLASH_CAMERA_GAIN_DEFAULT;
+    plan->camera_page.threshold_offset = FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT;
+    plan->camera_page.fire_row_min = FLASH_CAMERA_FIRE_ROW_MIN_DEFAULT;
+    plan->camera_page.fire_row_max = FLASH_CAMERA_FIRE_ROW_MAX_DEFAULT;
+    plan->camera_page.fire_center_tol = FLASH_CAMERA_FIRE_CENTER_TOL_DEFAULT;
 
     plan->servo_page.steer_p = FLASH_SERVO_P_DEFAULT;
     plan->servo_page.steer_d = FLASH_SERVO_D_DEFAULT;
@@ -771,6 +910,18 @@ uint8 flash_set_camera_value(flash_camera_slot_t slot, int16 value)
             break;
         case FLASH_CAMERA_GAIN:
             flash_get_current_plan()->camera_page.gain = value;
+            break;
+        case FLASH_CAMERA_THRESHOLD_OFFSET:
+            flash_get_current_plan()->camera_page.threshold_offset = value;
+            break;
+        case FLASH_CAMERA_FIRE_ROW_MIN:
+            flash_get_current_plan()->camera_page.fire_row_min = value;
+            break;
+        case FLASH_CAMERA_FIRE_ROW_MAX:
+            flash_get_current_plan()->camera_page.fire_row_max = value;
+            break;
+        case FLASH_CAMERA_FIRE_CENTER_TOL:
+            flash_get_current_plan()->camera_page.fire_center_tol = value;
             break;
         default:
             return 0;

@@ -11,9 +11,9 @@
 #define IMAGE_BUZZER_SHORT_MS         (100)                  /* 短响时间 */
 #define IMAGE_LASER_PIN               (IO_P67)                /* 激光笔 */
 #define IMAGE_LASER_PIT               (TIM4_PIT)             /* 激光笔定时器 */
-#define IMAGE_LASER_PERIOD_MS         (1)                    /* 激光笔周期 */
+#define IMAGE_LASER_PERIOD_US         (100)                  /* 激光笔周期 */
 #define IMAGE_LASER_PRIORITY          (0)                    /* 激光笔优先级 */
-#define IMAGE_LASER_SHORT_MS          (5)                    /* 激光短打时间 */
+#define IMAGE_LASER_SHORT_US          (1000)                /* 激光短打时间 */
 
 #define IMAGE_STOP_RAW_THRESHOLD      (25)                   /* 阈值停车线 */
 #define IMAGE_ZEBRA_MISS_COUNT        (3)                    /* 斑马释放帧数 */
@@ -21,7 +21,6 @@
 #define IMAGE_OUTTRACK_BLACK_PERCENT  (90)                   /* 黑点占比线 */
 #define IMAGE_OUTTRACK_CONFIRM_COUNT  (10)                   /* 出界确认帧数 */
 #define IMAGE_OUTTRACK_SAMPLE_ROWS    (2)                    /* 出界采样行数 */
-
 #define LCDH                          (60)                   /* 图像高 */
 #define LCDW                          (80)                   /* 图像宽 */
 #define ImageSensorMid                (39)                   /* 图像中点 */
@@ -123,5 +122,14 @@ void image_reload_camera_page(void);
 const uint8 *image_get_raw_buffer(void);
 const uint8 *image_get_binary_buffer(void);
 uint16 image_get_speed_goal(void);
+uint8 image_get_target_ring_found(void);
+uint8 image_get_target_ring_stable_count(void);
+uint8 image_get_target_ring_shot_latch(void);
+void image_get_target_ring_box(uint8 *center_x,
+                               uint8 *center_y,
+                               uint8 *left_x,
+                               uint8 *right_x,
+                               uint8 *top_y,
+                               uint8 *bottom_y);
 
 #endif
