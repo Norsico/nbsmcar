@@ -523,6 +523,7 @@ static void ui_save_motor_value(void)
 {
     if(flash_set_motor_page(&ui_motor_page))
     {
+        image_reload_motor_page();
         ui_load_page_value();
         ui_backup_page_value();
     }
@@ -1218,6 +1219,7 @@ static void ui_enter_page(void)
     {
         flash_set_active_plan(ui_plan_selected);
         image_reload_camera_page();
+        image_reload_motor_page();
         ui_load_page_value();
         ui_dirty = 1;
         return;

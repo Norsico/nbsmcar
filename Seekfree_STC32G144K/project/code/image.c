@@ -6,6 +6,8 @@
 
 static uint8 image_ready = 0;
 static uint8 image_result_ready = 0;
+static uint16 runtime_speed_normal = 0;
+static uint16 runtime_speed_straight = FLASH_MOTOR_STRAIGHT_DEFAULT;
 static uint8 image_buzzer_busy = 0;
 static uint16 image_buzzer_time_left = 0;
 static volatile uint8 image_buzzer_tick_ready = 0;
@@ -174,6 +176,7 @@ void image_init(void)
     }
 
     image_reload_camera_page();
+    image_reload_motor_page();
     image_ready = 1;
     image_result_ready = 0;
 }
@@ -248,6 +251,16 @@ void image_reload_camera_page(void)
 
     flash_get_camera_page(&page);
     image_apply_camera_page(&page);
+}
+
+/* 重载电机参数 */
+void image_reload_motor_page(void)
+{
+    flash_motor_page_t page;
+
+    flash_get_motor_page(&page);
+    runtime_speed_normal = (uint16)((page.target_speed < 0) ? 0 : page.target_speed);
+    runtime_speed_straight = (uint16)((page.straight_speed < 0) ? 0 : page.straight_speed);
 }
 
 /* 原图地址 */
@@ -1362,8 +1375,8 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
     int speed_straight;
     int speed_min;
 
-    speed_normal = (int)flash_get_motor_value(FLASH_MOTOR_TARGET_SPEED);
-    speed_straight = (int)flash_get_motor_value(FLASH_MOTOR_STRAIGHT_SPEED);
+    speed_normal = (int)runtime_speed_normal;
+    speed_straight = (int)runtime_speed_straight;
     speed_min = speed_normal - 10;  // 速度最小值先暂时就 -10
     if(speed_min < 0)
     {
@@ -2764,7 +2777,7 @@ static void TargetRing_FindCandidateRow(void)
     int bottom_y;
 
     best_inner_width = 0;
-    for(row = (uint8)(LCDH / 5U); row < (uint8)(LCDH - 4U); row++)
+    for(row = 20U; row <= 45U; row++)
     {
         left_outer = 0;
         left_inner = 0;
@@ -2972,11 +2985,11 @@ void ImageProcess(void)
     // SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
     GetDet(runtime_tow_point);             //获取动态前瞻  并且计算图像偏差
 
-    // TargetRing_ResetFrameResult();
-    // TargetRing_FindCandidateRow();
-    // TargetRing_VerifyResult();
-    // TargetRing_UpdateState();
-    // TargetRing_HandleLaserFire();
+    TargetRing_ResetFrameResult();
+    TargetRing_FindCandidateRow();
+    TargetRing_VerifyResult();
+    TargetRing_UpdateState();
+    TargetRing_HandleLaserFire();
     
     gpio_set_level(IO_P52, 1);
 }
