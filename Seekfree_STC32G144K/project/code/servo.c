@@ -15,12 +15,12 @@ static const int16 servo_ackerman_tan_table[61] =
 };
 
 static volatile uint8 servo_tick_ready = 0;
-static int16 servo_p = 28;                                      /* 舵机p */
+static int16 servo_p = 38;                                      /* 舵机p */
 static int16 servo_d = 30;                                      /* 舵机d */
-static int16 servo_err2_k = 8;                                  /* 二次误差 */
-static int16 servo_imu_d = 4;                                   /* 陀螺仪d */
-static int16 servo_tow_point = 32;                              /* 前瞻 */
-static int16 servo_ackerman = SERVO_ACKERMAN_DEFAULT;           /* 阿克曼 */
+static int16 servo_err2_k = 9;                                  /* 二次误差 */
+static int16 servo_imu_d = 7;                                   /* 陀螺仪d */
+static int16 servo_tow_point = 17;                              /* 前瞻 */
+static int16 servo_ackerman = 1285;                             /* 阿克曼 */
 static float servo_last_error = 0.0f;                           /* 上次误差 */
 static uint16 servo_min_angle = SERVO_ANGLE_MIN;                /* 左限幅 */
 static uint16 servo_max_angle = SERVO_ANGLE_MAX;                /* 右限幅 */
@@ -311,12 +311,12 @@ static void servo_pid_realize(float offset)
 /* 舵机初始化 */
 void servo_init(void)
 {
-    servo_p = 28;
+    servo_p = 38;
     servo_d = 30;
-    servo_err2_k = 8;
-    servo_imu_d = 4;
-    servo_tow_point = 32;
-    servo_ackerman = SERVO_ACKERMAN_DEFAULT;
+    servo_err2_k = 9;
+    servo_imu_d = 7;
+    servo_tow_point = 17;
+    servo_ackerman = 1285;
     servo_last_error = 0.0f;
     servo_min_angle = SERVO_ANGLE_MIN;
     servo_max_angle = SERVO_ANGLE_MAX;

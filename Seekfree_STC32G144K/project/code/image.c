@@ -231,7 +231,7 @@ static uint8 ZebraFrameLatch = 0;
 static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
-static uint16 Speed_Goal = 0;
+static uint16 Speed_Goal = FLASH_MOTOR_STRAIGHT_DEFAULT;
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
 {
@@ -1208,9 +1208,11 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
     int speed_right;
     int speed_now;
     int speed_normal;
+    int speed_straight;
     int speed_min;
 
     speed_normal = (int)flash_get_motor_value(FLASH_MOTOR_TARGET_SPEED);
+    speed_straight = (int)flash_get_motor_value(FLASH_MOTOR_STRAIGHT_SPEED);
     speed_min = speed_normal - 10;  // 速度最小值先暂时就 -10
     if(speed_min < 0)
     {
@@ -1233,9 +1235,7 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
     speed_now = (speed_left + speed_right) / 2;
     if(ImageStatus.straight_acc == 1)
     {
-        // 暂时关闭直道加速
-        // Speed_Goal = (uint16)speed_straight;
-        Speed_Goal = (uint16)speed_normal;
+        Speed_Goal = (uint16)speed_straight;
     }
     else
     {
@@ -1672,7 +1672,7 @@ static void Element_Handle_Left_Rings(void)
     {
         for(Ysite = 57; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 5;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 3;
         }
     }
         //进环  补线

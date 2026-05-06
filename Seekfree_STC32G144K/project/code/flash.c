@@ -35,7 +35,8 @@ static const flash_value_config_t flash_servo_config[FLASH_SERVO_COUNT] =
 
 static const flash_value_config_t flash_motor_config[FLASH_MOTOR_COUNT] =
 {
-    {FLASH_MOTOR_TARGET_STEP}
+    {FLASH_MOTOR_TARGET_STEP},
+    {FLASH_MOTOR_STRAIGHT_STEP}
 };
 
 /* 方案索引 */
@@ -162,6 +163,8 @@ int16 flash_limit_motor_value(flash_motor_slot_t slot, int16 value)
     switch(slot)
     {
         case FLASH_MOTOR_TARGET_SPEED:
+            return (value < 0) ? 0 : value;
+        case FLASH_MOTOR_STRAIGHT_SPEED:
             return (value < 0) ? 0 : value;
         default:
             return 0;
@@ -305,6 +308,11 @@ static uint8 flash_motor_page_is_valid(const flash_motor_page_t *page)
         return 0;
     }
 
+    if(!flash_motor_value_is_valid(FLASH_MOTOR_STRAIGHT_SPEED, page->straight_speed))
+    {
+        return 0;
+    }
+
     return 1;
 }
 
@@ -441,18 +449,28 @@ static uint8 flash_normalize_servo_page(flash_servo_page_t *page)
 /* 电机页修正 */
 static uint8 flash_normalize_motor_page(flash_motor_page_t *page)
 {
+    uint8 changed;
+
     if(0 == page)
     {
         return 0;
     }
 
+    changed = 0;
+
     if(page->target_speed < 0)
     {
         page->target_speed = 0;
-        return 1;
+        changed = 1;
     }
 
-    return 0;
+    if(page->straight_speed < 0)
+    {
+        page->straight_speed = 0;
+        changed = 1;
+    }
+
+    return changed;
 }
 
 /* 方案修正 */
@@ -499,6 +517,7 @@ static void flash_fill_plan0(flash_plan_t *plan)
     plan->servo_page.servo_max_angle = FLASH_SERVO_MAX_ANGLE_DEFAULT;
 
     plan->motor_page.target_speed = 0;
+    plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
 }
 
 /* 方案2默认值 */
@@ -506,6 +525,7 @@ static void flash_fill_plan1(flash_plan_t *plan)
 {
     flash_fill_plan0(plan);
     plan->motor_page.target_speed = 100;
+    plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
 }
 
 /* 默认镜像 */
@@ -713,9 +733,26 @@ int16 flash_get_motor_value(flash_motor_slot_t slot)
     {
         case FLASH_MOTOR_TARGET_SPEED:
             return flash_get_current_plan()->motor_page.target_speed;
+        case FLASH_MOTOR_STRAIGHT_SPEED:
+            return flash_get_current_plan()->motor_page.straight_speed;
         default:
             return 0;
     }
+}
+
+uint8 flash_set_motor_page(const flash_motor_page_t *page)
+{
+    flash_ensure_ready();
+
+    if(!flash_motor_page_is_valid(page))
+    {
+        return 0;
+    }
+
+    memcpy(&flash_get_current_plan()->motor_page, page, sizeof(*page));
+    flash_apply_current_plan();
+    flash_save();
+    return 1;
 }
 
 uint8 flash_set_camera_value(flash_camera_slot_t slot, int16 value)
@@ -771,6 +808,9 @@ uint8 flash_set_motor_value(flash_motor_slot_t slot, int16 value)
     {
         case FLASH_MOTOR_TARGET_SPEED:
             flash_get_current_plan()->motor_page.target_speed = value;
+            break;
+        case FLASH_MOTOR_STRAIGHT_SPEED:
+            flash_get_current_plan()->motor_page.straight_speed = value;
             break;
         default:
             return 0;

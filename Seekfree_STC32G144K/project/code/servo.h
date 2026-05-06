@@ -26,7 +26,7 @@
 #define SERVO_IMU_CALIBRATE_SAMPLES    (100)                  /* 陀螺仪校准次数 */
 
 #define SERVO_ACKERMAN_MAX_ANGLE       (3000)                 /* 阿克曼最大转角 */
-#define SERVO_ACKERMAN_DEFAULT         (505)                  /* 阿克曼默认值 */
+#define SERVO_ACKERMAN_DEFAULT         (1285)                 /* 阿克曼默认值 */
 
 void servo_init(void);
 void servo_update(void);

@@ -40,8 +40,8 @@ typedef enum
 
 typedef enum
 {
-    UI_PARAM_CAMERA = 0,                                    /* 相机 */
-    UI_PARAM_SERVO,                                         /* 舵机 */
+    UI_PARAM_SERVO = 0,                                     /* 舵机 */
+    UI_PARAM_CAMERA,                                        /* 相机 */
     UI_PARAM_MOTOR,                                         /* 电机 */
     UI_PARAM_COUNT                                          /* 参数分类数量 */
 } ui_param_row_t;
@@ -61,14 +61,13 @@ typedef enum
     UI_SERVO_ACKERMAN,                                      /* 阿克曼 */
     UI_SERVO_IMU_D,                                         /* 陀螺仪d */
     UI_SERVO_TOW_POINT,                                     /* 前瞻 */
-    UI_SERVO_MIN_ANGLE,                                     /* 左限幅 */
-    UI_SERVO_MAX_ANGLE,                                     /* 右限幅 */
     UI_SERVO_COUNT                                          /* 舵机参数数量 */
 } ui_servo_row_t;
 
 typedef enum
 {
     UI_MOTOR_TARGET_SPEED = 0,                              /* 目标速度 */
+    UI_MOTOR_STRAIGHT_SPEED,                                /* 直道速度 */
     UI_MOTOR_COUNT                                          /* 电机参数数量 */
 } ui_motor_row_t;
 
@@ -87,8 +86,8 @@ static const char *ui_root_name[UI_ROOT_COUNT] =
 
 static const char *ui_param_name[UI_PARAM_COUNT] =
 {
-    "camera",
     "servo",
+    "camera",
     "motor"
 };
 
@@ -105,14 +104,13 @@ static const char *ui_servo_name[UI_SERVO_COUNT] =
     "err2 k",
     "ackerman",
     "imu d",
-    "tow point",
-    "servo min",
-    "servo max"
+    "tow point"
 };
 
 static const char *ui_motor_name[UI_MOTOR_COUNT] =
 {
-    "target speed"
+    "target speed",
+    "straight speed"
 };
 
 static uint8 ui_ready = 0;
@@ -423,22 +421,6 @@ static void ui_adjust_servo_value(int8 direction)
             value = (int16)(ui_servo_page.tow_point + (direction < 0 ? -step_value : step_value));
             ui_servo_page.tow_point = flash_limit_servo_value(FLASH_SERVO_TOW_POINT, value);
             break;
-        case UI_SERVO_MIN_ANGLE:
-            value = (int16)(ui_servo_page.servo_min_angle + (direction < 0 ? -step_value : step_value));
-            ui_servo_page.servo_min_angle = flash_limit_servo_value(FLASH_SERVO_MIN_ANGLE, value);
-            if(ui_servo_page.servo_min_angle >= ui_servo_page.servo_max_angle)
-            {
-                ui_servo_page.servo_min_angle = (int16)(ui_servo_page.servo_max_angle - 1);
-            }
-            break;
-        case UI_SERVO_MAX_ANGLE:
-            value = (int16)(ui_servo_page.servo_max_angle + (direction < 0 ? -step_value : step_value));
-            ui_servo_page.servo_max_angle = flash_limit_servo_value(FLASH_SERVO_MAX_ANGLE, value);
-            if(ui_servo_page.servo_max_angle <= ui_servo_page.servo_min_angle)
-            {
-                ui_servo_page.servo_max_angle = (int16)(ui_servo_page.servo_min_angle + 1);
-            }
-            break;
         default:
             break;
     }
@@ -452,10 +434,21 @@ static void ui_adjust_motor_value(int8 direction)
     int16 step_value;
     int16 value;
 
-    step_value = flash_get_motor_step(FLASH_MOTOR_TARGET_SPEED);
+    step_value = flash_get_motor_step((flash_motor_slot_t)ui_motor_selected);
 
-    value = (int16)(ui_motor_page.target_speed + (direction < 0 ? -step_value : step_value));
-    ui_motor_page.target_speed = flash_limit_motor_value(FLASH_MOTOR_TARGET_SPEED, value);
+    switch(ui_motor_selected)
+    {
+        case UI_MOTOR_TARGET_SPEED:
+            value = (int16)(ui_motor_page.target_speed + (direction < 0 ? -step_value : step_value));
+            ui_motor_page.target_speed = flash_limit_motor_value(FLASH_MOTOR_TARGET_SPEED, value);
+            break;
+        case UI_MOTOR_STRAIGHT_SPEED:
+            value = (int16)(ui_motor_page.straight_speed + (direction < 0 ? -step_value : step_value));
+            ui_motor_page.straight_speed = flash_limit_motor_value(FLASH_MOTOR_STRAIGHT_SPEED, value);
+            break;
+        default:
+            break;
+    }
     ui_dirty = 1;
 }
 
@@ -487,7 +480,15 @@ static void ui_save_servo_value(void)
 /* 保存电机值 */
 static void ui_save_motor_value(void)
 {
-    flash_set_motor_value(FLASH_MOTOR_TARGET_SPEED, ui_motor_page.target_speed);
+    if(flash_set_motor_page(&ui_motor_page))
+    {
+        ui_load_page_value();
+        ui_backup_page_value();
+    }
+    else
+    {
+        ui_restore_page_value();
+    }
     ui_editing = 0;
     ui_dirty = 1;
 }
@@ -896,17 +897,16 @@ static void ui_draw_servo_param_page(void)
     ui_draw_value_row_text(4, ui_servo_name[4], value_text, (4 == ui_servo_selected) ? 1 : 0);
 
     ui_draw_value_row(5, ui_servo_name[5], ui_servo_page.tow_point, (5 == ui_servo_selected) ? 1 : 0);
-    ui_draw_value_row(6, ui_servo_name[6], ui_servo_page.servo_min_angle, (6 == ui_servo_selected) ? 1 : 0);
-    ui_draw_value_row(7, ui_servo_name[7], ui_servo_page.servo_max_angle, (7 == ui_servo_selected) ? 1 : 0);
 }
 
 /* 电机参数界面 */
 static void ui_draw_motor_param_page(void)
 {
     ui_draw_title("Motor");
-    ui_draw_step_value(flash_get_motor_step(FLASH_MOTOR_TARGET_SPEED));
+    ui_draw_step_value(flash_get_motor_step((flash_motor_slot_t)ui_motor_selected));
 
-    ui_draw_value_row(0, ui_motor_name[0], ui_motor_page.target_speed, 1);
+    ui_draw_value_row(0, ui_motor_name[0], ui_motor_page.target_speed, (0 == ui_motor_selected) ? 1 : 0);
+    ui_draw_value_row(1, ui_motor_name[1], ui_motor_page.straight_speed, (1 == ui_motor_selected) ? 1 : 0);
 }
 
 /* 方案界面 */
@@ -998,7 +998,7 @@ static void ui_enter_page(void)
                 ui_page = UI_PAGE_CAMERA_VIEW;
                 break;
             case UI_ROOT_PARAM_TUNING:
-                ui_param_selected = UI_PARAM_CAMERA;
+                ui_param_selected = UI_PARAM_SERVO;
                 ui_page = UI_PAGE_PARAM_MENU;
                 break;
             case UI_ROOT_PLAN_SELECT:
@@ -1014,14 +1014,14 @@ static void ui_enter_page(void)
 
     if(UI_PAGE_PARAM_MENU == ui_page)
     {
-        if(UI_PARAM_CAMERA == ui_param_selected)
+        if(UI_PARAM_SERVO == ui_param_selected)
+        {
+            ui_page = UI_PAGE_SERVO_PARAM;
+        }
+        else if(UI_PARAM_CAMERA == ui_param_selected)
         {
             ui_camera_selected = UI_CAMERA_EXP_TIME;
             ui_page = UI_PAGE_CAMERA_PARAM;
-        }
-        else if(UI_PARAM_SERVO == ui_param_selected)
-        {
-            ui_page = UI_PAGE_SERVO_PARAM;
         }
         else if(UI_PARAM_MOTOR == ui_param_selected)
         {

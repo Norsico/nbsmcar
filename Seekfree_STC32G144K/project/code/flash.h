@@ -5,7 +5,7 @@
 
 #define FLASH_STORE_ADDR                 (0x0000)              /* flash地址 */
 #define FLASH_STORE_MAGIC                (0x5346)              /* flash标记 */
-#define FLASH_STORE_VERSION              (0x0002)              /* flash版本 */
+#define FLASH_STORE_VERSION              (0x0003)              /* flash版本 */
 #define FLASH_PLAN_COUNT                 (2)                   /* 方案数量 */
 
 #define FLASH_CAMERA_EXP_TIME_MIN        (1)                   /* 曝光下限 */
@@ -19,7 +19,7 @@
 
 #define FLASH_SERVO_P_MIN                (0)                   /* 舵机p下限 */
 #define FLASH_SERVO_P_MAX                (600)                 /* 舵机p上限 */
-#define FLASH_SERVO_P_DEFAULT            (28)                  /* 舵机p默认值 */
+#define FLASH_SERVO_P_DEFAULT            (38)                  /* 舵机p默认值 */
 #define FLASH_SERVO_P_STEP               (2)                   /* 舵机p步进 */
 
 #define FLASH_SERVO_D_MIN                (0)                   /* 舵机d下限 */
@@ -29,22 +29,22 @@
 
 #define FLASH_SERVO_ERR2_MIN             (0)                   /* 二次误差下限 */
 #define FLASH_SERVO_ERR2_MAX             (200)                 /* 二次误差上限 */
-#define FLASH_SERVO_ERR2_DEFAULT         (8)                   /* 二次误差默认值 */
+#define FLASH_SERVO_ERR2_DEFAULT         (9)                   /* 二次误差默认值 */
 #define FLASH_SERVO_ERR2_STEP            (1)                   /* 二次误差步进 */
 
 #define FLASH_SERVO_ACKERMAN_MIN         (0)                   /* 阿克曼下限 */
 #define FLASH_SERVO_ACKERMAN_MAX         (32767)               /* 阿克曼上限 */
-#define FLASH_SERVO_ACKERMAN_DEFAULT     (1105)                /* 阿克曼默认值 */
+#define FLASH_SERVO_ACKERMAN_DEFAULT     (1285)                /* 阿克曼默认值 */
 #define FLASH_SERVO_ACKERMAN_STEP        (10)                  /* 阿克曼步进 */
 
 #define FLASH_SERVO_IMU_D_MIN            (0)                   /* 陀螺仪d下限 */
 #define FLASH_SERVO_IMU_D_MAX            (100)                 /* 陀螺仪d上限 */
-#define FLASH_SERVO_IMU_D_DEFAULT        (4)                   /* 陀螺仪d默认值 */
+#define FLASH_SERVO_IMU_D_DEFAULT        (7)                   /* 陀螺仪d默认值 */
 #define FLASH_SERVO_IMU_D_STEP           (1)                   /* 陀螺仪d步进 */
 
 #define FLASH_SERVO_TOW_POINT_MIN        (1)                   /* 前瞻下限 */
 #define FLASH_SERVO_TOW_POINT_MAX        (49)                  /* 前瞻上限 */
-#define FLASH_SERVO_TOW_POINT_DEFAULT    (32)                  /* 前瞻默认值 */
+#define FLASH_SERVO_TOW_POINT_DEFAULT    (17)                  /* 前瞻默认值 */
 #define FLASH_SERVO_TOW_POINT_STEP       (1)                   /* 前瞻步进 */
 
 #define FLASH_SERVO_MIN_ANGLE_MIN        (50)                  /* 左限幅下限 */
@@ -58,6 +58,8 @@
 #define FLASH_SERVO_MAX_ANGLE_STEP       (2)                   /* 右限幅步进 */
 
 #define FLASH_MOTOR_TARGET_STEP          (10)                  /* 目标步进 */
+#define FLASH_MOTOR_STRAIGHT_DEFAULT     (100)                 /* 直道速度默认值 */
+#define FLASH_MOTOR_STRAIGHT_STEP        (10)                  /* 直道速度步进 */
 
 typedef struct
 {
@@ -87,6 +89,7 @@ typedef enum
 typedef enum
 {
     FLASH_MOTOR_TARGET_SPEED = 0,                               /* 目标速度 */
+    FLASH_MOTOR_STRAIGHT_SPEED,                                 /* 直道速度 */
     FLASH_MOTOR_COUNT                                           /* 电机参数数量 */
 } flash_motor_slot_t;
 
@@ -111,6 +114,7 @@ typedef struct
 typedef struct
 {
     int16 target_speed;                                         /* 目标速度 */
+    int16 straight_speed;                                       /* 直道速度 */
 } flash_motor_page_t;
 
 typedef struct
@@ -129,6 +133,7 @@ void flash_get_motor_page(flash_motor_page_t *page);
 int16 flash_get_motor_value(flash_motor_slot_t slot);
 uint8 flash_set_camera_value(flash_camera_slot_t slot, int16 value);
 uint8 flash_set_servo_page(const flash_servo_page_t *page);
+uint8 flash_set_motor_page(const flash_motor_page_t *page);
 uint8 flash_set_motor_value(flash_motor_slot_t slot, int16 value);
 int16 flash_limit_camera_value(flash_camera_slot_t slot, int16 value);
 int16 flash_limit_servo_value(flash_servo_slot_t slot, int16 value);
