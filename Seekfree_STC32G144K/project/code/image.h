@@ -24,6 +24,7 @@
 #define LCDH                          (60)                   /* 图像高 */
 #define LCDW                          (80)                   /* 图像宽 */
 #define ImageSensorMid                (39)                   /* 图像中点 */
+#define IMAGE_TARGET_RING_ROW         (45)                   /* 打靶扫描行 */
 #define LimitL(L)                     (L = ((L < 1) ? 1 : L))   /* 下限 */
 #define LimitH(H)                     (H = ((H > 78) ? 78 : H)) /* 上限 */
 

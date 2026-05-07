@@ -52,9 +52,6 @@ typedef enum
     UI_CAMERA_EXP_TIME = 0,                                 /* 曝光 */
     UI_CAMERA_GAIN,                                         /* 增益 */
     UI_CAMERA_THRESHOLD_OFFSET,                             /* 阈值补偿 */
-    UI_CAMERA_FIRE_ROW_MIN,                                 /* 打靶上沿 */
-    UI_CAMERA_FIRE_ROW_MAX,                                 /* 打靶下沿 */
-    UI_CAMERA_FIRE_CENTER_TOL,                              /* 打靶容差 */
     UI_CAMERA_COUNT                                         /* 相机参数数量 */
 } ui_camera_row_t;
 
@@ -101,9 +98,6 @@ static const char *ui_camera_name[UI_CAMERA_COUNT] =
     "exp time",
     "gain",
     "th offset",
-    "fire r min",
-    "fire r max",
-    "fire tol"
 };
 
 static const char *ui_servo_name[UI_SERVO_COUNT] =
@@ -397,29 +391,6 @@ static void ui_adjust_camera_value(int8 direction)
         value = (int16)(ui_camera_page.threshold_offset + (direction < 0 ? -step_value : step_value));
         ui_camera_page.threshold_offset = flash_limit_camera_value(FLASH_CAMERA_THRESHOLD_OFFSET, value);
     }
-    else if(UI_CAMERA_FIRE_ROW_MIN == ui_camera_selected)
-    {
-        value = (int16)(ui_camera_page.fire_row_min + (direction < 0 ? -step_value : step_value));
-        ui_camera_page.fire_row_min = flash_limit_camera_value(FLASH_CAMERA_FIRE_ROW_MIN, value);
-        if(ui_camera_page.fire_row_min > ui_camera_page.fire_row_max)
-        {
-            ui_camera_page.fire_row_max = ui_camera_page.fire_row_min;
-        }
-    }
-    else if(UI_CAMERA_FIRE_ROW_MAX == ui_camera_selected)
-    {
-        value = (int16)(ui_camera_page.fire_row_max + (direction < 0 ? -step_value : step_value));
-        ui_camera_page.fire_row_max = flash_limit_camera_value(FLASH_CAMERA_FIRE_ROW_MAX, value);
-        if(ui_camera_page.fire_row_max < ui_camera_page.fire_row_min)
-        {
-            ui_camera_page.fire_row_min = ui_camera_page.fire_row_max;
-        }
-    }
-    else if(UI_CAMERA_FIRE_CENTER_TOL == ui_camera_selected)
-    {
-        value = (int16)(ui_camera_page.fire_center_tol + (direction < 0 ? -step_value : step_value));
-        ui_camera_page.fire_center_tol = flash_limit_camera_value(FLASH_CAMERA_FIRE_CENTER_TOL, value);
-    }
 
     ui_dirty = 1;
 }
@@ -495,9 +466,6 @@ static void ui_save_camera_value(void)
     image_set_camera_value(FLASH_CAMERA_EXP_TIME, ui_camera_page.exp_time);
     image_set_camera_value(FLASH_CAMERA_GAIN, ui_camera_page.gain);
     image_set_camera_value(FLASH_CAMERA_THRESHOLD_OFFSET, ui_camera_page.threshold_offset);
-    image_set_camera_value(FLASH_CAMERA_FIRE_ROW_MIN, ui_camera_page.fire_row_min);
-    image_set_camera_value(FLASH_CAMERA_FIRE_ROW_MAX, ui_camera_page.fire_row_max);
-    image_set_camera_value(FLASH_CAMERA_FIRE_CENTER_TOL, ui_camera_page.fire_center_tol);
     ui_editing = 0;
     ui_dirty = 1;
 }
@@ -664,7 +632,6 @@ static void ui_prepare_camera_view(void)
 /* 画打靶框 */
 static void ui_draw_target_ring_overlay(void)
 {
-    flash_camera_page_t camera_page;
     uint8 found;
     uint8 center_x;
     uint8 center_y;
@@ -672,10 +639,6 @@ static void ui_draw_target_ring_overlay(void)
     uint8 right_x;
     uint8 top_y;
     uint8 bottom_y;
-    uint16 fire_y_min;
-    uint16 fire_y_max;
-    uint16 fire_x_left;
-    uint16 fire_x_right;
     uint16 draw_center_x;
     uint16 draw_center_y;
     uint16 draw_left_x;
@@ -685,27 +648,6 @@ static void ui_draw_target_ring_overlay(void)
     int i;
     int draw_x;
     int draw_y;
-
-    flash_get_camera_page(&camera_page);
-    fire_y_min = (uint16)(UI_CAMERA_VIEW_Y +
-                          (((uint16)camera_page.fire_row_min * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH);
-    fire_y_max = (uint16)(UI_CAMERA_VIEW_Y +
-                          (((uint16)camera_page.fire_row_max * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH);
-    fire_x_left = (uint16)(UI_CAMERA_VIEW_X +
-                           ((((uint16)(ImageSensorMid - camera_page.fire_center_tol)) * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
-    fire_x_right = (uint16)(UI_CAMERA_VIEW_X +
-                            ((((uint16)(ImageSensorMid + camera_page.fire_center_tol)) * UI_CAMERA_VIEW_W) + (LCDW / 2)) / LCDW);
-
-    for(i = (int)fire_x_left; i <= (int)fire_x_right; i++)
-    {
-        ips200_draw_point((uint16)i, fire_y_min, RGB565_BLUE);
-        ips200_draw_point((uint16)i, fire_y_max, RGB565_BLUE);
-    }
-    for(i = (int)fire_y_min; i <= (int)fire_y_max; i++)
-    {
-        ips200_draw_point(fire_x_left, (uint16)i, RGB565_BLUE);
-        ips200_draw_point(fire_x_right, (uint16)i, RGB565_BLUE);
-    }
 
     found = image_get_target_ring_found();
     if(!found)
@@ -757,6 +699,30 @@ static void ui_draw_target_ring_overlay(void)
 
         ips200_draw_point((uint16)draw_x, draw_center_y, RGB565_RED);
         ips200_draw_point(draw_center_x, (uint16)draw_y, RGB565_RED);
+    }
+}
+
+/* 画参考线 */
+static void ui_draw_camera_reference_lines(void)
+{
+    flash_servo_page_t servo_page;
+    uint16 target_row_y;
+    uint16 tow_point_y;
+    int x;
+
+    target_row_y = (uint16)(UI_CAMERA_VIEW_Y +
+                            (((uint16)IMAGE_TARGET_RING_ROW * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH);
+    for(x = (int)UI_CAMERA_VIEW_X; x < (int)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W); x++)
+    {
+        ips200_draw_point((uint16)x, target_row_y, RGB565_BLUE);
+    }
+
+    flash_get_servo_page(&servo_page);
+    tow_point_y = (uint16)(UI_CAMERA_VIEW_Y +
+                           (((uint16)servo_page.tow_point * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH);
+    for(x = (int)UI_CAMERA_VIEW_X; x < (int)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W); x++)
+    {
+        ips200_draw_point((uint16)x, tow_point_y, RGB565_YELLOW);
     }
 }
 
@@ -939,6 +905,7 @@ static void ui_draw_camera_preview(void)
     }
 
     ui_draw_camera_overlay();
+    ui_draw_camera_reference_lines();
     ui_draw_target_ring_overlay();
 }
 
@@ -1044,9 +1011,6 @@ static void ui_draw_camera_param_page(void)
     ui_draw_value_row(0, ui_camera_name[0], ui_camera_page.exp_time, (0 == ui_camera_selected) ? 1 : 0);
     ui_draw_value_row(1, ui_camera_name[1], ui_camera_page.gain, (1 == ui_camera_selected) ? 1 : 0);
     ui_draw_value_row(2, ui_camera_name[2], ui_camera_page.threshold_offset, (2 == ui_camera_selected) ? 1 : 0);
-    ui_draw_value_row(3, ui_camera_name[3], ui_camera_page.fire_row_min, (3 == ui_camera_selected) ? 1 : 0);
-    ui_draw_value_row(4, ui_camera_name[4], ui_camera_page.fire_row_max, (4 == ui_camera_selected) ? 1 : 0);
-    ui_draw_value_row(5, ui_camera_name[5], ui_camera_page.fire_center_tol, (5 == ui_camera_selected) ? 1 : 0);
 }
 
 /* 舵机参数界面 */
