@@ -706,15 +706,14 @@ static void ui_draw_target_ring_overlay(void)
 static void ui_draw_camera_reference_lines(void)
 {
     flash_servo_page_t servo_page;
-    uint16 target_row_y;
     uint16 tow_point_y;
     int x;
-
-    target_row_y = (uint16)(UI_CAMERA_VIEW_Y +
-                            (((uint16)IMAGE_TARGET_RING_ROW * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH);
     for(x = (int)UI_CAMERA_VIEW_X; x < (int)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W); x++)
     {
-        ips200_draw_point((uint16)x, target_row_y, RGB565_BLUE);
+        ips200_draw_point((uint16)x,
+                          (uint16)(UI_CAMERA_VIEW_Y +
+                                   (((uint16)IMAGE_TARGET_RING_ROW * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH),
+                          RGB565_BLUE);
     }
 
     flash_get_servo_page(&servo_page);

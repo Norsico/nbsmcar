@@ -2760,7 +2760,6 @@ static uint8 TargetRing_FindHorizontalPattern(uint8 row,
 /* 搜候选行 */
 static void TargetRing_FindCandidateRow(void)
 {
-    uint8 row;
     uint8 left_outer;
     uint8 left_inner;
     uint8 right_inner;
@@ -2772,12 +2771,11 @@ static void TargetRing_FindCandidateRow(void)
     int symmetry_error;
     int score;
 
-    row = (uint8)IMAGE_TARGET_RING_ROW;
     left_outer = 0;
     left_inner = 0;
     right_inner = 0;
     right_outer = 0;
-    if(!TargetRing_FindHorizontalPattern(row,
+    if(!TargetRing_FindHorizontalPattern((uint8)IMAGE_TARGET_RING_ROW,
                                          1U,
                                          (uint8)(LCDW - 2U),
                                          &left_outer,
@@ -2810,16 +2808,16 @@ static void TargetRing_FindCandidateRow(void)
         return;
     }
 
-    TargetRingCandidateRow = row;
-    TargetRingCenterY = row;
+    TargetRingCandidateRow = (uint8)IMAGE_TARGET_RING_ROW;
+    TargetRingCenterY = (uint8)IMAGE_TARGET_RING_ROW;
     TargetRingCenterX = (uint8)inner_center;
     TargetRingLeftX = left_outer;
     TargetRingRightX = right_outer;
     TargetRingWidth = outer_width;
     TargetRingHeight = 1;
     TargetRingScore = (uint8)score;
-    TargetRingTopY = row;
-    TargetRingBottomY = row;
+    TargetRingTopY = (uint8)IMAGE_TARGET_RING_ROW;
+    TargetRingBottomY = (uint8)IMAGE_TARGET_RING_ROW;
 }
 
 /* 最终验收 */
