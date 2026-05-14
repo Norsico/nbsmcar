@@ -13,6 +13,8 @@ static uint16 image_buzzer_time_left = 0;
 static volatile uint8 image_buzzer_tick_ready = 0;
 static uint8 image_laser_busy = 0;
 static uint16 image_laser_time_left = 0;
+static uint8 TargetRingShotDoneLatch = 0;                        /* 打靶冷却锁存，冷却期间保持 1 */
+static uint16 TargetRingShotCooldownMs = 0;                    /* 打靶冷却倒计时 */
 
 /* 关闭所有激光输出，切换路数时避免残留高电平。 */
 static void image_laser_all_off(void)
@@ -121,6 +123,19 @@ void image_buzzer_update(void)
     if(!tick_ready)
     {
         return;
+    }
+
+    if(0U != TargetRingShotCooldownMs)
+    {
+        if(TargetRingShotCooldownMs <= IMAGE_BUZZER_PERIOD_MS)
+        {
+            TargetRingShotCooldownMs = 0;
+            TargetRingShotDoneLatch = 0;
+        }
+        else
+        {
+            TargetRingShotCooldownMs = (uint16)(TargetRingShotCooldownMs - IMAGE_BUZZER_PERIOD_MS);
+        }
     }
 
     if(!image_buzzer_busy)
@@ -325,6 +340,12 @@ static void buzzer_short(void)
     image_buzzer_start(IMAGE_BUZZER_SHORT_MS);
 }
 
+/* 蜂鸣器长响 */
+static void buzzer_long(void)
+{
+    image_buzzer_start(IMAGE_BUZZER_LONG_MS);
+}
+
 /* 激光短打 */
 static void laser_short(uint8 center_x)
 {
@@ -385,7 +406,6 @@ static uint8 TargetRingHeight = 0;                               /* 靶环高 */
 static uint8 TargetRingScore = 0;                                /* 候选分数 */
 static uint8 TargetRingCandidateRow = 0;                         /* 候选行 */
 static uint8 TargetRingStableCount = 0;                          /* 稳定计数 */
-static uint8 TargetRingShotDoneLatch = 0;                        /* 已打锁存 */
 static uint8 TargetRingLastCenterX = 0xFF;                       /* 上帧X */
 static uint8 TargetRingLastCenterY = 0xFF;                       /* 上帧Y */
 float variance = 0, variance_acc = 25;  //方差
@@ -1802,7 +1822,7 @@ static void Element_Handle_Left_Rings(void)
     if(ImageFlag.image_element_rings_flag == 2 && num < 8)
     {
         ImageFlag.image_element_rings_flag = 5;
-        buzzer_short();
+        buzzer_long();
     }
         //进环
     if(ImageFlag.image_element_rings_flag == 5 && ImageStatus.Right_Line > 15)
@@ -2031,7 +2051,7 @@ static void Element_Handle_Right_Rings(void)
     if(ImageFlag.image_element_rings_flag == 2 && num < 8)
     {
         ImageFlag.image_element_rings_flag = 5;
-        buzzer_short();
+        buzzer_long();
     }
         //进环
     if(ImageFlag.image_element_rings_flag == 5 && ImageStatus.Left_Line > 15)
@@ -2919,7 +2939,6 @@ static void TargetRing_UpdateState(void)
         TargetRingStableCount = 0;
         TargetRingLastCenterX = 0xFF;
         TargetRingLastCenterY = 0xFF;
-        TargetRingShotDoneLatch = 0;
     }
 }
 
@@ -2938,20 +2957,19 @@ static void TargetRing_HandleLaserFire(void)
     if(ZebraFrameLatch)
     {
         image_laser_all_off();
-        TargetRingShotDoneLatch = 0;
         return;
     }
 
-    if(TargetRingFound && (0U == TargetRingShotDoneLatch))
+    if(TargetRingFound && (0U == TargetRingShotCooldownMs))
     {
         laser_short(TargetRingCenterX);
         buzzer_short();
+        TargetRingShotCooldownMs = IMAGE_TARGET_RING_FIRE_COOLDOWN_MS;
         TargetRingShotDoneLatch = 1;
         return;
     }
 
     image_laser_all_off();
-    TargetRingShotDoneLatch = 0;
 }
 
 // 图像处理

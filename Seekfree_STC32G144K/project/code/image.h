@@ -9,6 +9,7 @@
 #define IMAGE_BUZZER_PERIOD_MS        (20)                   /* 蜂鸣器周期 */
 #define IMAGE_BUZZER_PRIORITY         (0)                    /* 蜂鸣器优先级 */
 #define IMAGE_BUZZER_SHORT_MS         (100)                  /* 短响时间 */
+#define IMAGE_BUZZER_LONG_MS          (800)                  /* 长响时间 */
 #define IMAGE_LASER_PIN               (IO_P67)                /* 激光笔 */
 #define IMAGE_LASER_PIN_95            (IO_P95)               /* 左1激光 */
 #define IMAGE_LASER_PIN_94            (IO_P94)               /* 左2激光 */
@@ -19,6 +20,7 @@
 #define IMAGE_LASER_PERIOD_US         (100)                  /* 激光笔周期 */
 #define IMAGE_LASER_PRIORITY          (0)                    /* 激光笔优先级 */
 #define IMAGE_LASER_SHORT_US          (1000)                /* 激光短打时间 */
+#define IMAGE_TARGET_RING_FIRE_COOLDOWN_MS (200)            /* 打靶最小间隔 */
 #define IMAGE_LASER_95_MAX_COL        (24)                   /* 0-24 开 95 */
 #define IMAGE_LASER_94_MAX_COL        (34)                   /* 25-34 开 94 */
 #define IMAGE_LASER_92_MAX_COL        (44)                   /* 35-44 开 92 */
