@@ -5,11 +5,11 @@
 
 #define FLASH_STORE_ADDR                 (0x0000)              /* flash地址 */
 #define FLASH_STORE_MAGIC                (0x5346)              /* flash标记 */
-#define FLASH_STORE_VERSION              (0x0005)              /* flash版本 */
+#define FLASH_STORE_VERSION              (0x0006)              /* flash版本 */
 #define FLASH_PLAN_COUNT                 (2)                   /* 方案数量 */
 
 #define FLASH_CAMERA_EXP_TIME_MIN        (1)                   /* 曝光下限 */
-#define FLASH_CAMERA_EXP_TIME_DEFAULT    (150)                 /* 曝光默认值 */
+#define FLASH_CAMERA_EXP_TIME_DEFAULT    (130)                 /* 曝光默认值 */
 #define FLASH_CAMERA_EXP_TIME_STEP       (10)                  /* 曝光步进 */
 
 #define FLASH_CAMERA_GAIN_MIN            (16)                  /* 增益下限 */
@@ -18,8 +18,12 @@
 #define FLASH_CAMERA_GAIN_STEP           (1)                   /* 增益步进 */
 #define FLASH_CAMERA_THRESHOLD_OFFSET_MIN (-100)               /* 阈值补偿下限 */
 #define FLASH_CAMERA_THRESHOLD_OFFSET_MAX (100)                /* 阈值补偿上限 */
-#define FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT (26)             /* 阈值补偿默认值 */
+#define FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT (0)              /* 阈值补偿默认值 */
 #define FLASH_CAMERA_THRESHOLD_OFFSET_STEP (1)                 /* 阈值补偿步进 */
+#define FLASH_CAMERA_GUIDE_COL_MIN      (0)                   /* 预览竖线下限 */
+#define FLASH_CAMERA_GUIDE_COL_MAX      (79)                  /* 预览竖线上限 */
+#define FLASH_CAMERA_GUIDE_COL_DEFAULT  (0)                   /* 预览竖线默认值 */
+#define FLASH_CAMERA_GUIDE_COL_STEP     (1)                   /* 预览竖线步进 */
 #define FLASH_CAMERA_FIRE_ROW_MIN_MIN   (0)                   /* 打靶上沿下限 */
 #define FLASH_CAMERA_FIRE_ROW_MIN_MAX   (59)                  /* 打靶上沿上限 */
 #define FLASH_CAMERA_FIRE_ROW_MIN_DEFAULT (30)                /* 打靶上沿默认值 */
@@ -87,6 +91,7 @@ typedef enum
     FLASH_CAMERA_EXP_TIME = 0,                                  /* 曝光 */
     FLASH_CAMERA_GAIN,                                          /* 增益 */
     FLASH_CAMERA_THRESHOLD_OFFSET,                              /* 阈值补偿 */
+    FLASH_CAMERA_GUIDE_COL,                                     /* 预览竖线X */
     FLASH_CAMERA_FIRE_ROW_MIN,                                  /* 打靶上沿 */
     FLASH_CAMERA_FIRE_ROW_MAX,                                  /* 打靶下沿 */
     FLASH_CAMERA_FIRE_CENTER_TOL,                               /* 打靶容差 */
@@ -118,6 +123,7 @@ typedef struct
     int16 exp_time;                                             /* 曝光 */
     int16 gain;                                                 /* 增益 */
     int16 threshold_offset;                                     /* 阈值补偿 */
+    int16 guide_col;                                            /* 预览竖线X */
     int16 fire_row_min;                                         /* 打靶上沿 */
     int16 fire_row_max;                                         /* 打靶下沿 */
     int16 fire_center_tol;                                      /* 打靶容差 */

@@ -220,6 +220,10 @@ uint8 image_set_camera_value(flash_camera_slot_t slot, int16 value)
             page.threshold_offset = value;
             apply_ok = 1;
             break;
+        case FLASH_CAMERA_GUIDE_COL:
+            page.guide_col = value;
+            apply_ok = 1;
+            break;
         case FLASH_CAMERA_FIRE_ROW_MIN:
             page.fire_row_min = value;
             apply_ok = 1;

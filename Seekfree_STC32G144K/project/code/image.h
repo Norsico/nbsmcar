@@ -10,10 +10,19 @@
 #define IMAGE_BUZZER_PRIORITY         (0)                    /* 蜂鸣器优先级 */
 #define IMAGE_BUZZER_SHORT_MS         (100)                  /* 短响时间 */
 #define IMAGE_LASER_PIN               (IO_P67)                /* 激光笔 */
+#define IMAGE_LASER_PIN_95            (IO_P95)               /* 左1激光 */
+#define IMAGE_LASER_PIN_94            (IO_P94)               /* 左2激光 */
+#define IMAGE_LASER_PIN_92            (IO_P92)               /* 中间激光 */
+#define IMAGE_LASER_PIN_93            (IO_P93)               /* 右2激光 */
+#define IMAGE_LASER_PIN_91            (IO_P91)               /* 右1激光 */
 #define IMAGE_LASER_PIT               (TIM4_PIT)             /* 激光笔定时器 */
 #define IMAGE_LASER_PERIOD_US         (100)                  /* 激光笔周期 */
 #define IMAGE_LASER_PRIORITY          (0)                    /* 激光笔优先级 */
 #define IMAGE_LASER_SHORT_US          (1000)                /* 激光短打时间 */
+#define IMAGE_LASER_95_MAX_COL        (24)                   /* 95列上限 */
+#define IMAGE_LASER_94_MAX_COL        (34)                   /* 94列上限 */
+#define IMAGE_LASER_92_MAX_COL        (44)                   /* 92列上限 */
+#define IMAGE_LASER_93_MAX_COL        (54)                   /* 93列上限 */
 
 #define IMAGE_STOP_RAW_THRESHOLD      (25)                   /* 阈值停车线 */
 #define IMAGE_ZEBRA_MISS_COUNT        (3)                    /* 斑马释放帧数 */
