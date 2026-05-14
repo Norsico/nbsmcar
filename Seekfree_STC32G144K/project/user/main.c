@@ -13,11 +13,11 @@ void main(void)
     debug_init();                            // 调试串口信息初始化
     gpio_init(IO_P52, GPO, GPIO_HIGH, GPO_PUSH_PULL);  // 测帧率的灯
     /* 多激光测试口，从左到右：95 94 92 93 91 */
-    gpio_init(IO_P95, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    gpio_init(IO_P94, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    gpio_init(IO_P92, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    gpio_init(IO_P93, GPO, GPIO_HIGH, GPO_PUSH_PULL);
-    gpio_init(IO_P91, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+    gpio_init(IO_P95, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IO_P94, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IO_P92, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IO_P93, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IO_P91, GPO, GPIO_LOW, GPO_PUSH_PULL);
 
     /********** 状态判断 *********/
     state_init();

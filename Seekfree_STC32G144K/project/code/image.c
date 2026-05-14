@@ -14,6 +14,40 @@ static volatile uint8 image_buzzer_tick_ready = 0;
 static uint8 image_laser_busy = 0;
 static uint16 image_laser_time_left = 0;
 
+/* 关闭所有激光输出，切换路数时避免残留高电平。 */
+static void image_laser_all_off(void)
+{
+    gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+    gpio_set_level(IMAGE_LASER_PIN_95, GPIO_LOW);
+    gpio_set_level(IMAGE_LASER_PIN_94, GPIO_LOW);
+    gpio_set_level(IMAGE_LASER_PIN_92, GPIO_LOW);
+    gpio_set_level(IMAGE_LASER_PIN_93, GPIO_LOW);
+    gpio_set_level(IMAGE_LASER_PIN_91, GPIO_LOW);
+}
+
+/* 按压缩图靶心列坐标选择激光。 */
+static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
+{
+    if(center_x <= IMAGE_LASER_95_MAX_COL)
+    {
+        return IMAGE_LASER_PIN_95;
+    }
+    if(center_x <= IMAGE_LASER_94_MAX_COL)
+    {
+        return IMAGE_LASER_PIN_94;
+    }
+    if(center_x <= IMAGE_LASER_92_MAX_COL)
+    {
+        return IMAGE_LASER_PIN_92;
+    }
+    if(center_x <= IMAGE_LASER_93_MAX_COL)
+    {
+        return IMAGE_LASER_PIN_93;
+    }
+
+    return IMAGE_LASER_PIN_91;
+}
+
 
 /* 蜂鸣器定时器 */
 static void image_buzzer_pit_handler(void)
@@ -36,7 +70,7 @@ static void image_laser_pit_handler(void)
 
     if(0U == image_laser_time_left)
     {
-        gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+        image_laser_all_off();
         image_laser_busy = 0;
     }
 }
@@ -53,6 +87,11 @@ static void image_buzzer_init(void)
 static void image_laser_init(void)
 {
     gpio_init(IMAGE_LASER_PIN, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IMAGE_LASER_PIN_95, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IMAGE_LASER_PIN_94, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IMAGE_LASER_PIN_92, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IMAGE_LASER_PIN_93, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(IMAGE_LASER_PIN_91, GPO, GPIO_LOW, GPO_PUSH_PULL);
     pit_us_init(IMAGE_LASER_PIT, IMAGE_LASER_PERIOD_US, image_laser_pit_handler);
 }
 
@@ -101,7 +140,7 @@ void image_buzzer_update(void)
 }
 
 /* 激光笔启动 */
-static void image_laser_start(uint16 time_us)
+static void image_laser_start(gpio_pin_enum laser_pin, uint16 time_us)
 {
     uint16 tick_count;
 
@@ -118,7 +157,8 @@ static void image_laser_start(uint16 time_us)
     interrupt_global_disable();
     image_laser_time_left = tick_count;
     image_laser_busy = 1;
-    gpio_set_level(IMAGE_LASER_PIN, GPIO_HIGH);
+    image_laser_all_off();
+    gpio_set_level(laser_pin, GPIO_HIGH);
     interrupt_global_enable();
 }
 
@@ -127,7 +167,7 @@ void image_laser_update(void)
 {
     if(!image_laser_busy)
     {
-        gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+        image_laser_all_off();
     }
 }
 
@@ -286,9 +326,9 @@ static void buzzer_short(void)
 }
 
 /* 激光短打 */
-static void laser_short(void)
+static void laser_short(uint8 center_x)
 {
-    image_laser_start(IMAGE_LASER_SHORT_US);
+    image_laser_start(image_laser_pick_pin(center_x), IMAGE_LASER_SHORT_US);
 }
 
 /* 压缩灰度图和二值图直接按国一口径导出。 */
@@ -2890,27 +2930,27 @@ static void TargetRing_HandleLaserFire(void)
     {
         if((STATE_UI != state_get_mode()) || !ui_is_camera_view())
         {
-            gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+            image_laser_all_off();
             return;
         }
     }
 
     if(ZebraFrameLatch)
     {
-        gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+        image_laser_all_off();
         TargetRingShotDoneLatch = 0;
         return;
     }
 
     if(TargetRingFound && (0U == TargetRingShotDoneLatch))
     {
-        laser_short();
+        laser_short(TargetRingCenterX);
         buzzer_short();
         TargetRingShotDoneLatch = 1;
         return;
     }
 
-    gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+    image_laser_all_off();
     TargetRingShotDoneLatch = 0;
 }
 

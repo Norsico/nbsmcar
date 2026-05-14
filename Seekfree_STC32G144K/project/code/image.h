@@ -19,10 +19,10 @@
 #define IMAGE_LASER_PERIOD_US         (100)                  /* 激光笔周期 */
 #define IMAGE_LASER_PRIORITY          (0)                    /* 激光笔优先级 */
 #define IMAGE_LASER_SHORT_US          (1000)                /* 激光短打时间 */
-#define IMAGE_LASER_95_MAX_COL        (24)                   /* 95列上限 */
-#define IMAGE_LASER_94_MAX_COL        (34)                   /* 94列上限 */
-#define IMAGE_LASER_92_MAX_COL        (44)                   /* 92列上限 */
-#define IMAGE_LASER_93_MAX_COL        (54)                   /* 93列上限 */
+#define IMAGE_LASER_95_MAX_COL        (24)                   /* 0-24 开 95 */
+#define IMAGE_LASER_94_MAX_COL        (34)                   /* 25-34 开 94 */
+#define IMAGE_LASER_92_MAX_COL        (44)                   /* 35-44 开 92 */
+#define IMAGE_LASER_93_MAX_COL        (54)                   /* 45-54 开 93，55 以上开 91 */
 
 #define IMAGE_STOP_RAW_THRESHOLD      (25)                   /* 阈值停车线 */
 #define IMAGE_ZEBRA_MISS_COUNT        (3)                    /* 斑马释放帧数 */
