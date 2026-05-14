@@ -19,7 +19,7 @@
 #define IMAGE_LASER_PIT               (TIM4_PIT)             /* 激光笔定时器 */
 #define IMAGE_LASER_PERIOD_US         (100)                  /* 激光笔周期 */
 #define IMAGE_LASER_PRIORITY          (0)                    /* 激光笔优先级 */
-#define IMAGE_LASER_SHORT_US          (1000)                /* 激光短打时间 */
+#define IMAGE_LASER_SHORT_US          (4500)                /* 激光短打时间 */
 #define IMAGE_TARGET_RING_FIRE_COOLDOWN_MS (200)            /* 打靶最小间隔 */
 #define IMAGE_LASER_95_MAX_COL        (24)                   /* 0-24 开 95 */
 #define IMAGE_LASER_94_MAX_COL        (34)                   /* 25-34 开 94 */
