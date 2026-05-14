@@ -52,7 +52,7 @@ typedef enum
     UI_CAMERA_EXP_TIME = 0,                                 /* 曝光 */
     UI_CAMERA_GAIN,                                         /* 增益 */
     UI_CAMERA_THRESHOLD_OFFSET,                             /* 阈值补偿 */
-    UI_CAMERA_GUIDE_COL,                                    /* 预览竖线X */
+    UI_CAMERA_LASER_ROW,                                    /* 激光扫描行 */
     UI_CAMERA_COUNT                                         /* 相机参数数量 */
 } ui_camera_row_t;
 
@@ -99,7 +99,7 @@ static const char *ui_camera_name[UI_CAMERA_COUNT] =
     "exp time",
     "gain",
     "th offset",
-    "line x",
+    "Laser",
 };
 
 static const char *ui_servo_name[UI_SERVO_COUNT] =
@@ -393,10 +393,14 @@ static void ui_adjust_camera_value(int8 direction)
         value = (int16)(ui_camera_page.threshold_offset + (direction < 0 ? -step_value : step_value));
         ui_camera_page.threshold_offset = flash_limit_camera_value(FLASH_CAMERA_THRESHOLD_OFFSET, value);
     }
-    else if(UI_CAMERA_GUIDE_COL == ui_camera_selected)
+    else if(UI_CAMERA_LASER_ROW == ui_camera_selected)
     {
-        value = (int16)(ui_camera_page.guide_col + (direction < 0 ? -step_value : step_value));
-        ui_camera_page.guide_col = flash_limit_camera_value(FLASH_CAMERA_GUIDE_COL, value);
+        value = (int16)(ui_camera_page.laser_row + (direction < 0 ? -step_value : step_value));
+        if(value < 1)
+        {
+            value = 1;
+        }
+        ui_camera_page.laser_row = flash_limit_camera_value(FLASH_CAMERA_LASER_ROW, value);
     }
 
     ui_dirty = 1;
@@ -473,7 +477,7 @@ static void ui_save_camera_value(void)
     image_set_camera_value(FLASH_CAMERA_EXP_TIME, ui_camera_page.exp_time);
     image_set_camera_value(FLASH_CAMERA_GAIN, ui_camera_page.gain);
     image_set_camera_value(FLASH_CAMERA_THRESHOLD_OFFSET, ui_camera_page.threshold_offset);
-    image_set_camera_value(FLASH_CAMERA_GUIDE_COL, ui_camera_page.guide_col);
+    image_set_camera_value(FLASH_CAMERA_LASER_ROW, ui_camera_page.laser_row);
     ui_editing = 0;
     ui_dirty = 1;
 }
@@ -714,19 +718,22 @@ static void ui_draw_target_ring_overlay(void)
 static void ui_draw_camera_reference_lines(void)
 {
     flash_servo_page_t servo_page;
-    uint16 guide_left_x;
-    uint16 guide_right_x;
+    uint16 laser_row_y;
     uint16 tow_point_y;
-    int guide_x;
+    uint8 laser_row;
     int x;
-    int y;
 
+    laser_row = (uint8)ui_camera_page.laser_row;
+    if((laser_row < 1U) || (laser_row >= (LCDH - 1U)))
+    {
+        laser_row = FLASH_CAMERA_LASER_ROW_DEFAULT;
+    }
+
+    laser_row_y = (uint16)(UI_CAMERA_VIEW_Y +
+                           (((uint16)laser_row * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH);
     for(x = (int)UI_CAMERA_VIEW_X; x < (int)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W); x++)
     {
-        ips200_draw_point((uint16)x,
-                          (uint16)(UI_CAMERA_VIEW_Y +
-                                   (((uint16)IMAGE_TARGET_RING_ROW * UI_CAMERA_VIEW_H) + (LCDH / 2)) / LCDH),
-                          RGB565_BLUE);
+        ips200_draw_point((uint16)x, laser_row_y, RGB565_BLUE);
     }
 
     flash_get_servo_page(&servo_page);
@@ -735,31 +742,6 @@ static void ui_draw_camera_reference_lines(void)
     for(x = (int)UI_CAMERA_VIEW_X; x < (int)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W); x++)
     {
         ips200_draw_point((uint16)x, tow_point_y, RGB565_YELLOW);
-    }
-
-    guide_left_x = (uint16)(UI_CAMERA_VIEW_X +
-                            (((uint16)ui_camera_page.guide_col * UI_CAMERA_VIEW_W) / LCDW));
-    guide_right_x = (uint16)(UI_CAMERA_VIEW_X +
-                             ((((uint16)ui_camera_page.guide_col + 1U) * UI_CAMERA_VIEW_W) / LCDW));
-    if(guide_right_x > 0U)
-    {
-        guide_right_x--;
-    }
-    if(guide_right_x < guide_left_x)
-    {
-        guide_right_x = guide_left_x;
-    }
-    if(guide_right_x >= (uint16)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W))
-    {
-        guide_right_x = (uint16)(UI_CAMERA_VIEW_X + UI_CAMERA_VIEW_W - 1);
-    }
-
-    for(y = (int)UI_CAMERA_VIEW_Y; y < (int)(UI_CAMERA_VIEW_Y + UI_CAMERA_VIEW_H); y++)
-    {
-        for(guide_x = (int)guide_left_x; guide_x <= (int)guide_right_x; guide_x++)
-        {
-            ips200_draw_point((uint16)guide_x, (uint16)y, RGB565_YELLOW);
-        }
     }
 }
 
@@ -1048,7 +1030,7 @@ static void ui_draw_camera_param_page(void)
     ui_draw_value_row(0, ui_camera_name[0], ui_camera_page.exp_time, (0 == ui_camera_selected) ? 1 : 0);
     ui_draw_value_row(1, ui_camera_name[1], ui_camera_page.gain, (1 == ui_camera_selected) ? 1 : 0);
     ui_draw_value_row(2, ui_camera_name[2], ui_camera_page.threshold_offset, (2 == ui_camera_selected) ? 1 : 0);
-    ui_draw_value_row(3, ui_camera_name[3], ui_camera_page.guide_col, (3 == ui_camera_selected) ? 1 : 0);
+    ui_draw_value_row(3, ui_camera_name[3], ui_camera_page.laser_row, (3 == ui_camera_selected) ? 1 : 0);
 }
 
 /* 舵机参数界面 */

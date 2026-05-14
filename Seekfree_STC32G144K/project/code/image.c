@@ -15,6 +15,7 @@ static uint8 image_laser_busy = 0;
 static uint16 image_laser_time_left = 0;
 static uint8 TargetRingShotDoneLatch = 0;                        /* 打靶冷却锁存，冷却期间保持 1 */
 static uint16 TargetRingShotCooldownMs = 0;                    /* 打靶冷却倒计时 */
+static uint8 TargetRingScanRow = FLASH_CAMERA_LASER_ROW_DEFAULT; /* 打靶扫描行 */
 
 /* 关闭所有激光输出，切换路数时避免残留高电平。 */
 static void image_laser_all_off(void)
@@ -48,6 +49,17 @@ static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
     }
 
     return IMAGE_LASER_PIN_91;
+}
+
+/* 激光扫描行修正，保证上下各一行可用。 */
+static uint8 image_normalize_laser_row(int16 laser_row)
+{
+    if((laser_row < 1) || (laser_row >= (LCDH - 1)))
+    {
+        return FLASH_CAMERA_LASER_ROW_DEFAULT;
+    }
+
+    return (uint8)laser_row;
 }
 
 
@@ -275,8 +287,9 @@ uint8 image_set_camera_value(flash_camera_slot_t slot, int16 value)
             page.threshold_offset = value;
             apply_ok = 1;
             break;
-        case FLASH_CAMERA_GUIDE_COL:
-            page.guide_col = value;
+        case FLASH_CAMERA_LASER_ROW:
+            page.laser_row = value;
+            TargetRingScanRow = image_normalize_laser_row(value);
             apply_ok = 1;
             break;
         case FLASH_CAMERA_FIRE_ROW_MIN:
@@ -309,6 +322,7 @@ void image_reload_camera_page(void)
     flash_camera_page_t page;
 
     flash_get_camera_page(&page);
+    TargetRingScanRow = image_normalize_laser_row(page.laser_row);
     image_apply_camera_page(&page);
 }
 
@@ -2821,8 +2835,8 @@ static uint8 TargetRing_FindHorizontalPattern(uint8 row,
     return (best_score > 0) ? 1U : 0U;
 }
 
-/* 搜候选行 */
-static void TargetRing_FindCandidateRow(void)
+/* 记录一条候选扫描行。 */
+static void TargetRing_TryCandidateRow(uint8 row)
 {
     uint8 left_outer;
     uint8 left_inner;
@@ -2834,12 +2848,14 @@ static void TargetRing_FindCandidateRow(void)
     int outer_center;
     int symmetry_error;
     int score;
+    int current_row_offset;
+    int best_row_offset;
 
     left_outer = 0;
     left_inner = 0;
     right_inner = 0;
     right_outer = 0;
-    if(!TargetRing_FindHorizontalPattern((uint8)IMAGE_TARGET_RING_ROW,
+    if(!TargetRing_FindHorizontalPattern(row,
                                          1U,
                                          (uint8)(LCDW - 2U),
                                          &left_outer,
@@ -2872,16 +2888,46 @@ static void TargetRing_FindCandidateRow(void)
         return;
     }
 
-    TargetRingCandidateRow = (uint8)IMAGE_TARGET_RING_ROW;
-    TargetRingCenterY = (uint8)IMAGE_TARGET_RING_ROW;
+    current_row_offset = abs((int)row - (int)TargetRingScanRow);
+    best_row_offset = abs((int)TargetRingCandidateRow - (int)TargetRingScanRow);
+    if((0U != TargetRingScore) &&
+       (score < (int)TargetRingScore))
+    {
+        return;
+    }
+    if((score == (int)TargetRingScore) &&
+       (0U != TargetRingScore) &&
+       (current_row_offset >= best_row_offset))
+    {
+        return;
+    }
+
+    TargetRingCandidateRow = row;
+    TargetRingCenterY = row;
     TargetRingCenterX = (uint8)inner_center;
     TargetRingLeftX = left_outer;
     TargetRingRightX = right_outer;
     TargetRingWidth = outer_width;
     TargetRingHeight = 1;
     TargetRingScore = (uint8)score;
-    TargetRingTopY = (uint8)IMAGE_TARGET_RING_ROW;
-    TargetRingBottomY = (uint8)IMAGE_TARGET_RING_ROW;
+    TargetRingTopY = row;
+    TargetRingBottomY = row;
+}
+
+/* 搜候选行，扫描设定行及其上下各一行。 */
+static void TargetRing_FindCandidateRow(void)
+{
+    uint8 row;
+    uint8 row_start;
+    uint8 row_end;
+
+    row_start = (TargetRingScanRow > 1U) ? (uint8)(TargetRingScanRow - 1U) : 1U;
+    row_end = (TargetRingScanRow < (LCDH - 2U)) ? (uint8)(TargetRingScanRow + 1U) : (uint8)(LCDH - 2U);
+
+    for(row = row_start; row <= row_end; row++)
+    {
+        TargetRing_TryCandidateRow(row);
+    }
 }
 
 /* 最终验收 */

@@ -20,10 +20,10 @@
 #define FLASH_CAMERA_THRESHOLD_OFFSET_MAX (100)                /* 阈值补偿上限 */
 #define FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT (0)              /* 阈值补偿默认值 */
 #define FLASH_CAMERA_THRESHOLD_OFFSET_STEP (1)                 /* 阈值补偿步进 */
-#define FLASH_CAMERA_GUIDE_COL_MIN      (0)                   /* 预览竖线下限 */
-#define FLASH_CAMERA_GUIDE_COL_MAX      (79)                  /* 预览竖线上限 */
-#define FLASH_CAMERA_GUIDE_COL_DEFAULT  (0)                   /* 预览竖线默认值 */
-#define FLASH_CAMERA_GUIDE_COL_STEP     (1)                   /* 预览竖线步进 */
+#define FLASH_CAMERA_LASER_ROW_MIN      (0)                   /* 激光扫描行存储下限，兼容旧值 */
+#define FLASH_CAMERA_LASER_ROW_MAX      (58)                  /* 激光扫描行上限 */
+#define FLASH_CAMERA_LASER_ROW_DEFAULT  (45)                  /* 激光扫描行默认值 */
+#define FLASH_CAMERA_LASER_ROW_STEP     (1)                   /* 激光扫描行步进 */
 #define FLASH_CAMERA_FIRE_ROW_MIN_MIN   (0)                   /* 打靶上沿下限 */
 #define FLASH_CAMERA_FIRE_ROW_MIN_MAX   (59)                  /* 打靶上沿上限 */
 #define FLASH_CAMERA_FIRE_ROW_MIN_DEFAULT (30)                /* 打靶上沿默认值 */
@@ -49,12 +49,12 @@
 
 #define FLASH_SERVO_ERR2_MIN             (0)                   /* 二次误差下限 */
 #define FLASH_SERVO_ERR2_MAX             (200)                 /* 二次误差上限 */
-#define FLASH_SERVO_ERR2_DEFAULT         (7)                   /* 二次误差默认值 */
+#define FLASH_SERVO_ERR2_DEFAULT         (5)                   /* 二次误差默认值 */
 #define FLASH_SERVO_ERR2_STEP            (1)                   /* 二次误差步进 */
 
 #define FLASH_SERVO_ACKERMAN_MIN         (0)                   /* 阿克曼下限 */
 #define FLASH_SERVO_ACKERMAN_MAX         (32767)               /* 阿克曼上限 */
-#define FLASH_SERVO_ACKERMAN_DEFAULT     (1285)                /* 阿克曼默认值 */
+#define FLASH_SERVO_ACKERMAN_DEFAULT     (1215)                /* 阿克曼默认值 */
 #define FLASH_SERVO_ACKERMAN_STEP        (10)                  /* 阿克曼步进 */
 
 #define FLASH_SERVO_IMU_D_MIN            (0)                   /* 陀螺仪d下限 */
@@ -64,7 +64,7 @@
 
 #define FLASH_SERVO_TOW_POINT_MIN        (1)                   /* 前瞻下限 */
 #define FLASH_SERVO_TOW_POINT_MAX        (49)                  /* 前瞻上限 */
-#define FLASH_SERVO_TOW_POINT_DEFAULT    (22)                  /* 前瞻默认值 */
+#define FLASH_SERVO_TOW_POINT_DEFAULT    (28)                  /* 前瞻默认值 */
 #define FLASH_SERVO_TOW_POINT_STEP       (1)                   /* 前瞻步进 */
 
 #define FLASH_SERVO_MIN_ANGLE_MIN        (50)                  /* 左限幅下限 */
@@ -78,7 +78,8 @@
 #define FLASH_SERVO_MAX_ANGLE_STEP       (2)                   /* 右限幅步进 */
 
 #define FLASH_MOTOR_TARGET_STEP          (10)                  /* 目标步进 */
-#define FLASH_MOTOR_STRAIGHT_DEFAULT     (100)                 /* 直道速度默认值 */
+#define FLASH_MOTOR_TARGET_DEFAULT       (150)                 /* 目标速度默认值 */
+#define FLASH_MOTOR_STRAIGHT_DEFAULT     (150)                 /* 直道速度默认值 */
 #define FLASH_MOTOR_STRAIGHT_STEP        (10)                  /* 直道速度步进 */
 
 typedef struct
@@ -91,7 +92,7 @@ typedef enum
     FLASH_CAMERA_EXP_TIME = 0,                                  /* 曝光 */
     FLASH_CAMERA_GAIN,                                          /* 增益 */
     FLASH_CAMERA_THRESHOLD_OFFSET,                              /* 阈值补偿 */
-    FLASH_CAMERA_GUIDE_COL,                                     /* 预览竖线X */
+    FLASH_CAMERA_LASER_ROW,                                     /* 激光扫描行 */
     FLASH_CAMERA_FIRE_ROW_MIN,                                  /* 打靶上沿 */
     FLASH_CAMERA_FIRE_ROW_MAX,                                  /* 打靶下沿 */
     FLASH_CAMERA_FIRE_CENTER_TOL,                               /* 打靶容差 */
@@ -123,7 +124,7 @@ typedef struct
     int16 exp_time;                                             /* 曝光 */
     int16 gain;                                                 /* 增益 */
     int16 threshold_offset;                                     /* 阈值补偿 */
-    int16 guide_col;                                            /* 预览竖线X */
+    int16 laser_row;                                            /* 激光扫描行 */
     int16 fire_row_min;                                         /* 打靶上沿 */
     int16 fire_row_max;                                         /* 打靶下沿 */
     int16 fire_center_tol;                                      /* 打靶容差 */

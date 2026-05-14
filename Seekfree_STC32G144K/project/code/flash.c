@@ -20,7 +20,7 @@ static const flash_value_config_t flash_camera_config[FLASH_CAMERA_COUNT] =
     {FLASH_CAMERA_EXP_TIME_STEP},
     {FLASH_CAMERA_GAIN_STEP},
     {FLASH_CAMERA_THRESHOLD_OFFSET_STEP},
-    {FLASH_CAMERA_GUIDE_COL_STEP},
+    {FLASH_CAMERA_LASER_ROW_STEP},
     {FLASH_CAMERA_FIRE_ROW_MIN_STEP},
     {FLASH_CAMERA_FIRE_ROW_MAX_STEP},
     {FLASH_CAMERA_FIRE_CENTER_TOL_STEP}
@@ -50,6 +50,17 @@ static uint8 flash_plan_is_valid(uint8 plan_index)
     return (plan_index < FLASH_PLAN_COUNT) ? 1 : 0;
 }
 
+/* 激光扫描行修正 */
+static int16 flash_normalize_laser_row_value(int16 value)
+{
+    if((value < 1) || (value > FLASH_CAMERA_LASER_ROW_MAX))
+    {
+        return FLASH_CAMERA_LASER_ROW_DEFAULT;
+    }
+
+    return value;
+}
+
 /* 相机限值 */
 int16 flash_limit_camera_value(flash_camera_slot_t slot, int16 value)
 {
@@ -77,14 +88,14 @@ int16 flash_limit_camera_value(flash_camera_slot_t slot, int16 value)
                 return FLASH_CAMERA_THRESHOLD_OFFSET_MAX;
             }
             return value;
-        case FLASH_CAMERA_GUIDE_COL:
-            if(value < FLASH_CAMERA_GUIDE_COL_MIN)
+        case FLASH_CAMERA_LASER_ROW:
+            if(value < FLASH_CAMERA_LASER_ROW_MIN)
             {
-                return FLASH_CAMERA_GUIDE_COL_MIN;
+                return FLASH_CAMERA_LASER_ROW_MIN;
             }
-            if(value > FLASH_CAMERA_GUIDE_COL_MAX)
+            if(value > FLASH_CAMERA_LASER_ROW_MAX)
             {
-                return FLASH_CAMERA_GUIDE_COL_MAX;
+                return FLASH_CAMERA_LASER_ROW_MAX;
             }
             return value;
         case FLASH_CAMERA_FIRE_ROW_MIN:
@@ -286,12 +297,12 @@ static uint8 flash_camera_store_value_is_valid(flash_camera_slot_t slot, int16 v
                 return 0;
             }
             return 1;
-        case FLASH_CAMERA_GUIDE_COL:
-            if(value < FLASH_CAMERA_GUIDE_COL_MIN)
+        case FLASH_CAMERA_LASER_ROW:
+            if(value < FLASH_CAMERA_LASER_ROW_MIN)
             {
                 return 0;
             }
-            if(value > FLASH_CAMERA_GUIDE_COL_MAX)
+            if(value > FLASH_CAMERA_LASER_ROW_MAX)
             {
                 return 0;
             }
@@ -353,7 +364,7 @@ static uint8 flash_camera_page_is_valid(const flash_camera_page_t *page)
     {
         return 0;
     }
-    if(!flash_camera_store_value_is_valid(FLASH_CAMERA_GUIDE_COL, page->guide_col))
+    if(!flash_camera_store_value_is_valid(FLASH_CAMERA_LASER_ROW, page->laser_row))
     {
         return 0;
     }
@@ -516,10 +527,9 @@ static uint8 flash_normalize_camera_page(flash_camera_page_t *page)
         page->threshold_offset = FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT;
         changed = 1;
     }
-    if(page->guide_col < FLASH_CAMERA_GUIDE_COL_MIN ||
-       page->guide_col > FLASH_CAMERA_GUIDE_COL_MAX)
+    if(page->laser_row != flash_normalize_laser_row_value(page->laser_row))
     {
-        page->guide_col = FLASH_CAMERA_GUIDE_COL_DEFAULT;
+        page->laser_row = flash_normalize_laser_row_value(page->laser_row);
         changed = 1;
     }
     if(page->fire_row_min < FLASH_CAMERA_FIRE_ROW_MIN_MIN ||
@@ -673,7 +683,7 @@ static void flash_fill_plan0(flash_plan_t *plan)
     plan->camera_page.exp_time = FLASH_CAMERA_EXP_TIME_DEFAULT;
     plan->camera_page.gain = FLASH_CAMERA_GAIN_DEFAULT;
     plan->camera_page.threshold_offset = FLASH_CAMERA_THRESHOLD_OFFSET_DEFAULT;
-    plan->camera_page.guide_col = FLASH_CAMERA_GUIDE_COL_DEFAULT;
+    plan->camera_page.laser_row = FLASH_CAMERA_LASER_ROW_DEFAULT;
     plan->camera_page.fire_row_min = FLASH_CAMERA_FIRE_ROW_MIN_DEFAULT;
     plan->camera_page.fire_row_max = FLASH_CAMERA_FIRE_ROW_MAX_DEFAULT;
     plan->camera_page.fire_center_tol = FLASH_CAMERA_FIRE_CENTER_TOL_DEFAULT;
@@ -687,7 +697,7 @@ static void flash_fill_plan0(flash_plan_t *plan)
     plan->servo_page.servo_min_angle = FLASH_SERVO_MIN_ANGLE_DEFAULT;
     plan->servo_page.servo_max_angle = FLASH_SERVO_MAX_ANGLE_DEFAULT;
 
-    plan->motor_page.target_speed = 0;
+    plan->motor_page.target_speed = FLASH_MOTOR_TARGET_DEFAULT;
     plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
 }
 
@@ -695,7 +705,7 @@ static void flash_fill_plan0(flash_plan_t *plan)
 static void flash_fill_plan1(flash_plan_t *plan)
 {
     flash_fill_plan0(plan);
-    plan->motor_page.target_speed = 100;
+    plan->motor_page.target_speed = FLASH_MOTOR_TARGET_DEFAULT;
     plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
 }
 
@@ -946,8 +956,8 @@ uint8 flash_set_camera_value(flash_camera_slot_t slot, int16 value)
         case FLASH_CAMERA_THRESHOLD_OFFSET:
             flash_get_current_plan()->camera_page.threshold_offset = value;
             break;
-        case FLASH_CAMERA_GUIDE_COL:
-            flash_get_current_plan()->camera_page.guide_col = value;
+        case FLASH_CAMERA_LASER_ROW:
+            flash_get_current_plan()->camera_page.laser_row = value;
             break;
         case FLASH_CAMERA_FIRE_ROW_MIN:
             flash_get_current_plan()->camera_page.fire_row_min = value;
