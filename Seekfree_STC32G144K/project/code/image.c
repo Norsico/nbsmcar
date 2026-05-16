@@ -457,6 +457,9 @@ int Repair_Point_Xsite = 0, Repair_Point_Ysite = 0;
 static const uint8 RightRingPreEnterCenterBiasStage12 = 6;       /* 右环前两阶段中线额外右移，避免车身贴左后看丢环内黑圈。 */
 static const uint8 RightRingPreEnterCenterBiasDefault = 2;       /* 右环准备进环阶段默认右移量。 */
 static const uint8 LeftRingExitCenterBias = 3;                   /* 左环出环时中线额外左移，降低出环外甩。 */
+static const uint8 RightRingExitCenterBias = 3;                  /* 右环出环时中线额外右移，让出环走位更贴右。 */
+static const float RightRingDetectLeftEdgeStraightMax = 40.0f;   /* 右环入口前左边界要更直，压普通右弯误判。 */
+static const uint8 RightRingDetectPointSpanMax = 18;             /* 右环两个候选拐点纵向间隔上限，过大更像普通弯。 */
 static uint8 OtsuRawThreshold = 0;
 static uint8 OutTrackStopHitCount = 0;
 static uint8 ZebraDetectCount = 0;
@@ -1767,13 +1770,14 @@ static void Element_Judgment_Left_Rings(void)
 
 static void Element_Judgment_Right_Rings(void)
 {
+    int point_span;
     float straight_judge;
 
     straight_judge = Straight_Judge(1, 25, 45);
     if(ImageStatus.Left_Line > 7 ||
        ImageStatus.Right_Line < 13 ||
        ImageStatus.OFFLine > 10 ||
-       (straight_judge > 50.0f) ||
+       (straight_judge > RightRingDetectLeftEdgeStraightMax) ||
        ImageStatus.WhiteLine > 15 ||
        ImageDeal[52].IsRightFind == 'W' ||
        ImageDeal[53].IsRightFind == 'W' ||
@@ -1809,6 +1813,16 @@ static void Element_Judgment_Right_Rings(void)
         Right_RingsFlag_Point1_Ysite = 52;
     }
 
+    point_span = Right_RingsFlag_Point2_Ysite - Right_RingsFlag_Point1_Ysite;
+    if((Right_RingsFlag_Point1_Ysite <= 25) ||
+       (Right_RingsFlag_Point2_Ysite <= 25) ||
+       (point_span <= 3) ||
+       (point_span > RightRingDetectPointSpanMax))
+    {
+        Ring_Help_Flag = 0;
+        return;
+    }
+
     for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
     {
         if(ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder &&
@@ -1821,7 +1835,7 @@ static void Element_Judgment_Right_Rings(void)
         }
     }
 
-    if(Right_RingsFlag_Point2_Ysite > Right_RingsFlag_Point1_Ysite + 3 && Ring_Help_Flag == 0)
+    if(Ring_Help_Flag == 0)
     {
         if(ImageStatus.Right_Line > 7)
         {
@@ -1829,8 +1843,7 @@ static void Element_Judgment_Right_Rings(void)
         }
     }
 
-    if(Right_RingsFlag_Point2_Ysite > Right_RingsFlag_Point1_Ysite + 3 &&
-       Ring_Help_Flag == 1 &&
+    if(Ring_Help_Flag == 1 &&
        ImageFlag.image_element_rings_flag == 0)
     {
         ImageFlag.image_element_rings = 2;
@@ -2307,7 +2320,11 @@ static void Element_Handle_Right_Rings(void)
             ImageDeal[Ysite].LeftBorder =
                 (ImageDeal[58].LeftBorder - Repair_Point_Xsite) * (Ysite - 58) /
                 (58 - Repair_Point_Ysite) + ImageDeal[58].LeftBorder;
-            ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + RightRingExitCenterBias;
+            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
+            }
         }
     }
         //已出环 半宽处理
@@ -2315,7 +2332,11 @@ static void Element_Handle_Right_Rings(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + RightRingExitCenterBias;
+            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
+            }
         }
     }
 }
