@@ -16,6 +16,8 @@ static uint16 image_laser_time_left = 0;
 static uint8 TargetRingShotDoneLatch = 0;                        /* 打靶冷却锁存，冷却期间保持 1 */
 static uint16 TargetRingShotCooldownMs = 0;                    /* 打靶冷却倒计时 */
 static uint8 TargetRingScanRow = FLASH_CAMERA_LASER_ROW_DEFAULT; /* 打靶扫描行 */
+static uint8 TargetRingPerspRowMap[LCDH] = {0};                /* 打靶行逆透视Y映射 */
+static uint8 TargetRingPerspMapReady = 0;
 
 /* 关闭所有激光输出，切换路数时避免残留高电平。 */
 static void image_laser_all_off(void)
@@ -49,6 +51,93 @@ static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
     }
 
     return IMAGE_LASER_PIN_91;
+}
+
+/* 打靶用逆透视行映射，只初始化一次。 */
+static void image_target_ring_init_persp_map(void)
+{
+    int i;
+    int src_row;
+
+    if(TargetRingPerspMapReady)
+    {
+        return;
+    }
+
+    for(i = 0; i < LCDH; i++)
+    {
+        src_row = IMAGE_COMPRESS_CUT_ROW_TOP +
+                  ((i * IMAGE_COMPRESS_SRC_H + (LCDH / 2)) / LCDH);
+        TargetRingPerspRowMap[i] = (uint8)((src_row * 79 + ((IMAGE_COMPRESS_SRC_H - 1) / 2)) /
+                                           (IMAGE_COMPRESS_SRC_H - 1));
+    }
+
+    TargetRingPerspMapReady = 1;
+}
+
+/* 源图列坐标折回压缩图列坐标。 */
+static uint8 image_source_x_to_compress_col(int16 source_x)
+{
+    int col;
+
+    if(source_x < IMAGE_COMPRESS_CUT_COL)
+    {
+        source_x = IMAGE_COMPRESS_CUT_COL;
+    }
+    else if(source_x >= (IMAGE_COMPRESS_CUT_COL + IMAGE_COMPRESS_SRC_W))
+    {
+        source_x = (int16)(IMAGE_COMPRESS_CUT_COL + IMAGE_COMPRESS_SRC_W - 1);
+    }
+
+    col = (((int)source_x - IMAGE_COMPRESS_CUT_COL) * LCDW + (IMAGE_COMPRESS_SRC_W / 2)) /
+          IMAGE_COMPRESS_SRC_W;
+    if(col < 0)
+    {
+        col = 0;
+    }
+    else if(col >= LCDW)
+    {
+        col = LCDW - 1;
+    }
+
+    return (uint8)col;
+}
+
+/* 只在打靶分段前做一次轻量逆透视，把靶心折回蓝线参考行。 */
+static uint8 image_target_ring_corrected_center_x(uint8 center_x, uint8 center_y)
+{
+    float src_x;
+    float persp_x;
+    float corrected_src_x;
+    float row_term;
+    float ref_row_term;
+    uint8 persp_row;
+    uint8 persp_ref_row;
+
+    if((center_x >= LCDW) || (center_y >= LCDH))
+    {
+        return center_x;
+    }
+
+    image_target_ring_init_persp_map();
+    src_x = (float)CompressColMap[center_x];
+    persp_row = TargetRingPerspRowMap[center_y];
+    persp_ref_row = TargetRingPerspRowMap[TargetRingScanRow];
+    row_term = IMAGE_TARGET_RING_PERSP_B3 * (float)persp_row + 1.0f;
+    ref_row_term = IMAGE_TARGET_RING_PERSP_B3 * (float)persp_ref_row + 1.0f;
+    if((row_term <= 0.001f) || (ref_row_term <= 0.001f))
+    {
+        return center_x;
+    }
+
+    persp_x = (IMAGE_TARGET_RING_PERSP_A1 * src_x +
+               IMAGE_TARGET_RING_PERSP_B1 * (float)persp_row +
+               IMAGE_TARGET_RING_PERSP_C1) / row_term;
+    corrected_src_x = (persp_x * ref_row_term -
+                       IMAGE_TARGET_RING_PERSP_B1 * (float)persp_ref_row -
+                       IMAGE_TARGET_RING_PERSP_C1) / IMAGE_TARGET_RING_PERSP_A1;
+
+    return image_source_x_to_compress_col((int16)(corrected_src_x + 0.5f));
 }
 
 /* 激光扫描行修正，保证上下各一行可用。 */
@@ -361,9 +450,10 @@ static void buzzer_long(void)
 }
 
 /* 激光短打 */
-static void laser_short(uint8 center_x)
+static void laser_short(uint8 center_x, uint8 center_y)
 {
-    image_laser_start(image_laser_pick_pin(center_x), IMAGE_LASER_SHORT_US);
+    image_laser_start(image_laser_pick_pin(image_target_ring_corrected_center_x(center_x, center_y)),
+                      IMAGE_LASER_SHORT_US);
 }
 
 /* 压缩灰度图和二值图直接按国一口径导出。 */
@@ -3008,7 +3098,7 @@ static void TargetRing_HandleLaserFire(void)
 
     if(TargetRingFound && (0U == TargetRingShotCooldownMs))
     {
-        laser_short(TargetRingCenterX);
+        laser_short(TargetRingCenterX, TargetRingCenterY);
         buzzer_short();
         TargetRingShotCooldownMs = IMAGE_TARGET_RING_FIRE_COOLDOWN_MS;
         TargetRingShotDoneLatch = 1;
