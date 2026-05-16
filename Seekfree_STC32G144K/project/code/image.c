@@ -454,6 +454,8 @@ int Left_RingsFlag_Point1_Ysite = 0, Left_RingsFlag_Point2_Ysite = 0;
 int Right_RingsFlag_Point1_Ysite = 0, Right_RingsFlag_Point2_Ysite = 0;
 int Point_Xsite = 0, Point_Ysite = 0;
 int Repair_Point_Xsite = 0, Repair_Point_Ysite = 0;
+static const uint8 RightRingPreEnterCenterBiasStage12 = 6;       /* 右环前两阶段中线额外右移，避免车身贴左后看丢环内黑圈。 */
+static const uint8 RightRingPreEnterCenterBiasDefault = 2;       /* 右环准备进环阶段默认右移量。 */
 static uint8 OtsuRawThreshold = 0;
 static uint8 OutTrackStopHitCount = 0;
 static uint8 ZebraDetectCount = 0;
@@ -2169,9 +2171,22 @@ static void Element_Handle_Right_Rings(void)
        ImageFlag.image_element_rings_flag == 3 ||
        ImageFlag.image_element_rings_flag == 4)
     {
+        int center_bias;
+
+        center_bias = RightRingPreEnterCenterBiasDefault;
+        if(ImageFlag.image_element_rings_flag == 1 ||
+           ImageFlag.image_element_rings_flag == 2)
+        {
+            center_bias = RightRingPreEnterCenterBiasStage12;
+        }
+
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 2;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + center_bias;
+            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
+            }
         }
     }
         //进环  补线
