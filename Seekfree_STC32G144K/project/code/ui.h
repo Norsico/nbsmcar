@@ -22,6 +22,7 @@
 #define UI_POWER_ADC_SAMPLE_COUNT    (3)                    /* 采样次数 */
 #define UI_POWER_EMPTY_DECI          (114)                  /* 空电电压 */
 #define UI_POWER_FULL_DECI           (126)                  /* 满电电压 */
+#define UI_POWER_WARN_PERCENT        (10)                   /* 低电量警告阈值 */
 
 #define UI_CAMERA_VIEW_X             (0)                    /* 图像X */
 #define UI_CAMERA_VIEW_Y             (0)                    /* 图像Y */

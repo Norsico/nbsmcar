@@ -632,7 +632,17 @@ static void ui_draw_step_text(const char *text)
 /* 画电量 */
 static void ui_draw_power_percent(void)
 {
-    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+    if(ui_power_percent <= UI_POWER_WARN_PERCENT)
+    {
+        ips200_set_color(RGB565_WHITE, RGB565_RED);
+        ips200_show_string((uint16)(UI_POWER_X - 32), UI_TITLE_Y, "LOW");
+    }
+    else
+    {
+        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+        ips200_show_string((uint16)(UI_POWER_X - 32), UI_TITLE_Y, "   ");
+    }
+
     ips200_show_uint8(UI_POWER_X, UI_TITLE_Y, ui_power_percent);
     ips200_show_string((uint16)(UI_POWER_X + 24), UI_TITLE_Y, "%");
 }

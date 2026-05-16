@@ -1801,21 +1801,12 @@ static void Element_Judgment_Right_Rings(void)
             break;
         }
     }
-
-    
-
-    if((Right_RingsFlag_Point1_Ysite <= 25) ||
-       (Right_RingsFlag_Point2_Ysite <= 25))
+    if(Right_RingsFlag_Point1_Ysite > 52)
     {
-        /* 旧 OTSU 版这里靠前级边界更稳定，当前搜线口径下单点毛刺更多。
-         * 两个候选拐点没同时成立时，直接不判右环，先压掉误触发。 */
-        Ring_Help_Flag = 0;
-        return;
+        Right_RingsFlag_Point1_Ysite = 52;
     }
 
-    
-
-    for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
+    for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
     {
         if(ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder &&
            ImageDeal[Ysite + 5].RightBorder > ImageDeal[Ysite + 3].RightBorder &&
