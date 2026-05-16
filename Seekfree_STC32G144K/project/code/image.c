@@ -456,6 +456,7 @@ int Point_Xsite = 0, Point_Ysite = 0;
 int Repair_Point_Xsite = 0, Repair_Point_Ysite = 0;
 static const uint8 RightRingPreEnterCenterBiasStage12 = 6;       /* 右环前两阶段中线额外右移，避免车身贴左后看丢环内黑圈。 */
 static const uint8 RightRingPreEnterCenterBiasDefault = 2;       /* 右环准备进环阶段默认右移量。 */
+static const uint8 LeftRingExitCenterBias = 3;                   /* 左环出环时中线额外左移，降低出环外甩。 */
 static uint8 OtsuRawThreshold = 0;
 static uint8 OutTrackStopHitCount = 0;
 static uint8 ZebraDetectCount = 0;
@@ -2057,7 +2058,11 @@ static void Element_Handle_Left_Rings(void)
             ImageDeal[Ysite].RightBorder =
                 (ImageDeal[58].RightBorder - Repair_Point_Xsite) * (Ysite - 58) /
                 (58 - Repair_Point_Ysite) + ImageDeal[58].RightBorder;
-            ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - LeftRingExitCenterBias;
+            if(ImageDeal[Ysite].Center <= ImageDeal[Ysite].LeftBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + 1;
+            }
         }
     }
         //已出环 半宽处理
@@ -2065,7 +2070,11 @@ static void Element_Handle_Left_Rings(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite];
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - LeftRingExitCenterBias;
+            if(ImageDeal[Ysite].Center <= ImageDeal[Ysite].LeftBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + 1;
+            }
         }
     }
 }
