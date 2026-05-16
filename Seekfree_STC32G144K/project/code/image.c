@@ -17,6 +17,9 @@ static uint8 image_laser_test_mode = 0;                        /* UI五路激光
 static uint8 TargetRingShotDoneLatch = 0;                        /* 打靶冷却锁存，冷却期间保持 1 */
 static uint16 TargetRingShotCooldownMs = 0;                    /* 打靶冷却倒计时 */
 static uint8 TargetRingScanRow = FLASH_CAMERA_LASER_ROW_DEFAULT; /* 打靶扫描行 */
+static uint8 CompressRowMap[LCDH] = {0};
+static uint8 CompressColMap[LCDW] = {0};
+static uint8 CompressMapReady = 0;
 static uint8 TargetRingPerspRowMap[LCDH] = {0};                /* 打靶行逆透视Y映射 */
 static uint8 TargetRingPerspMapReady = 0;
 
@@ -542,9 +545,6 @@ int Left_RingsFlag_Point1_Ysite = 0, Left_RingsFlag_Point2_Ysite = 0;
 int Right_RingsFlag_Point1_Ysite = 0, Right_RingsFlag_Point2_Ysite = 0;
 int Point_Xsite = 0, Point_Ysite = 0;
 int Repair_Point_Xsite = 0, Repair_Point_Ysite = 0;
-static uint8 CompressRowMap[LCDH] = {0};
-static uint8 CompressColMap[LCDW] = {0};
-static uint8 CompressMapReady = 0;
 static uint8 OtsuRawThreshold = 0;
 static uint8 OutTrackStopHitCount = 0;
 static uint8 ZebraDetectCount = 0;
