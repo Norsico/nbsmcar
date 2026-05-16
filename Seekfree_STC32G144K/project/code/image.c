@@ -13,6 +13,7 @@ static uint16 image_buzzer_time_left = 0;
 static volatile uint8 image_buzzer_tick_ready = 0;
 static uint8 image_laser_busy = 0;
 static uint16 image_laser_time_left = 0;
+static uint8 image_laser_test_mode = 0;                        /* UI五路激光对齐开关 */
 static uint8 TargetRingShotDoneLatch = 0;                        /* 打靶冷却锁存，冷却期间保持 1 */
 static uint16 TargetRingShotCooldownMs = 0;                    /* 打靶冷却倒计时 */
 static uint8 TargetRingScanRow = FLASH_CAMERA_LASER_ROW_DEFAULT; /* 打靶扫描行 */
@@ -28,6 +29,17 @@ static void image_laser_all_off(void)
     gpio_set_level(IMAGE_LASER_PIN_92, GPIO_LOW);
     gpio_set_level(IMAGE_LASER_PIN_93, GPIO_LOW);
     gpio_set_level(IMAGE_LASER_PIN_91, GPIO_LOW);
+}
+
+/* 对齐时同时点亮五路激光。 */
+static void image_laser_all_on(void)
+{
+    gpio_set_level(IMAGE_LASER_PIN, GPIO_LOW);
+    gpio_set_level(IMAGE_LASER_PIN_95, GPIO_HIGH);
+    gpio_set_level(IMAGE_LASER_PIN_94, GPIO_HIGH);
+    gpio_set_level(IMAGE_LASER_PIN_92, GPIO_HIGH);
+    gpio_set_level(IMAGE_LASER_PIN_93, GPIO_HIGH);
+    gpio_set_level(IMAGE_LASER_PIN_91, GPIO_HIGH);
 }
 
 /* 按压缩图靶心列坐标选择激光。 */
@@ -161,6 +173,11 @@ static void image_buzzer_pit_handler(void)
 /* 激光笔定时器 */
 static void image_laser_pit_handler(void)
 {
+    if(image_laser_test_mode)
+    {
+        return;
+    }
+
     if(!image_laser_busy)
     {
         return;
@@ -281,10 +298,48 @@ static void image_laser_start(gpio_pin_enum laser_pin, uint16 time_us)
 /* 激光笔更新 */
 void image_laser_update(void)
 {
+    if(image_laser_test_mode)
+    {
+        if(STATE_UI == state_get_mode())
+        {
+            image_laser_all_on();
+        }
+        else
+        {
+            image_laser_all_off();
+        }
+        return;
+    }
+
     if(!image_laser_busy)
     {
         image_laser_all_off();
     }
+}
+
+/* UI五路激光对齐开关 */
+void image_set_laser_test_mode(uint8 enabled)
+{
+    interrupt_global_disable();
+    image_laser_test_mode = enabled ? 1U : 0U;
+    image_laser_busy = 0;
+    image_laser_time_left = 0;
+    interrupt_global_enable();
+
+    if(image_laser_test_mode && (STATE_UI == state_get_mode()))
+    {
+        image_laser_all_on();
+    }
+    else
+    {
+        image_laser_all_off();
+    }
+}
+
+/* UI五路激光对齐状态 */
+uint8 image_get_laser_test_mode(void)
+{
+    return image_laser_test_mode;
 }
 
 /* 相机参数下发 */
@@ -3081,6 +3136,19 @@ static void TargetRing_UpdateState(void)
 /* 打靶控制 */
 static void TargetRing_HandleLaserFire(void)
 {
+    if(image_laser_test_mode)
+    {
+        if(STATE_UI == state_get_mode())
+        {
+            image_laser_all_on();
+        }
+        else
+        {
+            image_laser_all_off();
+        }
+        return;
+    }
+
     if(STATE_RUN != state_get_mode())
     {
         if((STATE_UI != state_get_mode()) || !ui_is_camera_view())

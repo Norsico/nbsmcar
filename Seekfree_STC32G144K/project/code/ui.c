@@ -44,6 +44,7 @@ typedef enum
     UI_PARAM_SERVO = 0,                                     /* 舵机 */
     UI_PARAM_CAMERA,                                        /* 相机 */
     UI_PARAM_MOTOR,                                         /* 电机 */
+    UI_PARAM_LASER_TEST,                                    /* 五路激光对齐 */
     UI_PARAM_COUNT                                          /* 参数分类数量 */
 } ui_param_row_t;
 
@@ -91,7 +92,8 @@ static const char *ui_param_name[UI_PARAM_COUNT] =
 {
     "servo",
     "camera",
-    "motor"
+    "motor",
+    "Laser test"
 };
 
 static const char *ui_camera_name[UI_CAMERA_COUNT] =
@@ -1009,13 +1011,19 @@ static void ui_draw_root_page(void)
 static void ui_draw_param_menu_page(void)
 {
     uint8 i;
+    const char *laser_test_text;
 
     ui_draw_title("Param tuning");
+    laser_test_text = image_get_laser_test_mode() ? "ON" : "OFF";
 
-    for(i = 0; i < UI_PARAM_COUNT; i++)
+    for(i = 0; i < UI_PARAM_LASER_TEST; i++)
     {
         ui_draw_text_row(i, ui_param_name[i], (i == ui_param_selected) ? 1 : 0);
     }
+    ui_draw_value_row_text(UI_PARAM_LASER_TEST,
+                           ui_param_name[UI_PARAM_LASER_TEST],
+                           laser_test_text,
+                           (UI_PARAM_LASER_TEST == ui_param_selected) ? 1 : 0);
 }
 
 /* 相机参数界面 */
@@ -1194,6 +1202,10 @@ static void ui_enter_page(void)
         else if(UI_PARAM_MOTOR == ui_param_selected)
         {
             ui_page = UI_PAGE_MOTOR_PARAM;
+        }
+        else if(UI_PARAM_LASER_TEST == ui_param_selected)
+        {
+            image_set_laser_test_mode(image_get_laser_test_mode() ? 0U : 1U);
         }
         ui_dirty = 1;
         return;

@@ -137,6 +137,8 @@ void image_reload_camera_page(void);
 void image_reload_motor_page(void);
 const uint8 *image_get_raw_buffer(void);
 const uint8 *image_get_binary_buffer(void);
+void image_set_laser_test_mode(uint8 enabled);
+uint8 image_get_laser_test_mode(void);
 uint16 image_get_speed_goal(void);
 uint8 image_get_target_ring_found(void);
 uint8 image_get_target_ring_stable_count(void);
