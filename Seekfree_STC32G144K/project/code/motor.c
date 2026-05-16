@@ -10,6 +10,7 @@ static int16 motor_last_error_left = 0;
 static int16 motor_last_error_right = 0;
 static uint8 motor_left_started = 0;                  /* 左轮已起步 */
 static uint8 motor_right_started = 0;                 /* 右轮已起步 */
+static uint8 motor_brake_stop_stable_count = 0;       /* 零速闭环刹停稳定计数 */
 
 /******************** 左电机PID参数 ****************/
 static int16 motor_kp_left = 58;                      /* 左kp */
@@ -26,6 +27,8 @@ static int16 motor_param_div_right = 100;              /* 右倍率 */
 /******************** 输出限幅 ********************/
 static int8 motor_output_limit_left = 90;             /* 左输出最大百分比 */
 static int8 motor_output_limit_right = 90;            /* 右输出最大百分比 */
+static const uint8 motor_brake_stop_speed_threshold = 2; /* 零速闭环刹停完成速度阈值 */
+static const uint8 motor_brake_stop_stable_ticks = 3;    /* 连续满足阈值多少次后切最终停止 */
 
 /* 对称限幅 */
 static int16 motor_limit_value(int16 value, int16 limit)
@@ -129,6 +132,7 @@ void motor_stop(void)
     motor_last_error_right = 0;
     motor_left_started = 0;
     motor_right_started = 0;
+    motor_brake_stop_stable_count = 0;
     motor_set_output(0, 0);
 }
 
@@ -201,6 +205,9 @@ void motor_get_pid_right(int16 *kp, int16 *ki)
 /* 电机更新 */
 void motor_update(void)
 {
+    uint8 brake_stop_mode;
+    int16 left_abs_count;
+    int16 right_abs_count;
     int16 left_count;
     int16 right_count;
     int16 runtime_speed;
@@ -223,6 +230,8 @@ void motor_update(void)
     right_count = motor_data.count_right;
     motor_tick_ready = 0;
     interrupt_global_enable();
+
+    brake_stop_mode = (STATE_BRAKE_STOP == state_get_mode()) ? 1U : 0U;
 
     if(STATE_STOP == state_get_mode())
     {
@@ -248,8 +257,13 @@ void motor_update(void)
             motor_data.target_right = runtime_right_target;
         }
     }
+    else if(brake_stop_mode)
+    {
+        motor_data.target_left = 0;
+        motor_data.target_right = 0;
+    }
 
-    if((0 == motor_data.target_left) && (0 == motor_data.target_right))
+    if((0 == motor_data.target_left) && (0 == motor_data.target_right) && !brake_stop_mode)
     {
         /* 目标为0就清状态停轮 */
         motor_last_error_left = 0;
@@ -296,4 +310,32 @@ void motor_update(void)
 
     /* 写PWM */
     motor_set_output(motor_data.pwm_right, motor_data.pwm_left);
+
+    if(brake_stop_mode)
+    {
+        left_abs_count = (left_count < 0) ? (int16)(-left_count) : left_count;
+        right_abs_count = (right_count < 0) ? (int16)(-right_count) : right_count;
+
+        if((left_abs_count <= motor_brake_stop_speed_threshold) &&
+           (right_abs_count <= motor_brake_stop_speed_threshold))
+        {
+            if(motor_brake_stop_stable_count < motor_brake_stop_stable_ticks)
+            {
+                motor_brake_stop_stable_count++;
+            }
+        }
+        else
+        {
+            motor_brake_stop_stable_count = 0;
+        }
+
+        if(motor_brake_stop_stable_count >= motor_brake_stop_stable_ticks)
+        {
+            state_set_mode(STATE_STOP);
+        }
+    }
+    else
+    {
+        motor_brake_stop_stable_count = 0;
+    }
 }

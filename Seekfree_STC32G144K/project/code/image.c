@@ -466,10 +466,6 @@ static uint8 ZebraDetectCount = 0;
 static uint8 ZebraFrameLatch = 0;
 static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
-static uint8 ZebraControlledStopActive = 0;                    /* 第二次斑马线命中后，进入受控减速停车。 */
-static uint16 ZebraControlledStopGoal = 0;                    /* 受控停车当前速度目标。 */
-static const uint8 ZebraControlledStopStep = 12;              /* 每帧下降的速度目标步进。 */
-static const uint8 ZebraControlledStopDoneSpeed = 3;          /* 编码器速度降到这个阈值后，切最终停车状态。 */
 static uint8 runtime_tow_point = 0;
 static uint16 Speed_Goal = FLASH_MOTOR_STRAIGHT_DEFAULT;
 static uint8 TargetRingCenterX = 0;                              /* 靶环中心X */
@@ -486,37 +482,6 @@ static float Weighting[10] =
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
     0.71f, 0.65f, 0.59f, 0.53f, 0.47f
 };
-
-/* 第二次斑马线命中后，启动受控减速停车。 */
-static void ZebraControlledStopStart(void)
-{
-    uint16 start_goal;
-
-    if(ZebraControlledStopActive)
-    {
-        return;
-    }
-
-    start_goal = Speed_Goal;
-    if(0U == start_goal)
-    {
-        start_goal = runtime_speed_normal;
-    }
-    if(0U == start_goal)
-    {
-        start_goal = runtime_speed_straight;
-    }
-
-    ZebraControlledStopGoal = start_goal;
-    ZebraControlledStopActive = 1;
-}
-
-/* 外部强停或退出运行态时，清掉受控停车状态。 */
-static void ZebraControlledStopReset(void)
-{
-    ZebraControlledStopActive = 0;
-    ZebraControlledStopGoal = 0;
-}
 
 /* 当前速度目标 */
 uint16 image_get_speed_goal(void)
@@ -1567,25 +1532,6 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
         Speed_Goal = (uint16)speed_normal;
     }
 
-    if(ZebraControlledStopActive)
-    {
-        if(ZebraControlledStopGoal > ZebraControlledStopStep)
-        {
-            ZebraControlledStopGoal = (uint16)(ZebraControlledStopGoal - ZebraControlledStopStep);
-        }
-        else
-        {
-            ZebraControlledStopGoal = 0;
-        }
-
-        Speed_Goal = ZebraControlledStopGoal;
-        if((0U == ZebraControlledStopGoal) && (speed_now <= ZebraControlledStopDoneSpeed))
-        {
-            ZebraControlledStopReset();
-            state_set_mode(STATE_STOP);
-        }
-    }
-
     if((ImageStatus.Road_type == RightCirque || ImageStatus.Road_type == LeftCirque) && ImageStatus.CirqueOff == 'F')
         TowPoint = 30;    //圆环前瞻
     else if(ImageStatus.Road_type == Straight)
@@ -2229,9 +2175,12 @@ static void Element_Handle_Right_Rings(void)
             if(ImageDeal[Ysite].IsRightFind == 'W')
             {
                 num++;
+
+                
             }
         }
         if(num < 5)
+
         {
             ImageStatus.Road_type = Normol;
             ImageFlag.image_element_rings_flag = 0;
@@ -2711,7 +2660,7 @@ static uint8 ZebraScanHit(void)
     return 0;
 }
 
-/* 第一次斑马线只记数并鸣叫，第二次有效命中启动受控停车。 */
+/* 第一次斑马线只记数并鸣叫，第二次有效命中进入零速闭环刹停。 */
 static void CheckZebraEmergency(void)
 {
     uint8 zebra_hit;
@@ -2722,14 +2671,6 @@ static void CheckZebraEmergency(void)
         ZebraFrameLatch = 0;
         ZebraMissFrames = 0;
         ZebraCooldownFrames = 0;
-        ZebraControlledStopReset();
-        return;
-    }
-
-    if(ZebraControlledStopActive)
-    {
-        ZebraFrameLatch = 0;
-        ZebraMissFrames = 0;
         return;
     }
 
@@ -2755,7 +2696,8 @@ static void CheckZebraEmergency(void)
                 buzzer_short();
                 if(ZebraDetectCount >= 2)
                 {
-                    ZebraControlledStopStart();
+                    Speed_Goal = 0;
+                    state_set_mode(STATE_BRAKE_STOP);
                 }
 
                 ZebraCooldownFrames = IMAGE_ZEBRA_COOLDOWN_FRAMES;
@@ -3146,7 +3088,7 @@ void ImageProcess(void)
     Element_Test();       //元素判断
     DrawExtensionLine();  /* 绘制延长线，补线。 */
     RouteFilter();        /* 中线滤波平滑。 */
-    CheckZebraEmergency();  /* 斑马线第一次只记数，第二次命中启动受控停车。 */
+    CheckZebraEmergency();  /* 斑马线第一次只记数，第二次命中进入零速闭环刹停。 */
 
 
     Element_Handle();     //环岛执行
@@ -3174,14 +3116,12 @@ void image_update(void)
 
     if(STATE_STOP == state_get_mode())
     {
-        ZebraControlledStopReset();
         image_result_ready = 0;
         return;
     }
 
     if((STATE_RUN == state_get_mode()) && (OtsuRawThreshold < IMAGE_STOP_RAW_THRESHOLD))
     {
-        ZebraControlledStopReset();
         image_result_ready = 0;
         state_set_mode(STATE_STOP);
         return;

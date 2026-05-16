@@ -68,6 +68,14 @@ void main(void)
                 break;
             }
 
+            /* 零速闭环刹停状态 */
+            case STATE_BRAKE_STOP:
+            {
+                servo_set_center();
+                motor_update();
+                break;
+            }
+
             /* Stop状态 */
             case STATE_STOP:
             default:

@@ -12,6 +12,7 @@ typedef enum
     STATE_UI = 0,                                             /* UI状态 */
     STATE_WIFI,                                               /* WiFi状态 */
     STATE_RUN,                                                /* Run状态 */
+    STATE_BRAKE_STOP,                                         /* 零速闭环刹停 */
     STATE_STOP                                                /* Stop状态 */
 } state_mode_t;
 
