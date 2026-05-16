@@ -14,14 +14,11 @@ static volatile uint8 image_buzzer_tick_ready = 0;
 static uint8 image_laser_busy = 0;
 static uint16 image_laser_time_left = 0;
 static uint8 image_laser_test_mode = 0;                        /* UI五路激光对齐开关 */
-static uint8 TargetRingShotDoneLatch = 0;                        /* 打靶冷却锁存，冷却期间保持 1 */
 static uint16 TargetRingShotCooldownMs = 0;                    /* 打靶冷却倒计时 */
 static uint8 TargetRingScanRow = FLASH_CAMERA_LASER_ROW_DEFAULT; /* 打靶扫描行 */
 static uint8 CompressRowMap[LCDH] = {0};
 static uint8 CompressColMap[LCDW] = {0};
 static uint8 CompressMapReady = 0;
-static uint8 TargetRingPerspRowMap[LCDH] = {0};                /* 打靶行逆透视Y映射 */
-static uint8 TargetRingPerspMapReady = 0;
 
 /* 关闭所有激光输出，切换路数时避免残留高电平。 */
 static void image_laser_all_off(void)
@@ -66,93 +63,6 @@ static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
     }
 
     return IMAGE_LASER_PIN_91;
-}
-
-/* 打靶用逆透视行映射，只初始化一次。 */
-static void image_target_ring_init_persp_map(void)
-{
-    int i;
-    int src_row;
-
-    if(TargetRingPerspMapReady)
-    {
-        return;
-    }
-
-    for(i = 0; i < LCDH; i++)
-    {
-        src_row = IMAGE_COMPRESS_CUT_ROW_TOP +
-                  ((i * IMAGE_COMPRESS_SRC_H + (LCDH / 2)) / LCDH);
-        TargetRingPerspRowMap[i] = (uint8)((src_row * 79 + ((IMAGE_COMPRESS_SRC_H - 1) / 2)) /
-                                           (IMAGE_COMPRESS_SRC_H - 1));
-    }
-
-    TargetRingPerspMapReady = 1;
-}
-
-/* 源图列坐标折回压缩图列坐标。 */
-static uint8 image_source_x_to_compress_col(int16 source_x)
-{
-    int col;
-
-    if(source_x < IMAGE_COMPRESS_CUT_COL)
-    {
-        source_x = IMAGE_COMPRESS_CUT_COL;
-    }
-    else if(source_x >= (IMAGE_COMPRESS_CUT_COL + IMAGE_COMPRESS_SRC_W))
-    {
-        source_x = (int16)(IMAGE_COMPRESS_CUT_COL + IMAGE_COMPRESS_SRC_W - 1);
-    }
-
-    col = (((int)source_x - IMAGE_COMPRESS_CUT_COL) * LCDW + (IMAGE_COMPRESS_SRC_W / 2)) /
-          IMAGE_COMPRESS_SRC_W;
-    if(col < 0)
-    {
-        col = 0;
-    }
-    else if(col >= LCDW)
-    {
-        col = LCDW - 1;
-    }
-
-    return (uint8)col;
-}
-
-/* 只在打靶分段前做一次轻量逆透视，把靶心折回蓝线参考行。 */
-static uint8 image_target_ring_corrected_center_x(uint8 center_x, uint8 center_y)
-{
-    float src_x;
-    float persp_x;
-    float corrected_src_x;
-    float row_term;
-    float ref_row_term;
-    uint8 persp_row;
-    uint8 persp_ref_row;
-
-    if((center_x >= LCDW) || (center_y >= LCDH))
-    {
-        return center_x;
-    }
-
-    image_target_ring_init_persp_map();
-    src_x = (float)CompressColMap[center_x];
-    persp_row = TargetRingPerspRowMap[center_y];
-    persp_ref_row = TargetRingPerspRowMap[TargetRingScanRow];
-    row_term = IMAGE_TARGET_RING_PERSP_B3 * (float)persp_row + 1.0f;
-    ref_row_term = IMAGE_TARGET_RING_PERSP_B3 * (float)persp_ref_row + 1.0f;
-    if((row_term <= 0.001f) || (ref_row_term <= 0.001f))
-    {
-        return center_x;
-    }
-
-    persp_x = (IMAGE_TARGET_RING_PERSP_A1 * src_x +
-               IMAGE_TARGET_RING_PERSP_B1 * (float)persp_row +
-               IMAGE_TARGET_RING_PERSP_C1) / row_term;
-    corrected_src_x = (persp_x * ref_row_term -
-                       IMAGE_TARGET_RING_PERSP_B1 * (float)persp_ref_row -
-                       IMAGE_TARGET_RING_PERSP_C1) / IMAGE_TARGET_RING_PERSP_A1;
-
-    return image_source_x_to_compress_col((int16)(corrected_src_x + 0.5f));
 }
 
 /* 激光扫描行修正，保证上下各一行可用。 */
@@ -251,7 +161,6 @@ void image_buzzer_update(void)
         if(TargetRingShotCooldownMs <= IMAGE_BUZZER_PERIOD_MS)
         {
             TargetRingShotCooldownMs = 0;
-            TargetRingShotDoneLatch = 0;
         }
         else
         {
@@ -381,6 +290,7 @@ static uint8 image_apply_camera_page(const flash_camera_page_t *page)
 /* 图像初始化 */
 void image_init(void)
 {
+    gpio_init(IO_P52, GPO, GPIO_HIGH, GPO_PUSH_PULL);
     image_buzzer_init();
     image_laser_init();
 
@@ -508,10 +418,9 @@ static void buzzer_long(void)
 }
 
 /* 激光短打 */
-static void laser_short(uint8 center_x, uint8 center_y)
+static void laser_short(uint8 center_x)
 {
-    image_laser_start(image_laser_pick_pin(image_target_ring_corrected_center_x(center_x, center_y)),
-                      IMAGE_LASER_SHORT_US);
+    image_laser_start(image_laser_pick_pin(center_x), IMAGE_LASER_SHORT_US);
 }
 
 /* 压缩灰度图和二值图直接按国一口径导出。 */
@@ -553,7 +462,6 @@ static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
 static uint16 Speed_Goal = FLASH_MOTOR_STRAIGHT_DEFAULT;
-static uint8 TargetRingFound = 0;                                /* 本帧靶环状态 */
 static uint8 TargetRingCenterX = 0;                              /* 靶环中心X */
 static uint8 TargetRingCenterY = 0;                              /* 靶环中心Y */
 static uint8 TargetRingLeftX = 0;                                /* 靶环左边界 */
@@ -561,12 +469,7 @@ static uint8 TargetRingRightX = 0;                               /* 靶环右边
 static uint8 TargetRingTopY = 0;                                 /* 靶环上边界 */
 static uint8 TargetRingBottomY = 0;                              /* 靶环下边界 */
 static uint8 TargetRingWidth = 0;                                /* 靶环宽 */
-static uint8 TargetRingHeight = 0;                               /* 靶环高 */
-static uint8 TargetRingScore = 0;                                /* 候选分数 */
-static uint8 TargetRingCandidateRow = 0;                         /* 候选行 */
-static uint8 TargetRingStableCount = 0;                          /* 稳定计数 */
-static uint8 TargetRingLastCenterX = 0xFF;                       /* 上帧X */
-static uint8 TargetRingLastCenterY = 0xFF;                       /* 上帧Y */
+static uint8 TargetRingScore = 0;                                /* 本帧有效分数，非 0 表示识别到靶环 */
 float variance = 0, variance_acc = 25;  //方差
 static float Weighting[10] =
 {
@@ -583,19 +486,13 @@ uint16 image_get_speed_goal(void)
 /* 靶环状态 */
 uint8 image_get_target_ring_found(void)
 {
-    return TargetRingFound;
-}
-
-/* 靶环稳定计数 */
-uint8 image_get_target_ring_stable_count(void)
-{
-    return TargetRingStableCount;
+    return (TargetRingScore > 0U) ? 1U : 0U;
 }
 
 /* 靶环开火锁存 */
 uint8 image_get_target_ring_shot_latch(void)
 {
-    return TargetRingShotDoneLatch;
+    return (TargetRingShotCooldownMs > 0U) ? 1U : 0U;
 }
 
 /* 靶环框 */
@@ -2826,10 +2723,9 @@ static void CheckOutTrackEmergency(void)
     }
 }
 
-/* 清空本帧靶环识别结果 */
+/* 每帧开始前清空上一帧的打靶结果。 */
 static void TargetRing_ResetFrameResult(void)
 {
-    TargetRingFound = 0;
     TargetRingCenterX = 0;
     TargetRingCenterY = 0;
     TargetRingLeftX = 0;
@@ -2837,9 +2733,7 @@ static void TargetRing_ResetFrameResult(void)
     TargetRingTopY = 0;
     TargetRingBottomY = 0;
     TargetRingWidth = 0;
-    TargetRingHeight = 0;
     TargetRingScore = 0;
-    TargetRingCandidateRow = 0;
 }
 
 /* 3x3 白点判定 */
@@ -3034,7 +2928,7 @@ static void TargetRing_TryCandidateRow(uint8 row)
     }
 
     current_row_offset = abs((int)row - (int)TargetRingScanRow);
-    best_row_offset = abs((int)TargetRingCandidateRow - (int)TargetRingScanRow);
+    best_row_offset = abs((int)TargetRingCenterY - (int)TargetRingScanRow);
     if((0U != TargetRingScore) &&
        (score < (int)TargetRingScore))
     {
@@ -3047,19 +2941,17 @@ static void TargetRing_TryCandidateRow(uint8 row)
         return;
     }
 
-    TargetRingCandidateRow = row;
     TargetRingCenterY = row;
     TargetRingCenterX = (uint8)inner_center;
     TargetRingLeftX = left_outer;
     TargetRingRightX = right_outer;
     TargetRingWidth = outer_width;
-    TargetRingHeight = 1;
     TargetRingScore = (uint8)score;
     TargetRingTopY = row;
     TargetRingBottomY = row;
 }
 
-/* 搜候选行，扫描设定行及其上下各一行。 */
+/* 只扫蓝线及其上下各一行，选出分数最高的那一行。 */
 static void TargetRing_FindCandidateRow(void)
 {
     uint8 row;
@@ -3075,65 +2967,7 @@ static void TargetRing_FindCandidateRow(void)
     }
 }
 
-/* 最终验收 */
-static void TargetRing_VerifyResult(void)
-{
-    if((0 == TargetRingScore) ||
-       (0 == TargetRingWidth))
-    {
-        return;
-    }
-
-    if(!TargetRing_IsCenterWhite(TargetRingCenterY, TargetRingCenterX))
-    {
-        TargetRingScore = 0;
-        return;
-    }
-
-    TargetRingFound = 1;
-}
-
-/* 更新稳定状态 */
-static void TargetRing_UpdateState(void)
-{
-    int dx;
-    int dy;
-
-    if(TargetRingFound)
-    {
-        if((0xFF != TargetRingLastCenterX) && (0xFF != TargetRingLastCenterY))
-        {
-            dx = abs((int)TargetRingCenterX - (int)TargetRingLastCenterX);
-            dy = abs((int)TargetRingCenterY - (int)TargetRingLastCenterY);
-            if((dx <= 3) && (dy <= 3))
-            {
-                if(TargetRingStableCount < 255U)
-                {
-                    TargetRingStableCount++;
-                }
-            }
-            else
-            {
-                TargetRingStableCount = 1;
-            }
-        }
-        else
-        {
-            TargetRingStableCount = 1;
-        }
-
-        TargetRingLastCenterX = TargetRingCenterX;
-        TargetRingLastCenterY = TargetRingCenterY;
-    }
-    else
-    {
-        TargetRingStableCount = 0;
-        TargetRingLastCenterX = 0xFF;
-        TargetRingLastCenterY = 0xFF;
-    }
-}
-
-/* 打靶控制 */
+/* 本帧识别到靶环且不在冷却中，就打一枪。 */
 static void TargetRing_HandleLaserFire(void)
 {
     if(image_laser_test_mode)
@@ -3164,12 +2998,11 @@ static void TargetRing_HandleLaserFire(void)
         return;
     }
 
-    if(TargetRingFound && (0U == TargetRingShotCooldownMs))
+    if((TargetRingScore > 0U) && (0U == TargetRingShotCooldownMs))
     {
-        laser_short(TargetRingCenterX, TargetRingCenterY);
+        laser_short(TargetRingCenterX);
         buzzer_short();
         TargetRingShotCooldownMs = IMAGE_TARGET_RING_FIRE_COOLDOWN_MS;
-        TargetRingShotDoneLatch = 1;
         return;
     }
 
@@ -3202,6 +3035,11 @@ void ImageProcess(void)
     // 出界停车检测
     CheckOutTrackEmergency();
 
+    /* 打靶只依赖二值图，放到这里先判先打，减少后续图像处理带来的触发延迟。 */
+    TargetRing_ResetFrameResult();
+    TargetRing_FindCandidateRow();
+    TargetRing_HandleLaserFire();
+
     DrawLinesFirst();     //绘制底边
     DrawLinesProcess();   //搜边线
 
@@ -3217,12 +3055,6 @@ void ImageProcess(void)
     runtime_tow_point = SearchLine_GetRuntimeTowPoint();
     // SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
     GetDet(runtime_tow_point);             //获取动态前瞻  并且计算图像偏差
-
-    TargetRing_ResetFrameResult();
-    TargetRing_FindCandidateRow();
-    TargetRing_VerifyResult();
-    TargetRing_UpdateState();
-    TargetRing_HandleLaserFire();
     
     gpio_set_level(IO_P52, 1);
 }

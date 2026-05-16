@@ -933,10 +933,8 @@ static void ui_draw_camera_preview(void)
 /* 相机预览信息 */
 static void ui_draw_camera_info(void)
 {
-    uint8 stable_count;
     uint8 shot_latch;
 
-    stable_count = image_get_target_ring_stable_count();
     shot_latch = image_get_target_ring_shot_latch();
 
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
@@ -944,10 +942,8 @@ static void ui_draw_camera_info(void)
     ips200_show_uint8(80, UI_CAMERA_INFO_Y, ImageStatus.Threshold);
     ips200_show_string(112, UI_CAMERA_INFO_Y, "tg");
     ips200_show_uint8(128, UI_CAMERA_INFO_Y, image_get_target_ring_found());
-    ips200_show_string(144, UI_CAMERA_INFO_Y, "st");
-    ips200_show_uint8(160, UI_CAMERA_INFO_Y, stable_count);
-    ips200_show_string(176, UI_CAMERA_INFO_Y, "sh");
-    ips200_show_uint8(192, UI_CAMERA_INFO_Y, shot_latch);
+    ips200_show_string(144, UI_CAMERA_INFO_Y, "sh");
+    ips200_show_uint8(160, UI_CAMERA_INFO_Y, shot_latch);
 }
 
 /* 画文本行 */

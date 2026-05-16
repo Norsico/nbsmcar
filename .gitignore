@@ -24,6 +24,7 @@ out_file/
 *.lst
 *.map
 *.opt
+.DS_Store
 
 #Git
 .git/

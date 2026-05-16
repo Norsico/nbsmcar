@@ -25,10 +25,6 @@
 #define IMAGE_LASER_94_MAX_COL        (34)                   /* 25-34 开 94 */
 #define IMAGE_LASER_92_MAX_COL        (44)                   /* 35-44 开 92 */
 #define IMAGE_LASER_93_MAX_COL        (54)                   /* 45-54 开 93，55 以上开 91 */
-#define IMAGE_TARGET_RING_PERSP_A1    (0.457143f)            /* 轻量逆透视X参数 */
-#define IMAGE_TARGET_RING_PERSP_B1    (-0.801429f)           /* 轻量逆透视X参数 */
-#define IMAGE_TARGET_RING_PERSP_B3    (-0.008571f)           /* 轻量逆透视X参数 */
-#define IMAGE_TARGET_RING_PERSP_C1    (50.757143f)           /* 轻量逆透视X参数 */
 
 #define IMAGE_STOP_RAW_THRESHOLD      (25)                   /* 阈值停车线 */
 #define IMAGE_ZEBRA_MISS_COUNT        (3)                    /* 斑马释放帧数 */
@@ -141,7 +137,6 @@ void image_set_laser_test_mode(uint8 enabled);
 uint8 image_get_laser_test_mode(void);
 uint16 image_get_speed_goal(void);
 uint8 image_get_target_ring_found(void);
-uint8 image_get_target_ring_stable_count(void);
 uint8 image_get_target_ring_shot_latch(void);
 void image_get_target_ring_box(uint8 *center_x,
                                uint8 *center_y,
