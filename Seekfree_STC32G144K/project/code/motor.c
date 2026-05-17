@@ -38,19 +38,22 @@ static int8 motor_output_limit_right = 90;            /* 右输出最大百分�
 static const uint8 motor_brake_stop_speed_threshold = 2; /* 零速闭环刹停完成速度阈值 */
 static const uint8 motor_brake_stop_stable_ticks = 3;    /* 连续满足阈值多少次后切最终停止 */
 
+#define BLDC_DUTY_MIN                 (1U * BLDC_MOTOR_FREQ * 10U)
+#define BLDC_DUTY_MAX                 (2U * BLDC_MOTOR_FREQ * 10U)
+#define BLDC_DUTY_STEP                (1U * BLDC_MOTOR_FREQ * 10U / 100U)
+#define BLDC_SOFTSTART_STEPS          (12U)
+#define BLDC_SOFTSTART_PERIOD_MS      (20U)
+#define BLDC_SOFTSTART_DEN            ((uint16)(BLDC_SOFTSTART_STEPS * BLDC_SOFTSTART_STEPS))
+
 /* 百分比转电调占空比。 */
 static uint32 bldc_transform_per_to_duty(uint8 percentage)
 {
-    uint32 min_duty = (1U * BLDC_MOTOR_FREQ * 10U);
-    uint32 max_duty = (2U * BLDC_MOTOR_FREQ * 10U);
-    uint32 step_duty = (1U * BLDC_MOTOR_FREQ * 10U / 100U);
-
     if(percentage > 100U)
     {
-        return max_duty;
+        return BLDC_DUTY_MAX;
     }
 
-    return min_duty + ((uint32)percentage * step_duty);
+    return BLDC_DUTY_MIN + ((uint32)percentage * BLDC_DUTY_STEP);
 }
 
 /* 把当前负压目标写到两路电调。 */
@@ -63,9 +66,6 @@ static void bldc_motor_apply_output(uint8 left_speed, uint8 right_speed)
 /* 负压软启动，避免从 0 直接拉到目标。 */
 static void bldc_motor_update_softstart(void)
 {
-    const uint8 softstart_steps = 12;
-    const uint32 softstart_period_ms = 20;
-    const uint16 softstart_den = (uint16)(softstart_steps * softstart_steps);
     uint32 now = motor_tick_ms;
     uint16 softstart_num;
     uint8 left_speed;
@@ -76,26 +76,26 @@ static void bldc_motor_update_softstart(void)
         return;
     }
 
-    if((now - g_bldc_softstart_tick) < softstart_period_ms)
+    if((now - g_bldc_softstart_tick) < BLDC_SOFTSTART_PERIOD_MS)
     {
         return;
     }
 
     g_bldc_softstart_tick = now;
-    if(g_bldc_softstart_step < softstart_steps)
+    if(g_bldc_softstart_step < BLDC_SOFTSTART_STEPS)
     {
         g_bldc_softstart_step++;
     }
 
     softstart_num = (uint16)(g_bldc_softstart_step * g_bldc_softstart_step);
-    left_speed = (uint8)(((uint16)g_bldc_target_left * softstart_num) / softstart_den);
-    right_speed = (uint8)(((uint16)g_bldc_target_right * softstart_num) / softstart_den);
+    left_speed = (uint8)(((uint16)g_bldc_target_left * softstart_num) / BLDC_SOFTSTART_DEN);
+    right_speed = (uint8)(((uint16)g_bldc_target_right * softstart_num) / BLDC_SOFTSTART_DEN);
 
     g_bldc_output_left = left_speed;
     g_bldc_output_right = right_speed;
     bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
 
-    if(g_bldc_softstart_step >= softstart_steps)
+    if(g_bldc_softstart_step >= BLDC_SOFTSTART_STEPS)
     {
         g_bldc_softstart_active = 0;
         g_bldc_output_left = g_bldc_target_left;
