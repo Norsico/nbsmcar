@@ -6,11 +6,19 @@
 
 motor_data_t motor_data = {0, 0, 0, 0, 0, 0};
 static volatile uint8 motor_tick_ready = 0;
+static volatile uint32 motor_tick_ms = 0;
 static int16 motor_last_error_left = 0;
 static int16 motor_last_error_right = 0;
 static uint8 motor_left_started = 0;                  /* 左轮已起步 */
 static uint8 motor_right_started = 0;                 /* 右轮已起步 */
 static uint8 motor_brake_stop_stable_count = 0;       /* 零速闭环刹停稳定计数 */
+static uint8 g_bldc_target_left = 0;                  /* 左负压目标 */
+static uint8 g_bldc_target_right = 0;                 /* 右负压目标 */
+static uint8 g_bldc_output_left = 0;                  /* 左负压当前输出 */
+static uint8 g_bldc_output_right = 0;                 /* 右负压当前输出 */
+static uint8 g_bldc_softstart_active = 0;             /* 负压软启动中 */
+static uint8 g_bldc_softstart_step = 0;               /* 负压软启动步数 */
+static uint32 g_bldc_softstart_tick = 0;              /* 上次软启动时刻 */
 
 /******************** 左电机PID参数 ****************/
 static int16 motor_kp_left = 58;                      /* 左kp */
@@ -29,6 +37,72 @@ static int8 motor_output_limit_left = 90;             /* 左输出最大百分�
 static int8 motor_output_limit_right = 90;            /* 右输出最大百分比 */
 static const uint8 motor_brake_stop_speed_threshold = 2; /* 零速闭环刹停完成速度阈值 */
 static const uint8 motor_brake_stop_stable_ticks = 3;    /* 连续满足阈值多少次后切最终停止 */
+
+/* 百分比转电调占空比。 */
+static uint32 bldc_transform_per_to_duty(uint8 percentage)
+{
+    uint32 min_duty = (1U * BLDC_MOTOR_FREQ * 10U);
+    uint32 max_duty = (2U * BLDC_MOTOR_FREQ * 10U);
+    uint32 step_duty = (1U * BLDC_MOTOR_FREQ * 10U / 100U);
+
+    if(percentage > 100U)
+    {
+        return max_duty;
+    }
+
+    return min_duty + ((uint32)percentage * step_duty);
+}
+
+/* 把当前负压目标写到两路电调。 */
+static void bldc_motor_apply_output(uint8 left_speed, uint8 right_speed)
+{
+    pwm_set_duty(BLDC_MOTOR_1, bldc_transform_per_to_duty(left_speed));
+    pwm_set_duty(BLDC_MOTOR_2, bldc_transform_per_to_duty(right_speed));
+}
+
+/* 负压软启动，避免从 0 直接拉到目标。 */
+static void bldc_motor_update_softstart(void)
+{
+    const uint8 softstart_steps = 12;
+    const uint32 softstart_period_ms = 20;
+    const uint16 softstart_den = (uint16)(softstart_steps * softstart_steps);
+    uint32 now = motor_tick_ms;
+    uint16 softstart_num;
+    uint8 left_speed;
+    uint8 right_speed;
+
+    if(!g_bldc_softstart_active)
+    {
+        return;
+    }
+
+    if((now - g_bldc_softstart_tick) < softstart_period_ms)
+    {
+        return;
+    }
+
+    g_bldc_softstart_tick = now;
+    if(g_bldc_softstart_step < softstart_steps)
+    {
+        g_bldc_softstart_step++;
+    }
+
+    softstart_num = (uint16)(g_bldc_softstart_step * g_bldc_softstart_step);
+    left_speed = (uint8)(((uint16)g_bldc_target_left * softstart_num) / softstart_den);
+    right_speed = (uint8)(((uint16)g_bldc_target_right * softstart_num) / softstart_den);
+
+    g_bldc_output_left = left_speed;
+    g_bldc_output_right = right_speed;
+    bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
+
+    if(g_bldc_softstart_step >= softstart_steps)
+    {
+        g_bldc_softstart_active = 0;
+        g_bldc_output_left = g_bldc_target_left;
+        g_bldc_output_right = g_bldc_target_right;
+        bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
+    }
+}
 
 /* 对称限幅 */
 static int16 motor_limit_value(int16 value, int16 limit)
@@ -108,7 +182,106 @@ static void motor_pit_handler(void)
 
     motor_data.count_left = left_raw;
     motor_data.count_right = right_raw;
+    motor_tick_ms += MOTOR_CTRL_PERIOD_MS;
     motor_tick_ready = 1;
+}
+
+/* 负压BLDC初始化。 */
+void bldc_motor_init(void)
+{
+    g_bldc_target_left = 0;
+    g_bldc_target_right = 0;
+    g_bldc_output_left = 0;
+    g_bldc_output_right = 0;
+    g_bldc_softstart_active = 0;
+    g_bldc_softstart_step = 0;
+    g_bldc_softstart_tick = 0;
+    pwm_init(BLDC_MOTOR_1, BLDC_MOTOR_FREQ, bldc_transform_per_to_duty(0));
+    pwm_init(BLDC_MOTOR_2, BLDC_MOTOR_FREQ, bldc_transform_per_to_duty(0));
+}
+
+/* 设置负压占空比。 */
+void bldc_motor_set_duty(uint8 left_speed, uint8 right_speed)
+{
+    if(left_speed > 100U || right_speed > 100U)
+    {
+        return;
+    }
+
+    g_bldc_target_left = left_speed;
+    g_bldc_target_right = right_speed;
+
+    if((0U == left_speed) && (0U == right_speed))
+    {
+        g_bldc_softstart_active = 0;
+        g_bldc_softstart_step = 0;
+        g_bldc_output_left = 0;
+        g_bldc_output_right = 0;
+        bldc_motor_apply_output(0, 0);
+        return;
+    }
+
+    if(g_bldc_softstart_active)
+    {
+        bldc_motor_update_softstart();
+        return;
+    }
+
+    if((0U == g_bldc_output_left) && (0U == g_bldc_output_right))
+    {
+        g_bldc_softstart_active = 1;
+        g_bldc_softstart_step = 0;
+        g_bldc_softstart_tick = motor_tick_ms;
+        bldc_motor_apply_output(0, 0);
+        return;
+    }
+
+    g_bldc_output_left = left_speed;
+    g_bldc_output_right = right_speed;
+    bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
+}
+
+/* 直接写电调，占用于上电预启动。 */
+void bldc_motor_set_duty_direct(uint8 left_speed, uint8 right_speed)
+{
+    if(left_speed > 100U || right_speed > 100U)
+    {
+        return;
+    }
+
+    g_bldc_target_left = left_speed;
+    g_bldc_target_right = right_speed;
+    g_bldc_output_left = left_speed;
+    g_bldc_output_right = right_speed;
+    g_bldc_softstart_active = 0;
+    g_bldc_softstart_step = 0;
+    g_bldc_softstart_tick = motor_tick_ms;
+    bldc_motor_apply_output(g_bldc_output_left, g_bldc_output_right);
+}
+
+/* 停止负压。 */
+void bldc_motor_stop(void)
+{
+    bldc_motor_set_duty(0, 0);
+}
+
+/* 负压软启动完成标志。 */
+uint8 bldc_motor_is_ready(void)
+{
+    return g_bldc_softstart_active ? 0U : 1U;
+}
+
+/* 关屏直跑时先把负压带起来，再进入主循环。 */
+void bldc_motor_bootstrap_run(void)
+{
+    uint8 duty;
+
+    bldc_motor_stop();
+    for(duty = 5; duty <= BLDC_NEG_PRESSURE_DUTY_DEFAULT; duty = (uint8)(duty + 5U))
+    {
+        bldc_motor_set_duty_direct(duty, duty);
+        system_delay_ms(250);
+    }
 }
 
 /* 电机初始化 */

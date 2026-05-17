@@ -17,6 +17,7 @@ void main(void)
 
     /********** 模块初始化 *********/
     motor_init();
+    bldc_motor_init();
     servo_init();
 
     /********** flash初始化 *********/
@@ -26,6 +27,10 @@ void main(void)
     if(STATE_UI == state_get_mode())
     {
         ui_init();
+    }
+    else if(STATE_RUN == state_get_mode())
+    {
+        bldc_motor_bootstrap_run();
     }
 
     while(1)
@@ -38,6 +43,7 @@ void main(void)
             /* UI状态 */
             case STATE_UI:
             {
+                bldc_motor_stop();
                 image_update();
                 ui_update();
                 if(ui_is_camera_view())
@@ -54,6 +60,7 @@ void main(void)
             /* WiFi状态 */
             case STATE_WIFI:
             {
+                bldc_motor_stop();
                 motor_update();
                 wifi_update();
                 break;
@@ -62,7 +69,15 @@ void main(void)
             /* Run状态 */
             case STATE_RUN:
             {
+                bldc_motor_set_duty(BLDC_NEG_PRESSURE_DUTY_DEFAULT, BLDC_NEG_PRESSURE_DUTY_DEFAULT);
                 image_update();
+                if(STATE_RUN != state_get_mode())
+                {
+                    bldc_motor_stop();
+                    servo_set_center();
+                    motor_update();
+                    break;
+                }
                 servo_update();
                 motor_update();
                 break;
@@ -71,6 +86,7 @@ void main(void)
             /* 零速闭环刹停状态 */
             case STATE_BRAKE_STOP:
             {
+                bldc_motor_stop();
                 servo_set_center();
                 motor_update();
                 break;
@@ -80,6 +96,7 @@ void main(void)
             case STATE_STOP:
             default:
             {
+                bldc_motor_stop();
                 // 停止电机
                 motor_stop();
                 servo_set_center();
