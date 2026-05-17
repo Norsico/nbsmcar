@@ -1,5 +1,6 @@
 #include "flash.h"
 #include "image.h"
+#include "servo.h"
 #include "ui.h"
 
 #define UI_TITLE_Y                   (0)                    /* 标题行 */
@@ -72,6 +73,7 @@ typedef enum
 {
     UI_MOTOR_TARGET_SPEED = 0,                              /* 目标速度 */
     UI_MOTOR_STRAIGHT_SPEED,                                /* 直道速度 */
+    UI_MOTOR_NEG_PRESSURE_DUTY,                             /* 负压强度 */
     UI_MOTOR_COUNT                                          /* 电机参数数量 */
 } ui_motor_row_t;
 
@@ -117,7 +119,8 @@ static const char *ui_servo_name[UI_SERVO_COUNT] =
 static const char *ui_motor_name[UI_MOTOR_COUNT] =
 {
     "target speed",
-    "straight speed"
+    "straight speed",
+    "fan duty"
 };
 
 static uint8 ui_ready = 0;
@@ -466,6 +469,10 @@ static void ui_adjust_motor_value(int8 direction)
         case UI_MOTOR_STRAIGHT_SPEED:
             value = (int16)(ui_motor_page.straight_speed + (direction < 0 ? -step_value : step_value));
             ui_motor_page.straight_speed = flash_limit_motor_value(FLASH_MOTOR_STRAIGHT_SPEED, value);
+            break;
+        case UI_MOTOR_NEG_PRESSURE_DUTY:
+            value = (int16)(ui_motor_page.neg_pressure_duty + (direction < 0 ? -step_value : step_value));
+            ui_motor_page.neg_pressure_duty = flash_limit_motor_value(FLASH_MOTOR_NEG_PRESSURE_DUTY, value);
             break;
         default:
             break;
@@ -943,9 +950,11 @@ static void ui_draw_camera_preview(void)
 /* 相机预览信息 */
 static void ui_draw_camera_info(void)
 {
+    int32 diff_scale;
     uint8 shot_latch;
 
     shot_latch = image_get_target_ring_shot_latch();
+    diff_scale = servo_get_diff_scale();
 
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
     ips200_show_string(0, UI_CAMERA_INFO_Y, "threshold");
@@ -954,6 +963,8 @@ static void ui_draw_camera_info(void)
     ips200_show_uint8(128, UI_CAMERA_INFO_Y, image_get_target_ring_found());
     ips200_show_string(144, UI_CAMERA_INFO_Y, "sh");
     ips200_show_uint8(160, UI_CAMERA_INFO_Y, shot_latch);
+    ips200_show_string(0, (uint16)(UI_CAMERA_INFO_Y + 16), "diff_scale");
+    ips200_show_int32(96, (uint16)(UI_CAMERA_INFO_Y + 16), diff_scale, 6);
 }
 
 /* 画文本行 */
@@ -1088,6 +1099,7 @@ static void ui_draw_motor_param_page(void)
 
     ui_draw_value_row(0, ui_motor_name[0], ui_motor_page.target_speed, (0 == ui_motor_selected) ? 1 : 0);
     ui_draw_value_row(1, ui_motor_name[1], ui_motor_page.straight_speed, (1 == ui_motor_selected) ? 1 : 0);
+    ui_draw_value_row(2, ui_motor_name[2], ui_motor_page.neg_pressure_duty, (2 == ui_motor_selected) ? 1 : 0);
 }
 
 /* 方案界面 */

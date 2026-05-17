@@ -442,11 +442,27 @@ void servo_set_ackerman(int16 ackerman_value)
     servo_ackerman = ackerman_value;
 }
 
+/* 当前舵角对应的左右轮差速因子。 */
+static int32 servo_get_runtime_diff_scale(int16 *steer_angle_out)
+{
+    int16 steer_angle;
+    int16 tan_value;
+
+    steer_angle = (int16)SERVO_ANGLE_CENTER - (int16)servo_current_angle;
+    steer_angle = servo_limit_ackerman_angle(steer_angle);
+    if(0 != steer_angle_out)
+    {
+        *steer_angle_out = steer_angle;
+    }
+
+    tan_value = servo_get_ackerman_tan(steer_angle);
+    return ((int32)servo_ackerman * (int32)tan_value) / 100;
+}
+
 /* 算左右轮目标 */
 void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
 {
     int16 steer_angle;
-    int16 tan_value;
     int32 diff_scale;
 
     if((0 == left_speed) || (0 == right_speed))
@@ -454,10 +470,7 @@ void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
         return;
     }
 
-    steer_angle = (int16)SERVO_ANGLE_CENTER - (int16)servo_current_angle;
-    steer_angle = servo_limit_ackerman_angle(steer_angle);
-    tan_value = servo_get_ackerman_tan(steer_angle);
-    diff_scale = ((int32)servo_ackerman * (int32)tan_value) / 100;
+    diff_scale = servo_get_runtime_diff_scale(&steer_angle);
 
     *left_speed = speed;
     *right_speed = speed;
@@ -470,4 +483,10 @@ void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
     {
         *left_speed = speed + (int16)(((int32)speed * diff_scale) / 10000);
     }
+}
+
+/* 当前实际生效的差速因子。 */
+int32 servo_get_diff_scale(void)
+{
+    return servo_get_runtime_diff_scale(0);
 }

@@ -13,7 +13,6 @@
 #define BLDC_MOTOR_1                  (PWME_CH1N_PA1)         /* 左负压BLDC */
 #define BLDC_MOTOR_2                  (PWME_CH2N_PA3)         /* 右负压BLDC */
 #define BLDC_MOTOR_FREQ               (300)                   /* 电调控制频率 */
-#define BLDC_NEG_PRESSURE_DUTY_DEFAULT (25)                   /* 负压默认占空比 */
 
 #define RIGHT_MOTOR_DIR_PIN           (IO_P75)                /* 右电机方向 */
 #define RIGHT_MOTOR_PWM_PIN           (PWMB_CH1_P74)          /* 右电机PWM */
@@ -47,7 +46,7 @@ void bldc_motor_set_duty(uint8 left_speed, uint8 right_speed);
 void bldc_motor_set_duty_direct(uint8 left_speed, uint8 right_speed);
 void bldc_motor_stop(void);
 uint8 bldc_motor_is_ready(void);
-void bldc_motor_bootstrap_run(void);
+void bldc_motor_bootstrap_run(uint8 target_duty);
 void motor_set_target(int16 left_target, int16 right_target);
 void motor_set_pid_left(int16 kp, int16 ki);
 void motor_set_pid_right(int16 kp, int16 ki);

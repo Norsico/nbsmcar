@@ -272,16 +272,23 @@ uint8 bldc_motor_is_ready(void)
 }
 
 /* 关屏直跑时先把负压带起来，再进入主循环。 */
-void bldc_motor_bootstrap_run(void)
+void bldc_motor_bootstrap_run(uint8 target_duty)
 {
     uint8 duty;
 
     bldc_motor_stop();
-    for(duty = 5; duty <= BLDC_NEG_PRESSURE_DUTY_DEFAULT; duty = (uint8)(duty + 5U))
+    if(0U == target_duty)
+    {
+        return;
+    }
+
+    for(duty = 5; duty <= target_duty; duty = (uint8)(duty + 5U))
     {
         bldc_motor_set_duty_direct(duty, duty);
         system_delay_ms(250);
     }
+
+    bldc_motor_set_duty_direct(target_duty, target_duty);
 }
 
 /* 电机初始化 */

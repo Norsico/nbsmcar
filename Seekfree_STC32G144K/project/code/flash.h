@@ -5,7 +5,7 @@
 
 #define FLASH_STORE_ADDR                 (0x0000)              /* flash地址 */
 #define FLASH_STORE_MAGIC                (0x5346)              /* flash标记 */
-#define FLASH_STORE_VERSION              (0x0006)              /* flash版本 */
+#define FLASH_STORE_VERSION              (0x0007)              /* flash版本 */
 #define FLASH_PLAN_COUNT                 (2)                   /* 方案数量 */
 
 #define FLASH_CAMERA_EXP_TIME_MIN        (1)                   /* 曝光下限 */
@@ -55,7 +55,7 @@
 #define FLASH_SERVO_ACKERMAN_MIN         (0)                   /* 阿克曼下限 */
 #define FLASH_SERVO_ACKERMAN_MAX         (32767)               /* 阿克曼上限 */
 #define FLASH_SERVO_ACKERMAN_DEFAULT     (1325)                /* 阿克曼默认值 */
-#define FLASH_SERVO_ACKERMAN_STEP        (10)                  /* 阿克曼步进 */
+#define FLASH_SERVO_ACKERMAN_STEP        (50)                  /* 阿克曼步进 */
 
 #define FLASH_SERVO_IMU_D_MIN            (0)                   /* 陀螺仪d下限 */
 #define FLASH_SERVO_IMU_D_MAX            (100)                 /* 陀螺仪d上限 */
@@ -81,6 +81,10 @@
 #define FLASH_MOTOR_TARGET_DEFAULT       (190)                 /* 目标速度默认值 */
 #define FLASH_MOTOR_STRAIGHT_DEFAULT     (190)                 /* 直道速度默认值 */
 #define FLASH_MOTOR_STRAIGHT_STEP        (10)                  /* 直道速度步进 */
+#define FLASH_MOTOR_NEG_PRESSURE_MIN     (0)                   /* 负压下限 */
+#define FLASH_MOTOR_NEG_PRESSURE_MAX     (100)                 /* 负压上限 */
+#define FLASH_MOTOR_NEG_PRESSURE_DEFAULT (0)                   /* 负压默认值 */
+#define FLASH_MOTOR_NEG_PRESSURE_STEP    (5)                   /* 负压步进 */
 
 typedef struct
 {
@@ -116,6 +120,7 @@ typedef enum
 {
     FLASH_MOTOR_TARGET_SPEED = 0,                               /* 目标速度 */
     FLASH_MOTOR_STRAIGHT_SPEED,                                 /* 直道速度 */
+    FLASH_MOTOR_NEG_PRESSURE_DUTY,                              /* 负压强度 */
     FLASH_MOTOR_COUNT                                           /* 电机参数数量 */
 } flash_motor_slot_t;
 
@@ -146,6 +151,7 @@ typedef struct
 {
     int16 target_speed;                                         /* 目标速度 */
     int16 straight_speed;                                       /* 直道速度 */
+    int16 neg_pressure_duty;                                    /* 负压强度 */
 } flash_motor_page_t;
 
 typedef struct

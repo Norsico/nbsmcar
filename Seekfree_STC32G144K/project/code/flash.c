@@ -2,6 +2,31 @@
 #include "motor.h"
 #include "servo.h"
 
+#define FLASH_STORE_VERSION_V6           (0x0006)
+
+typedef struct
+{
+    int16 target_speed;                                         /* 目标速度 */
+    int16 straight_speed;                                       /* 直道速度 */
+} flash_motor_page_v6_t;
+
+typedef struct
+{
+    flash_camera_page_t camera_page;                            /* 相机页 */
+    flash_servo_page_t servo_page;                              /* 舵机页 */
+    flash_motor_page_v6_t motor_page;                           /* 电机页 */
+} flash_plan_v6_t;
+
+typedef struct
+{
+    uint16 magic;                                               /* 标记 */
+    uint16 version;                                             /* 版本 */
+    uint8 active_plan;                                          /* 当前方案 */
+    uint8 reserve;                                              /* 保留 */
+    flash_plan_v6_t plan[FLASH_PLAN_COUNT];                     /* 方案表 */
+    uint16 checksum;                                            /* 校验 */
+} flash_store_image_v6_t;
+
 typedef struct
 {
     uint16 magic;                                               /* 标记 */
@@ -41,7 +66,8 @@ static const flash_value_config_t flash_servo_config[FLASH_SERVO_COUNT] =
 static const flash_value_config_t flash_motor_config[FLASH_MOTOR_COUNT] =
 {
     {FLASH_MOTOR_TARGET_STEP},
-    {FLASH_MOTOR_STRAIGHT_STEP}
+    {FLASH_MOTOR_STRAIGHT_STEP},
+    {FLASH_MOTOR_NEG_PRESSURE_STEP}
 };
 
 /* 方案索引 */
@@ -232,6 +258,16 @@ int16 flash_limit_motor_value(flash_motor_slot_t slot, int16 value)
             return (value < 0) ? 0 : value;
         case FLASH_MOTOR_STRAIGHT_SPEED:
             return (value < 0) ? 0 : value;
+        case FLASH_MOTOR_NEG_PRESSURE_DUTY:
+            if(value < FLASH_MOTOR_NEG_PRESSURE_MIN)
+            {
+                return FLASH_MOTOR_NEG_PRESSURE_MIN;
+            }
+            if(value > FLASH_MOTOR_NEG_PRESSURE_MAX)
+            {
+                return FLASH_MOTOR_NEG_PRESSURE_MAX;
+            }
+            return value;
         default:
             return 0;
     }
@@ -454,6 +490,56 @@ static uint8 flash_motor_page_is_valid(const flash_motor_page_t *page)
         return 0;
     }
 
+    if(!flash_motor_value_is_valid(FLASH_MOTOR_NEG_PRESSURE_DUTY, page->neg_pressure_duty))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* 旧版电机页校验 */
+static uint8 flash_motor_page_v6_is_valid(const flash_motor_page_v6_t *page)
+{
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    if(!flash_motor_value_is_valid(FLASH_MOTOR_TARGET_SPEED, page->target_speed))
+    {
+        return 0;
+    }
+
+    if(!flash_motor_value_is_valid(FLASH_MOTOR_STRAIGHT_SPEED, page->straight_speed))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* 旧版方案校验 */
+static uint8 flash_plan_v6_data_is_valid(const flash_plan_v6_t *plan)
+{
+    if(0 == plan)
+    {
+        return 0;
+    }
+
+    if(!flash_camera_page_is_valid(&plan->camera_page))
+    {
+        return 0;
+    }
+    if(!flash_servo_page_is_valid(&plan->servo_page))
+    {
+        return 0;
+    }
+    if(!flash_motor_page_v6_is_valid(&plan->motor_page))
+    {
+        return 0;
+    }
+
     return 1;
 }
 
@@ -492,6 +578,24 @@ static uint16 flash_calc_checksum(const flash_store_image_t *image)
     checksum = 0;
 
     for(i = 0; i < (uint16)(sizeof(flash_store_image_t) - sizeof(image->checksum)); i++)
+    {
+        checksum = (uint16)(checksum + data_ptr[i]);
+    }
+
+    return checksum;
+}
+
+/* 旧版校验和 */
+static uint16 flash_calc_checksum_v6(const flash_store_image_v6_t *image)
+{
+    uint8 *data_ptr;
+    uint16 checksum;
+    uint16 i;
+
+    data_ptr = (uint8 *)image;
+    checksum = 0;
+
+    for(i = 0; i < (uint16)(sizeof(flash_store_image_v6_t) - sizeof(image->checksum)); i++)
     {
         checksum = (uint16)(checksum + data_ptr[i]);
     }
@@ -646,6 +750,12 @@ static uint8 flash_normalize_motor_page(flash_motor_page_t *page)
         changed = 1;
     }
 
+    if(page->neg_pressure_duty != flash_limit_motor_value(FLASH_MOTOR_NEG_PRESSURE_DUTY, page->neg_pressure_duty))
+    {
+        page->neg_pressure_duty = FLASH_MOTOR_NEG_PRESSURE_DEFAULT;
+        changed = 1;
+    }
+
     return changed;
 }
 
@@ -699,6 +809,7 @@ static void flash_fill_plan0(flash_plan_t *plan)
 
     plan->motor_page.target_speed = FLASH_MOTOR_TARGET_DEFAULT;
     plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
+    plan->motor_page.neg_pressure_duty = FLASH_MOTOR_NEG_PRESSURE_DEFAULT;
 }
 
 /* 方案2默认值 */
@@ -707,6 +818,7 @@ static void flash_fill_plan1(flash_plan_t *plan)
     flash_fill_plan0(plan);
     plan->motor_page.target_speed = FLASH_MOTOR_TARGET_DEFAULT;
     plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
+    plan->motor_page.neg_pressure_duty = FLASH_MOTOR_NEG_PRESSURE_DEFAULT;
 }
 
 /* 默认镜像 */
@@ -759,6 +871,65 @@ static uint8 flash_image_is_valid(const flash_store_image_t *image)
     return 1;
 }
 
+/* 旧版镜像校验 */
+static uint8 flash_image_v6_is_valid(const flash_store_image_v6_t *image)
+{
+    uint8 i;
+
+    if(0 == image)
+    {
+        return 0;
+    }
+    if(FLASH_STORE_MAGIC != image->magic)
+    {
+        return 0;
+    }
+    if(FLASH_STORE_VERSION_V6 != image->version)
+    {
+        return 0;
+    }
+    if(!flash_plan_is_valid(image->active_plan))
+    {
+        return 0;
+    }
+
+    for(i = 0; i < FLASH_PLAN_COUNT; i++)
+    {
+        if(!flash_plan_v6_data_is_valid(&image->plan[i]))
+        {
+            return 0;
+        }
+    }
+
+    if(flash_calc_checksum_v6(image) != image->checksum)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* 旧版参数迁移到新版。 */
+static void flash_migrate_v6_image(const flash_store_image_v6_t *image_v6)
+{
+    uint8 i;
+
+    memset(&flash_store_image, 0, sizeof(flash_store_image));
+    flash_store_image.magic = FLASH_STORE_MAGIC;
+    flash_store_image.version = FLASH_STORE_VERSION;
+    flash_store_image.active_plan = image_v6->active_plan;
+
+    for(i = 0; i < FLASH_PLAN_COUNT; i++)
+    {
+        memcpy(&flash_store_image.plan[i].camera_page, &image_v6->plan[i].camera_page, sizeof(flash_camera_page_t));
+        memcpy(&flash_store_image.plan[i].servo_page, &image_v6->plan[i].servo_page, sizeof(flash_servo_page_t));
+        flash_store_image.plan[i].motor_page.target_speed = image_v6->plan[i].motor_page.target_speed;
+        flash_store_image.plan[i].motor_page.straight_speed = image_v6->plan[i].motor_page.straight_speed;
+        flash_store_image.plan[i].motor_page.neg_pressure_duty = FLASH_MOTOR_NEG_PRESSURE_DEFAULT;
+        flash_normalize_plan(&flash_store_image.plan[i]);
+    }
+}
+
 /* 写flash */
 static void flash_save(void)
 {
@@ -792,6 +963,7 @@ static void flash_apply_current_plan(void)
 static void flash_load(void)
 {
     flash_store_image_t image;
+    const flash_store_image_v6_t *image_v6;
     uint8 i;
     uint8 changed;
 
@@ -817,8 +989,17 @@ static void flash_load(void)
     }
     else
     {
-        flash_fill_default_image(&flash_store_image);
-        flash_save();
+        image_v6 = (const flash_store_image_v6_t *)&image;
+        if(flash_image_v6_is_valid(image_v6))
+        {
+            flash_migrate_v6_image(image_v6);
+            flash_save();
+        }
+        else
+        {
+            flash_fill_default_image(&flash_store_image);
+            flash_save();
+        }
     }
 
     flash_apply_current_plan();
@@ -916,6 +1097,8 @@ int16 flash_get_motor_value(flash_motor_slot_t slot)
             return flash_get_current_plan()->motor_page.target_speed;
         case FLASH_MOTOR_STRAIGHT_SPEED:
             return flash_get_current_plan()->motor_page.straight_speed;
+        case FLASH_MOTOR_NEG_PRESSURE_DUTY:
+            return flash_get_current_plan()->motor_page.neg_pressure_duty;
         default:
             return 0;
     }
@@ -1007,6 +1190,9 @@ uint8 flash_set_motor_value(flash_motor_slot_t slot, int16 value)
             break;
         case FLASH_MOTOR_STRAIGHT_SPEED:
             flash_get_current_plan()->motor_page.straight_speed = value;
+            break;
+        case FLASH_MOTOR_NEG_PRESSURE_DUTY:
+            flash_get_current_plan()->motor_page.neg_pressure_duty = value;
             break;
         default:
             return 0;

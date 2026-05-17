@@ -36,5 +36,6 @@ void servo_set_tow_point(int16 tow_point);
 void servo_set_limit(int16 min_angle, int16 max_angle);
 void servo_set_ackerman(int16 ackerman_value);
 void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed);
+int32 servo_get_diff_scale(void);
 
 #endif
