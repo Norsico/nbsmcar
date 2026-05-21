@@ -218,7 +218,7 @@ static void servo_drive_set_angle(uint16 angle)
 
     safe_angle = servo_limit_angle(angle);
     servo_current_angle = safe_angle;
-    pwm_set_duty(SERVO_PWM_PIN, SERVO_PWM_DUTY((safe_angle + 800)));
+    pwm_set_duty(SERVO_PWM_PIN, SERVO_PWM_DUTY((safe_angle - 200)));
 }
 
 /* 舵机输出映射 */
@@ -462,26 +462,30 @@ static int32 servo_get_runtime_diff_scale(int16 *steer_angle_out)
 /* 算左右轮目标 */
 void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
 {
-    int16 steer_angle;
     int32 diff_scale;
+    int16 speed_delta;
 
     if((0 == left_speed) || (0 == right_speed))
     {
         return;
     }
 
-    diff_scale = servo_get_runtime_diff_scale(&steer_angle);
+    diff_scale = servo_get_runtime_diff_scale(0);
 
     *left_speed = speed;
     *right_speed = speed;
+    speed_delta = (int16)(((int32)speed * diff_scale) / 10000);
+    *left_speed = (int16)(speed + speed_delta);
+    *right_speed = (int16)(speed - speed_delta);
 
-    if(steer_angle > 0)
+    if(*left_speed < 0)
     {
-        *right_speed = speed - (int16)(((int32)speed * diff_scale) / 10000);
+        *left_speed = 0;
     }
-    else if(steer_angle < 0)
+
+    if(*right_speed < 0)
     {
-        *left_speed = speed + (int16)(((int32)speed * diff_scale) / 10000);
+        *right_speed = 0;
     }
 }
 
