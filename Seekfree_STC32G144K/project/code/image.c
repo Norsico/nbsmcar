@@ -1499,15 +1499,15 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
     int speed_now;
     int speed_normal;
     int speed_straight;
-    int speed_min;
+    int speed_span;
+    uint8 use_speed_adapt;
 
     speed_normal = (int)runtime_speed_normal;
     speed_straight = (int)runtime_speed_straight;
-    speed_min = speed_normal - 10;  // 速度最小值先暂时就 -10
-    if(speed_min < 0)
+    speed_span = speed_normal / 10;    /* 以前瞻基础速度的 10% 作为自适应跨度。 */
+    if(speed_span < 15)
     {
-        /* Car Speed 页速度较低时，最低速度基准不再继续下探。 */
-        speed_min = 0;
+        speed_span = 15;
     }
 
     speed_left = motor_data.count_left;
@@ -1532,28 +1532,39 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
         Speed_Goal = (uint16)speed_normal;
     }
 
+    use_speed_adapt = 0;
     if((ImageStatus.Road_type == RightCirque || ImageStatus.Road_type == LeftCirque) && ImageStatus.CirqueOff == 'F')
+    {
         TowPoint = 30;    //圆环前瞻
-    else if(ImageStatus.Road_type == Straight)
-        TowPoint = ImageStatus.TowPoint;
+    }
     else if(ImageStatus.Road_type == Cross_ture)
+    {
         TowPoint = 22;
+    }
     else if(ImageFlag.image_element_rings_flag == 1 || ImageFlag.image_element_rings_flag == 2)
+    {
         TowPoint = 30;
+    }
     else
     {
+        TowPoint = ImageStatus.TowPoint;
+        use_speed_adapt = 1;
+    }
 
-        SpeedGain = ((float)(speed_now - speed_min) * 0.2f) + 0.5f;
-        if(SpeedGain > 3.0f)
+    if(use_speed_adapt)
+    {
+        /* 普通路段围绕 normal speed 做轻量自适应，前瞻最多只改 2 行。 */
+        SpeedGain = ((float)(speed_now - speed_normal) / (float)speed_span) * 2.0f;
+        if(SpeedGain > 2.0f)
         {
-            SpeedGain = 3.0f;
+            SpeedGain = 2.0f;
         }
-        else if(SpeedGain < -1.0f)
+        else if(SpeedGain < -2.0f)
         {
-            SpeedGain = -1.0f;
+            SpeedGain = -2.0f;
         }
 
-        TowPoint = (int)((float)ImageStatus.TowPoint - SpeedGain);
+        TowPoint = (int)((float)TowPoint - SpeedGain);
     }
 
     if(TowPoint < ImageStatus.OFFLine)

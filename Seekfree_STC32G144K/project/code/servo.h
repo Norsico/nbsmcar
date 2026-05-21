@@ -11,12 +11,12 @@
 #define SERVO_PWM_FREQ                 (300)                  /* 舵机频率 */
 
 #define SERVO_STEER_MIDDLE             (4880)                 /* 舵机中值 */
-#define SERVO_STEER_RIGHT              (4100)                 /* 舵机右值 */
 #define SERVO_STEER_LEFT               (5520)                 /* 舵机左值 */
+#define SERVO_STEER_RIGHT              (4240)                 /* 舵机右值，按中值对称到右侧 */
 
-#define SERVO_ANGLE_MIN                (7000)                 /* 舵机最小角 */
+#define SERVO_ANGLE_MIN                (7800)                 /* 舵机最小角 */
 #define SERVO_ANGLE_CENTER             (9000)                 /* 舵机中角 */
-#define SERVO_ANGLE_MAX                (11000)                /* 舵机最大角 */
+#define SERVO_ANGLE_MAX                (10200)                /* 舵机最大角 */
 
 #define SERVO_LIMIT_TUNE_MIN           (5000)                 /* 舵机调参下限 */
 #define SERVO_LIMIT_TUNE_MAX           (12000)                /* 舵机调参上限 */

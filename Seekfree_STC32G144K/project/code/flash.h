@@ -68,8 +68,8 @@
 #define FLASH_SERVO_TOW_POINT_STEP       (1)                   /* 前瞻步进 */
 
 #define FLASH_SERVO_MIN_ANGLE_MIN        (50)                  /* 左限幅下限 */
-#define FLASH_SERVO_MIN_ANGLE_MAX        (120)                 /* 左限幅上限 */
-#define FLASH_SERVO_MIN_ANGLE_DEFAULT    (72)                  /* 左限幅默认值 */
+#define FLASH_SERVO_MIN_ANGLE_MAX        (100)                 /* 左限幅上限 */
+#define FLASH_SERVO_MIN_ANGLE_DEFAULT    (80)                  /* 左限幅默认值 */
 #define FLASH_SERVO_MIN_ANGLE_STEP       (2)                   /* 左限幅步进 */
 
 #define FLASH_SERVO_MAX_ANGLE_MIN        (50)                  /* 右限幅下限 */
