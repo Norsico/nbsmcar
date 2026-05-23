@@ -3,6 +3,19 @@
 #include "servo.h"
 
 #define FLASH_STORE_VERSION_V6           (0x0006)
+#define FLASH_STORE_VERSION_V7           (0x0007)
+
+typedef struct
+{
+    int16 steer_p;                                              /* 舵机p */
+    int16 steer_d;                                              /* 舵机d */
+    int16 err2_k;                                               /* 二次误差 */
+    int16 ackerman;                                             /* 阿克曼 */
+    int16 imu_d;                                                /* 陀螺仪d */
+    int16 tow_point;                                            /* 前瞻 */
+    int16 servo_min_angle;                                      /* 左限幅 */
+    int16 servo_max_angle;                                      /* 右限幅 */
+} flash_servo_page_v7_t;
 
 typedef struct
 {
@@ -13,7 +26,7 @@ typedef struct
 typedef struct
 {
     flash_camera_page_t camera_page;                            /* 相机页 */
-    flash_servo_page_t servo_page;                              /* 舵机页 */
+    flash_servo_page_v7_t servo_page;                           /* 舵机页 */
     flash_motor_page_v6_t motor_page;                           /* 电机页 */
 } flash_plan_v6_t;
 
@@ -26,6 +39,23 @@ typedef struct
     flash_plan_v6_t plan[FLASH_PLAN_COUNT];                     /* 方案表 */
     uint16 checksum;                                            /* 校验 */
 } flash_store_image_v6_t;
+
+typedef struct
+{
+    flash_camera_page_t camera_page;                            /* 相机页 */
+    flash_servo_page_v7_t servo_page;                           /* 舵机页 */
+    flash_motor_page_t motor_page;                              /* 电机页 */
+} flash_plan_v7_t;
+
+typedef struct
+{
+    uint16 magic;                                               /* 标记 */
+    uint16 version;                                             /* 版本 */
+    uint8 active_plan;                                          /* 当前方案 */
+    uint8 reserve;                                              /* 保留 */
+    flash_plan_v7_t plan[FLASH_PLAN_COUNT];                     /* 方案表 */
+    uint16 checksum;                                            /* 校验 */
+} flash_store_image_v7_t;
 
 typedef struct
 {
@@ -58,9 +88,7 @@ static const flash_value_config_t flash_servo_config[FLASH_SERVO_COUNT] =
     {FLASH_SERVO_ERR2_STEP},
     {FLASH_SERVO_ACKERMAN_STEP},
     {FLASH_SERVO_IMU_D_STEP},
-    {FLASH_SERVO_TOW_POINT_STEP},
-    {FLASH_SERVO_MIN_ANGLE_STEP},
-    {FLASH_SERVO_MAX_ANGLE_STEP}
+    {FLASH_SERVO_TOW_POINT_STEP}
 };
 
 static const flash_value_config_t flash_motor_config[FLASH_MOTOR_COUNT] =
@@ -222,26 +250,6 @@ int16 flash_limit_servo_value(flash_servo_slot_t slot, int16 value)
             if(value > FLASH_SERVO_TOW_POINT_MAX)
             {
                 return FLASH_SERVO_TOW_POINT_MAX;
-            }
-            return value;
-        case FLASH_SERVO_MIN_ANGLE:
-            if(value < FLASH_SERVO_MIN_ANGLE_MIN)
-            {
-                return FLASH_SERVO_MIN_ANGLE_MIN;
-            }
-            if(value > FLASH_SERVO_MIN_ANGLE_MAX)
-            {
-                return FLASH_SERVO_MIN_ANGLE_MAX;
-            }
-            return value;
-        case FLASH_SERVO_MAX_ANGLE:
-            if(value < FLASH_SERVO_MAX_ANGLE_MIN)
-            {
-                return FLASH_SERVO_MAX_ANGLE_MIN;
-            }
-            if(value > FLASH_SERVO_MAX_ANGLE_MAX)
-            {
-                return FLASH_SERVO_MAX_ANGLE_MAX;
             }
             return value;
         default:
@@ -456,18 +464,6 @@ static uint8 flash_servo_page_is_valid(const flash_servo_page_t *page)
     {
         return 0;
     }
-    if(!flash_servo_value_is_valid(FLASH_SERVO_MIN_ANGLE, page->servo_min_angle))
-    {
-        return 0;
-    }
-    if(!flash_servo_value_is_valid(FLASH_SERVO_MAX_ANGLE, page->servo_max_angle))
-    {
-        return 0;
-    }
-    if(page->servo_min_angle >= page->servo_max_angle)
-    {
-        return 0;
-    }
 
     return 1;
 }
@@ -519,6 +515,42 @@ static uint8 flash_motor_page_v6_is_valid(const flash_motor_page_v6_t *page)
     return 1;
 }
 
+/* 旧版 v7 舵机页校验 */
+static uint8 flash_servo_page_v7_is_valid(const flash_servo_page_v7_t *page)
+{
+    if(0 == page)
+    {
+        return 0;
+    }
+
+    if(!flash_servo_value_is_valid(FLASH_SERVO_P, page->steer_p))
+    {
+        return 0;
+    }
+    if(!flash_servo_value_is_valid(FLASH_SERVO_D, page->steer_d))
+    {
+        return 0;
+    }
+    if(!flash_servo_value_is_valid(FLASH_SERVO_ERR2, page->err2_k))
+    {
+        return 0;
+    }
+    if(!flash_servo_value_is_valid(FLASH_SERVO_ACKERMAN, page->ackerman))
+    {
+        return 0;
+    }
+    if(!flash_servo_value_is_valid(FLASH_SERVO_IMU_D, page->imu_d))
+    {
+        return 0;
+    }
+    if(!flash_servo_value_is_valid(FLASH_SERVO_TOW_POINT, page->tow_point))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 /* 旧版方案校验 */
 static uint8 flash_plan_v6_data_is_valid(const flash_plan_v6_t *plan)
 {
@@ -531,11 +563,35 @@ static uint8 flash_plan_v6_data_is_valid(const flash_plan_v6_t *plan)
     {
         return 0;
     }
-    if(!flash_servo_page_is_valid(&plan->servo_page))
+    if(!flash_servo_page_v7_is_valid(&plan->servo_page))
     {
         return 0;
     }
     if(!flash_motor_page_v6_is_valid(&plan->motor_page))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* 旧版 v7 方案校验 */
+static uint8 flash_plan_v7_data_is_valid(const flash_plan_v7_t *plan)
+{
+    if(0 == plan)
+    {
+        return 0;
+    }
+
+    if(!flash_camera_page_is_valid(&plan->camera_page))
+    {
+        return 0;
+    }
+    if(!flash_servo_page_v7_is_valid(&plan->servo_page))
+    {
+        return 0;
+    }
+    if(!flash_motor_page_is_valid(&plan->motor_page))
     {
         return 0;
     }
@@ -596,6 +652,24 @@ static uint16 flash_calc_checksum_v6(const flash_store_image_v6_t *image)
     checksum = 0;
 
     for(i = 0; i < (uint16)(sizeof(flash_store_image_v6_t) - sizeof(image->checksum)); i++)
+    {
+        checksum = (uint16)(checksum + data_ptr[i]);
+    }
+
+    return checksum;
+}
+
+/* 旧版 v7 校验和 */
+static uint16 flash_calc_checksum_v7(const flash_store_image_v7_t *image)
+{
+    uint8 *data_ptr;
+    uint16 checksum;
+    uint16 i;
+
+    data_ptr = (uint8 *)image;
+    checksum = 0;
+
+    for(i = 0; i < (uint16)(sizeof(flash_store_image_v7_t) - sizeof(image->checksum)); i++)
     {
         checksum = (uint16)(checksum + data_ptr[i]);
     }
@@ -706,22 +780,6 @@ static uint8 flash_normalize_servo_page(flash_servo_page_t *page)
         page->tow_point = FLASH_SERVO_TOW_POINT_DEFAULT;
         changed = 1;
     }
-    if(page->servo_min_angle != flash_limit_servo_value(FLASH_SERVO_MIN_ANGLE, page->servo_min_angle))
-    {
-        page->servo_min_angle = FLASH_SERVO_MIN_ANGLE_DEFAULT;
-        changed = 1;
-    }
-    if(page->servo_max_angle != flash_limit_servo_value(FLASH_SERVO_MAX_ANGLE, page->servo_max_angle))
-    {
-        page->servo_max_angle = FLASH_SERVO_MAX_ANGLE_DEFAULT;
-        changed = 1;
-    }
-    if(page->servo_min_angle >= page->servo_max_angle)
-    {
-        page->servo_min_angle = FLASH_SERVO_MIN_ANGLE_DEFAULT;
-        page->servo_max_angle = FLASH_SERVO_MAX_ANGLE_DEFAULT;
-        changed = 1;
-    }
 
     return changed;
 }
@@ -804,8 +862,6 @@ static void flash_fill_plan0(flash_plan_t *plan)
     plan->servo_page.ackerman = FLASH_SERVO_ACKERMAN_DEFAULT;
     plan->servo_page.imu_d = FLASH_SERVO_IMU_D_DEFAULT;
     plan->servo_page.tow_point = FLASH_SERVO_TOW_POINT_DEFAULT;
-    plan->servo_page.servo_min_angle = FLASH_SERVO_MIN_ANGLE_DEFAULT;
-    plan->servo_page.servo_max_angle = FLASH_SERVO_MAX_ANGLE_DEFAULT;
 
     plan->motor_page.target_speed = FLASH_MOTOR_TARGET_DEFAULT;
     plan->motor_page.straight_speed = FLASH_MOTOR_STRAIGHT_DEFAULT;
@@ -909,6 +965,44 @@ static uint8 flash_image_v6_is_valid(const flash_store_image_v6_t *image)
     return 1;
 }
 
+/* 旧版 v7 镜像校验 */
+static uint8 flash_image_v7_is_valid(const flash_store_image_v7_t *image)
+{
+    uint8 i;
+
+    if(0 == image)
+    {
+        return 0;
+    }
+    if(FLASH_STORE_MAGIC != image->magic)
+    {
+        return 0;
+    }
+    if(FLASH_STORE_VERSION_V7 != image->version)
+    {
+        return 0;
+    }
+    if(!flash_plan_is_valid(image->active_plan))
+    {
+        return 0;
+    }
+
+    for(i = 0; i < FLASH_PLAN_COUNT; i++)
+    {
+        if(!flash_plan_v7_data_is_valid(&image->plan[i]))
+        {
+            return 0;
+        }
+    }
+
+    if(flash_calc_checksum_v7(image) != image->checksum)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 /* 旧版参数迁移到新版。 */
 static void flash_migrate_v6_image(const flash_store_image_v6_t *image_v6)
 {
@@ -922,10 +1016,39 @@ static void flash_migrate_v6_image(const flash_store_image_v6_t *image_v6)
     for(i = 0; i < FLASH_PLAN_COUNT; i++)
     {
         memcpy(&flash_store_image.plan[i].camera_page, &image_v6->plan[i].camera_page, sizeof(flash_camera_page_t));
-        memcpy(&flash_store_image.plan[i].servo_page, &image_v6->plan[i].servo_page, sizeof(flash_servo_page_t));
+        flash_store_image.plan[i].servo_page.steer_p = image_v6->plan[i].servo_page.steer_p;
+        flash_store_image.plan[i].servo_page.steer_d = image_v6->plan[i].servo_page.steer_d;
+        flash_store_image.plan[i].servo_page.err2_k = image_v6->plan[i].servo_page.err2_k;
+        flash_store_image.plan[i].servo_page.ackerman = image_v6->plan[i].servo_page.ackerman;
+        flash_store_image.plan[i].servo_page.imu_d = image_v6->plan[i].servo_page.imu_d;
+        flash_store_image.plan[i].servo_page.tow_point = image_v6->plan[i].servo_page.tow_point;
         flash_store_image.plan[i].motor_page.target_speed = image_v6->plan[i].motor_page.target_speed;
         flash_store_image.plan[i].motor_page.straight_speed = image_v6->plan[i].motor_page.straight_speed;
         flash_store_image.plan[i].motor_page.neg_pressure_duty = FLASH_MOTOR_NEG_PRESSURE_DEFAULT;
+        flash_normalize_plan(&flash_store_image.plan[i]);
+    }
+}
+
+/* 旧版 v7 参数迁移到新版。 */
+static void flash_migrate_v7_image(const flash_store_image_v7_t *image_v7)
+{
+    uint8 i;
+
+    memset(&flash_store_image, 0, sizeof(flash_store_image));
+    flash_store_image.magic = FLASH_STORE_MAGIC;
+    flash_store_image.version = FLASH_STORE_VERSION;
+    flash_store_image.active_plan = image_v7->active_plan;
+
+    for(i = 0; i < FLASH_PLAN_COUNT; i++)
+    {
+        memcpy(&flash_store_image.plan[i].camera_page, &image_v7->plan[i].camera_page, sizeof(flash_camera_page_t));
+        flash_store_image.plan[i].servo_page.steer_p = image_v7->plan[i].servo_page.steer_p;
+        flash_store_image.plan[i].servo_page.steer_d = image_v7->plan[i].servo_page.steer_d;
+        flash_store_image.plan[i].servo_page.err2_k = image_v7->plan[i].servo_page.err2_k;
+        flash_store_image.plan[i].servo_page.ackerman = image_v7->plan[i].servo_page.ackerman;
+        flash_store_image.plan[i].servo_page.imu_d = image_v7->plan[i].servo_page.imu_d;
+        flash_store_image.plan[i].servo_page.tow_point = image_v7->plan[i].servo_page.tow_point;
+        memcpy(&flash_store_image.plan[i].motor_page, &image_v7->plan[i].motor_page, sizeof(flash_motor_page_t));
         flash_normalize_plan(&flash_store_image.plan[i]);
     }
 }
@@ -955,7 +1078,6 @@ static void flash_apply_current_plan(void)
                   plan->servo_page.imu_d);
     servo_set_ackerman(plan->servo_page.ackerman);
     servo_set_tow_point(plan->servo_page.tow_point);
-    servo_set_limit(plan->servo_page.servo_min_angle, plan->servo_page.servo_max_angle);
     motor_set_target(plan->motor_page.target_speed, plan->motor_page.target_speed);
 }
 
@@ -964,6 +1086,7 @@ static void flash_load(void)
 {
     flash_store_image_t image;
     const flash_store_image_v6_t *image_v6;
+    const flash_store_image_v7_t *image_v7;
     uint8 i;
     uint8 changed;
 
@@ -989,16 +1112,25 @@ static void flash_load(void)
     }
     else
     {
-        image_v6 = (const flash_store_image_v6_t *)&image;
-        if(flash_image_v6_is_valid(image_v6))
+        image_v7 = (const flash_store_image_v7_t *)&image;
+        if(flash_image_v7_is_valid(image_v7))
         {
-            flash_migrate_v6_image(image_v6);
+            flash_migrate_v7_image(image_v7);
             flash_save();
         }
         else
         {
-            flash_fill_default_image(&flash_store_image);
-            flash_save();
+            image_v6 = (const flash_store_image_v6_t *)&image;
+            if(flash_image_v6_is_valid(image_v6))
+            {
+                flash_migrate_v6_image(image_v6);
+                flash_save();
+            }
+            else
+            {
+                flash_fill_default_image(&flash_store_image);
+                flash_save();
+            }
         }
     }
 

@@ -2,18 +2,6 @@
 #include "image.h"
 #include "servo.h"
 
-#define SERVO_PWM_DUTY(angle)         ((PWM_DUTY_MAX / 1000 * SERVO_PWM_FREQ) / 100 * (50 + (angle) / 90))
-
-static const int16 servo_ackerman_tan_table[61] =
-{
-    0,10,20,30,30,40,50,60,70,80,90,
-    100,110,110,120,130,140,150,160,170,180,
-    190,190,200,210,220,230,240,250,260,270,
-    280,290,300,310,320,320,330,340,350,360,
-    370,380,390,400,410,420,440,450,460,470,
-    480,490,500,510,520,530,540,550,570,580
-};
-
 static volatile uint8 servo_tick_ready = 0;
 static int16 servo_p = 38;                                      /* 舵机p */
 static int16 servo_d = 30;                                      /* 舵机d */
@@ -22,11 +10,20 @@ static int16 servo_imu_d = 7;                                   /* 陀螺仪d */
 static int16 servo_tow_point = 17;                              /* 前瞻 */
 static int16 servo_ackerman = 1285;                             /* 阿克曼 */
 static float servo_last_error = 0.0f;                           /* 上次误差 */
-static uint16 servo_min_angle = SERVO_ANGLE_MIN;                /* 左限幅 */
-static uint16 servo_max_angle = SERVO_ANGLE_MAX;                /* 右限幅 */
 static uint16 servo_current_angle = SERVO_ANGLE_CENTER;         /* 当前角度 */
 static int16 servo_imu_offset_z = 0;                            /* 陀螺仪零偏 */
 static uint8 servo_imu_ready = 0;                               /* 陀螺仪状态 */
+
+/* 0.01° 角度转舵机 PWM，占空比按逐飞示例的连续浮点公式换算。 */
+static uint32 servo_angle_to_pwm_duty(uint16 angle)
+{
+    float duty;
+
+    duty = ((float)PWM_DUTY_MAX / (1000.0f / (float)SERVO_PWM_FREQ)) *
+           (0.5f + ((float)angle / 9000.0f));
+
+    return (uint32)(duty + 0.5f);
+}
 
 /* 舵机定时器 */
 static void servo_pit_handler(void)
@@ -80,68 +77,20 @@ static void servo_imu_calibrate(void)
     servo_imu_offset_z = (int16)(sum_z / SERVO_IMU_CALIBRATE_SAMPLES);
 }
 
-/* 舵机调参左限幅 */
-static uint16 servo_limit_tune_min(uint16 angle)
-{
-    if(angle < SERVO_LIMIT_TUNE_MIN)
-    {
-        return SERVO_LIMIT_TUNE_MIN;
-    }
-
-    if(angle >= SERVO_ANGLE_CENTER)
-    {
-        return (uint16)(SERVO_ANGLE_CENTER - 100);
-    }
-
-    return angle;
-}
-
-/* 舵机调参右限幅 */
-static uint16 servo_limit_tune_max(uint16 angle)
-{
-    if(angle > SERVO_LIMIT_TUNE_MAX)
-    {
-        return SERVO_LIMIT_TUNE_MAX;
-    }
-
-    if(angle <= SERVO_ANGLE_CENTER)
-    {
-        return (uint16)(SERVO_ANGLE_CENTER + 100);
-    }
-
-    return angle;
-}
-
 /* 舵机角度限幅 */
 static uint16 servo_limit_angle(uint16 angle)
 {
-    if(angle < servo_min_angle)
+    if(angle < SERVO_ANGLE_MIN)
     {
-        return servo_min_angle;
+        return SERVO_ANGLE_MIN;
     }
 
-    if(angle > servo_max_angle)
+    if(angle > SERVO_ANGLE_MAX)
     {
-        return servo_max_angle;
+        return SERVO_ANGLE_MAX;
     }
 
     return angle;
-}
-
-/* 舵机输出限幅 */
-static int16 servo_limit_output_duty(int16 duty)
-{
-    if(duty > SERVO_STEER_LEFT)
-    {
-        return SERVO_STEER_LEFT;
-    }
-
-    if(duty < SERVO_STEER_RIGHT)
-    {
-        return SERVO_STEER_RIGHT;
-    }
-
-    return duty;
 }
 
 /* 舵机四舍五入 */
@@ -174,10 +123,9 @@ static int16 servo_limit_ackerman_angle(int16 steer_angle)
 /* 阿克曼查tan */
 static int16 servo_get_ackerman_tan(int16 steer_angle)
 {
-    uint8 idx;
     int16 sign;
-    int16 tan_value;
-    int16 angle_base;
+    float x_rad;
+    float tan_value;
 
     if(0 == steer_angle)
     {
@@ -191,24 +139,16 @@ static int16 servo_get_ackerman_tan(int16 steer_angle)
         sign = -1;
     }
 
-    if(steer_angle >= SERVO_ACKERMAN_MAX_ANGLE)
+    if(steer_angle > SERVO_ACKERMAN_MAX_ANGLE)
     {
-        return (int16)(sign * servo_ackerman_tan_table[60]);
+        steer_angle = SERVO_ACKERMAN_MAX_ANGLE;
     }
 
-    for(idx = 1; idx < 61; idx++)
-    {
-        if(steer_angle < (int16)(idx * 50))
-        {
-            angle_base = (int16)((idx - 1) * 50);
-            tan_value = servo_ackerman_tan_table[idx - 1] +
-                        (int16)(((int32)(steer_angle - angle_base) *
-                                 (servo_ackerman_tan_table[idx] - servo_ackerman_tan_table[idx - 1])) / 50);
-            return (int16)(sign * tan_value);
-        }
-    }
+    /* 当前舵机软件限幅只会到约 +/-15°，三阶近似已足够平滑且误差很小。 */
+    x_rad = (float)steer_angle * 0.000174532925f;
+    tan_value = x_rad + (x_rad * x_rad * x_rad) / 3.0f;
 
-    return (int16)(sign * servo_ackerman_tan_table[60]);
+    return (int16)(sign * servo_round_float(tan_value * 1000.0f));
 }
 
 /* 设置舵机角度 */
@@ -218,65 +158,17 @@ static void servo_drive_set_angle(uint16 angle)
 
     safe_angle = servo_limit_angle(angle);
     servo_current_angle = safe_angle;
-    pwm_set_duty(SERVO_PWM_PIN, SERVO_PWM_DUTY((safe_angle - 200)));
+    pwm_set_duty(SERVO_PWM_PIN, servo_angle_to_pwm_duty((uint16)(safe_angle - SERVO_MECHANICAL_TRIM)));
 }
 
-/* 舵机输出映射 */
-static void servo_control(int16 duty)
+/* 角度直出，只保留最终限幅。 */
+static void servo_control(int16 angle)
 {
-    int16 command_duty;
-    uint16 command_angle;
-    int16 angle_tmp;
-    int16 duty_offset;
-    int16 duty_span;
-    int16 span_work;
-    int16 angle_span_gcd;
-    int16 angle_span_tenth;
-    int16 angle_tenth;
-
-    command_duty = servo_limit_output_duty(duty);
-
-    if(command_duty >= SERVO_STEER_MIDDLE)
+    if(angle < 0)
     {
-        duty_offset = (int16)(command_duty - SERVO_STEER_MIDDLE);
-        angle_span_tenth = (int16)((servo_max_angle - SERVO_ANGLE_CENTER) / 10);
-        angle_span_gcd = angle_span_tenth;
-        span_work = (int16)(SERVO_STEER_LEFT - SERVO_STEER_MIDDLE);
-
-        while(span_work != 0)
-        {
-            angle_tmp = (int16)(angle_span_gcd % span_work);
-            angle_span_gcd = span_work;
-            span_work = angle_tmp;
-        }
-
-        angle_span_tenth = (int16)(angle_span_tenth / angle_span_gcd);
-        duty_span = (int16)((SERVO_STEER_LEFT - SERVO_STEER_MIDDLE) / angle_span_gcd);
-        angle_tenth = (int16)((SERVO_ANGLE_CENTER / 10) +
-                               (int16)((duty_offset * angle_span_tenth + duty_span / 2) / duty_span));
+        angle = 0;
     }
-    else
-    {
-        duty_offset = (int16)(SERVO_STEER_MIDDLE - command_duty);
-        angle_span_tenth = (int16)((SERVO_ANGLE_CENTER - servo_min_angle) / 10);
-        angle_span_gcd = angle_span_tenth;
-        span_work = (int16)(SERVO_STEER_MIDDLE - SERVO_STEER_RIGHT);
-
-        while(span_work != 0)
-        {
-            angle_tmp = (int16)(angle_span_gcd % span_work);
-            angle_span_gcd = span_work;
-            span_work = angle_tmp;
-        }
-
-        angle_span_tenth = (int16)(angle_span_tenth / angle_span_gcd);
-        duty_span = (int16)((SERVO_STEER_MIDDLE - SERVO_STEER_RIGHT) / angle_span_gcd);
-        angle_tenth = (int16)((SERVO_ANGLE_CENTER / 10) -
-                               (int16)((duty_offset * angle_span_tenth + duty_span / 2) / duty_span));
-    }
-
-    command_angle = (uint16)angle_tenth * 10;
-    servo_drive_set_angle(command_angle);
+    servo_drive_set_angle((uint16)angle);
 }
 
 /* 舵机控制 */
@@ -287,7 +179,7 @@ static void servo_pid_realize(float offset)
     float imu_feedback;
     float control_value;
     float gyro_z;
-    int16 output_duty;
+    int16 output_angle;
 
     error = offset;
     abs_error = (error < 0.0f) ? (-error) : error;
@@ -304,8 +196,8 @@ static void servo_pid_realize(float offset)
                     imu_feedback;
 
     servo_last_error = error;
-    output_duty = servo_round_float((float)SERVO_STEER_MIDDLE - control_value);
-    servo_control(output_duty);
+    output_angle = servo_round_float((float)SERVO_ANGLE_CENTER - control_value);
+    servo_control(output_angle);
 }
 
 /* 舵机初始化 */
@@ -318,14 +210,12 @@ void servo_init(void)
     servo_tow_point = 17;
     servo_ackerman = 1285;
     servo_last_error = 0.0f;
-    servo_min_angle = SERVO_ANGLE_MIN;
-    servo_max_angle = SERVO_ANGLE_MAX;
     servo_current_angle = SERVO_ANGLE_CENTER;
     servo_tick_ready = 0;
     servo_imu_offset_z = 0;
     servo_imu_ready = 0;
 
-    pwm_init(SERVO_PWM_PIN, SERVO_PWM_FREQ, SERVO_PWM_DUTY(SERVO_ANGLE_CENTER));
+    pwm_init(SERVO_PWM_PIN, SERVO_PWM_FREQ, servo_angle_to_pwm_duty(SERVO_ANGLE_CENTER));
     servo_set_center();
     pit_ms_init(SERVO_CTRL_PIT, SERVO_CTRL_PERIOD_MS, servo_pit_handler);
     interrupt_set_priority(TIMER0_IRQn, SERVO_CTRL_PRIORITY);
@@ -403,34 +293,6 @@ void servo_set_tow_point(int16 tow_point)
     ImageStatus.TowPoint = (uint8)servo_tow_point;
 }
 
-/* 舵机限幅 */
-void servo_set_limit(int16 min_angle, int16 max_angle)
-{
-    uint16 safe_min;
-    uint16 safe_max;
-
-    if(min_angle < 0)
-    {
-        min_angle = 0;
-    }
-    if(max_angle < 0)
-    {
-        max_angle = 0;
-    }
-
-    safe_min = servo_limit_tune_min((uint16)min_angle * 100);
-    safe_max = servo_limit_tune_max((uint16)max_angle * 100);
-    if(safe_min >= safe_max)
-    {
-        safe_min = SERVO_ANGLE_MIN;
-        safe_max = SERVO_ANGLE_MAX;
-    }
-
-    servo_min_angle = safe_min;
-    servo_max_angle = safe_max;
-    servo_drive_set_angle(servo_current_angle);
-}
-
 /* 阿克曼参数 */
 void servo_set_ackerman(int16 ackerman_value)
 {
@@ -459,10 +321,20 @@ static int32 servo_get_runtime_diff_scale(int16 *steer_angle_out)
     return ((int32)servo_ackerman * (int32)tan_value) / 100;
 }
 
+/* 当前基础速度下实际生效的内侧减速量。
+ * speed_delta > 0 表示右转，应减右轮；
+ * speed_delta < 0 表示左转，应减左轮。 */
+int16 servo_get_speed_delta(int16 speed)
+{
+    int32 diff_scale;
+
+    diff_scale = servo_get_runtime_diff_scale(0);
+    return (int16)(((int32)speed * diff_scale) / 10000);
+}
+
 /* 算左右轮目标 */
 void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
 {
-    int32 diff_scale;
     int16 speed_delta;
 
     if((0 == left_speed) || (0 == right_speed))
@@ -470,13 +342,21 @@ void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed)
         return;
     }
 
-    diff_scale = servo_get_runtime_diff_scale(0);
-
     *left_speed = speed;
     *right_speed = speed;
-    speed_delta = (int16)(((int32)speed * diff_scale) / 10000);
-    *left_speed = (int16)(speed + speed_delta);
-    *right_speed = (int16)(speed - speed_delta);
+    speed_delta = servo_get_speed_delta(speed);
+
+    /* 单减差速：
+     * 左转时 speed_delta < 0，降低左轮；
+     * 右转时 speed_delta > 0，降低右轮。 */
+    if(speed_delta < 0)
+    {
+        *left_speed = (int16)(speed + speed_delta);
+    }
+    else if(speed_delta > 0)
+    {
+        *right_speed = (int16)(speed - speed_delta);
+    }
 
     if(*left_speed < 0)
     {

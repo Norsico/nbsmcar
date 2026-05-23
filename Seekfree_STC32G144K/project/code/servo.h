@@ -10,16 +10,10 @@
 #define SERVO_PWM_PIN                  (PWME_CH3P_PA4)        /* 舵机PWM */
 #define SERVO_PWM_FREQ                 (300)                  /* 舵机频率 */
 
-#define SERVO_STEER_MIDDLE             (4880)                 /* 舵机中值 */
-#define SERVO_STEER_LEFT               (5520)                 /* 舵机左值 */
-#define SERVO_STEER_RIGHT              (4240)                 /* 舵机右值，按中值对称到右侧 */
-
-#define SERVO_ANGLE_MIN                (7800)                 /* 舵机最小角 */
+#define SERVO_ANGLE_MIN                (7500)                 /* 舵机最小角 */
 #define SERVO_ANGLE_CENTER             (9000)                 /* 舵机中角 */
-#define SERVO_ANGLE_MAX                (10200)                /* 舵机最大角 */
-
-#define SERVO_LIMIT_TUNE_MIN           (5000)                 /* 舵机调参下限 */
-#define SERVO_LIMIT_TUNE_MAX           (12000)                /* 舵机调参上限 */
+#define SERVO_ANGLE_MAX                (10500)                /* 舵机最大角 */
+#define SERVO_MECHANICAL_TRIM          (320)                  /* 舵机机械零偏，最终输出减 2.00°。 */
 
 #define SERVO_IMU_INIT_RETRY_MAX       (5)                    /* 陀螺仪重试次数 */
 #define SERVO_IMU_INIT_DELAY_MS        (100)                  /* 陀螺仪重试间隔 */
@@ -33,9 +27,9 @@ void servo_update(void);
 void servo_set_center(void);
 void servo_set_pid(int16 steer_p, int16 steer_d, int16 err2_k, int16 imu_d);
 void servo_set_tow_point(int16 tow_point);
-void servo_set_limit(int16 min_angle, int16 max_angle);
 void servo_set_ackerman(int16 ackerman_value);
 void servo_calc_motor_target(int16 speed, int16 *left_speed, int16 *right_speed);
 int32 servo_get_diff_scale(void);
+int16 servo_get_speed_delta(int16 speed);
 
 #endif

@@ -5,7 +5,7 @@
 
 #define FLASH_STORE_ADDR                 (0x0000)              /* flash地址 */
 #define FLASH_STORE_MAGIC                (0x5346)              /* flash标记 */
-#define FLASH_STORE_VERSION              (0x0007)              /* flash版本 */
+#define FLASH_STORE_VERSION              (0x0008)              /* flash版本 */
 #define FLASH_PLAN_COUNT                 (2)                   /* 方案数量 */
 
 #define FLASH_CAMERA_EXP_TIME_MIN        (1)                   /* 曝光下限 */
@@ -55,7 +55,7 @@
 #define FLASH_SERVO_ACKERMAN_MIN         (0)                   /* 阿克曼下限 */
 #define FLASH_SERVO_ACKERMAN_MAX         (32767)               /* 阿克曼上限 */
 #define FLASH_SERVO_ACKERMAN_DEFAULT     (1325)                /* 阿克曼默认值 */
-#define FLASH_SERVO_ACKERMAN_STEP        (50)                  /* 阿克曼步进 */
+#define FLASH_SERVO_ACKERMAN_STEP        (10)                  /* 阿克曼步进 */
 
 #define FLASH_SERVO_IMU_D_MIN            (0)                   /* 陀螺仪d下限 */
 #define FLASH_SERVO_IMU_D_MAX            (100)                 /* 陀螺仪d上限 */
@@ -66,16 +66,6 @@
 #define FLASH_SERVO_TOW_POINT_MAX        (49)                  /* 前瞻上限 */
 #define FLASH_SERVO_TOW_POINT_DEFAULT    (24)                  /* 前瞻默认值 */
 #define FLASH_SERVO_TOW_POINT_STEP       (1)                   /* 前瞻步进 */
-
-#define FLASH_SERVO_MIN_ANGLE_MIN        (50)                  /* 左限幅下限 */
-#define FLASH_SERVO_MIN_ANGLE_MAX        (100)                 /* 左限幅上限 */
-#define FLASH_SERVO_MIN_ANGLE_DEFAULT    (80)                  /* 左限幅默认值 */
-#define FLASH_SERVO_MIN_ANGLE_STEP       (2)                   /* 左限幅步进 */
-
-#define FLASH_SERVO_MAX_ANGLE_MIN        (50)                  /* 右限幅下限 */
-#define FLASH_SERVO_MAX_ANGLE_MAX        (120)                 /* 右限幅上限 */
-#define FLASH_SERVO_MAX_ANGLE_DEFAULT    (108)                 /* 右限幅默认值 */
-#define FLASH_SERVO_MAX_ANGLE_STEP       (2)                   /* 右限幅步进 */
 
 #define FLASH_MOTOR_TARGET_STEP          (10)                  /* 目标步进 */
 #define FLASH_MOTOR_TARGET_DEFAULT       (190)                 /* 目标速度默认值 */
@@ -111,8 +101,6 @@ typedef enum
     FLASH_SERVO_ACKERMAN,                                       /* 阿克曼 */
     FLASH_SERVO_IMU_D,                                          /* 陀螺仪d */
     FLASH_SERVO_TOW_POINT,                                      /* 前瞻 */
-    FLASH_SERVO_MIN_ANGLE,                                      /* 左限幅 */
-    FLASH_SERVO_MAX_ANGLE,                                      /* 右限幅 */
     FLASH_SERVO_COUNT                                           /* 舵机参数数量 */
 } flash_servo_slot_t;
 
@@ -143,8 +131,6 @@ typedef struct
     int16 ackerman;                                             /* 阿克曼 */
     int16 imu_d;                                                /* 陀螺仪d */
     int16 tow_point;                                            /* 前瞻 */
-    int16 servo_min_angle;                                      /* 左限幅 */
-    int16 servo_max_angle;                                      /* 右限幅 */
 } flash_servo_page_t;
 
 typedef struct

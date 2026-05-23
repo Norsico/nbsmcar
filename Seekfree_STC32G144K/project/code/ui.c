@@ -950,11 +950,11 @@ static void ui_draw_camera_preview(void)
 /* 相机预览信息 */
 static void ui_draw_camera_info(void)
 {
-    int32 diff_scale;
+    int16 speed_delta;
     uint8 shot_latch;
 
     shot_latch = image_get_target_ring_shot_latch();
-    diff_scale = servo_get_diff_scale();
+    speed_delta = servo_get_speed_delta((int16)image_get_speed_goal());
 
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
     ips200_show_string(0, UI_CAMERA_INFO_Y, "threshold");
@@ -963,8 +963,8 @@ static void ui_draw_camera_info(void)
     ips200_show_uint8(128, UI_CAMERA_INFO_Y, image_get_target_ring_found());
     ips200_show_string(144, UI_CAMERA_INFO_Y, "sh");
     ips200_show_uint8(160, UI_CAMERA_INFO_Y, shot_latch);
-    ips200_show_string(0, (uint16)(UI_CAMERA_INFO_Y + 16), "diff_scale");
-    ips200_show_int32(96, (uint16)(UI_CAMERA_INFO_Y + 16), diff_scale, 6);
+    ips200_show_string(0, (uint16)(UI_CAMERA_INFO_Y + 16), "speed_delta");
+    ips200_show_int16(96, (uint16)(UI_CAMERA_INFO_Y + 16), speed_delta);
 }
 
 /* 画文本行 */
