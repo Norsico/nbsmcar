@@ -128,6 +128,7 @@ void image_buzzer_update(void);
 void image_laser_update(void);
 uint8 image_is_ready(void);
 uint8 image_is_result_ready(void);
+uint32 image_get_result_sequence(void);
 uint8 image_set_camera_value(flash_camera_slot_t slot, int16 value);
 void image_reload_camera_page(void);
 void image_reload_motor_page(void);

@@ -2,7 +2,6 @@
 #include "image.h"
 #include "servo.h"
 
-static volatile uint8 servo_tick_ready = 0;
 static int16 servo_p = 38;                                      /* 舵机p */
 static int16 servo_d = 30;                                      /* 舵机d */
 static int16 servo_err2_k = 9;                                  /* 二次误差 */
@@ -13,6 +12,7 @@ static float servo_last_error = 0.0f;                           /* 上次误差 
 static uint16 servo_current_angle = SERVO_ANGLE_CENTER;         /* 当前角度 */
 static int16 servo_imu_offset_z = 0;                            /* 陀螺仪零偏 */
 static uint8 servo_imu_ready = 0;                               /* 陀螺仪状态 */
+static uint32 servo_last_result_sequence = 0;                   /* 上次已消费的图像结果序号 */
 
 /* 0.01° 角度转舵机 PWM，占空比按逐飞示例的连续浮点公式换算。 */
 static uint32 servo_angle_to_pwm_duty(uint16 angle)
@@ -23,12 +23,6 @@ static uint32 servo_angle_to_pwm_duty(uint16 angle)
            (0.5f + ((float)angle / 9000.0f));
 
     return (uint32)(duty + 0.5f);
-}
-
-/* 舵机定时器 */
-static void servo_pit_handler(void)
-{
-    servo_tick_ready = 1;
 }
 
 /* 陀螺仪初始化 */
@@ -211,14 +205,12 @@ void servo_init(void)
     servo_ackerman = 1285;
     servo_last_error = 0.0f;
     servo_current_angle = SERVO_ANGLE_CENTER;
-    servo_tick_ready = 0;
     servo_imu_offset_z = 0;
     servo_imu_ready = 0;
+    servo_last_result_sequence = 0;
 
     pwm_init(SERVO_PWM_PIN, SERVO_PWM_FREQ, servo_angle_to_pwm_duty(SERVO_ANGLE_CENTER));
     servo_set_center();
-    pit_ms_init(SERVO_CTRL_PIT, SERVO_CTRL_PERIOD_MS, servo_pit_handler);
-    interrupt_set_priority(TIMER0_IRQn, SERVO_CTRL_PRIORITY);
     if(servo_imu_init())
     {
         servo_imu_calibrate();
@@ -231,31 +223,24 @@ void servo_init(void)
 /* 舵机更新 */
 void servo_update(void)
 {
-    uint8 tick_ready;
-
-    if(!servo_tick_ready)
-    {
-        return;
-    }
-
-    interrupt_global_disable();
-    tick_ready = servo_tick_ready;
-    servo_tick_ready = 0;
-    interrupt_global_enable();
-
-    if(!tick_ready)
-    {
-        return;
-    }
-
-    if(servo_imu_ready)
-    {
-        servo_imu_update();
-    }
+    uint32 image_result_sequence;
 
     if(!image_is_ready() || !image_is_result_ready())
     {
         return;
+    }
+
+    image_result_sequence = image_get_result_sequence();
+    if(image_result_sequence == servo_last_result_sequence)
+    {
+        return;
+    }
+
+    servo_last_result_sequence = image_result_sequence;
+
+    if(servo_imu_ready)
+    {
+        servo_imu_update();
     }
 
     servo_pid_realize((float)((int16)ImageStatus.Det_True - ImageSensorMid));

@@ -6,6 +6,7 @@
 
 static uint8 image_ready = 0;
 static uint8 image_result_ready = 0;
+static uint32 image_result_sequence = 0;
 static uint16 runtime_speed_normal = 0;
 static uint16 runtime_speed_straight = FLASH_MOTOR_STRAIGHT_DEFAULT;
 static uint8 image_buzzer_busy = 0;
@@ -315,6 +316,12 @@ uint8 image_is_ready(void)
 uint8 image_is_result_ready(void)
 {
     return image_result_ready;
+}
+
+/* 图像结果序号 */
+uint32 image_get_result_sequence(void)
+{
+    return image_result_sequence;
 }
 
 /* 设置相机参数 */
@@ -3134,4 +3141,5 @@ void image_update(void)
     }
 
     image_result_ready = 1;
+    image_result_sequence++;
 }

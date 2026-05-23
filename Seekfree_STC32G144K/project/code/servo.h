@@ -3,10 +3,6 @@
 
 #include "zf_common_headfile.h"
 
-#define SERVO_CTRL_PIT                 (TIM0_PIT)             /* 舵机定时器TIM0 */
-#define SERVO_CTRL_PERIOD_MS           (10)                   /* 舵机定时器周期 */
-#define SERVO_CTRL_PRIORITY            (2)                    /* 舵机定时器优先级 */
-
 #define SERVO_PWM_PIN                  (PWME_CH3P_PA4)        /* 舵机PWM */
 #define SERVO_PWM_FREQ                 (300)                  /* 舵机频率 */
 
