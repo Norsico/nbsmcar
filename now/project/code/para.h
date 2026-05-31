@@ -3,7 +3,7 @@
 
 #include "headfile.h"
 
-/*»Ìº˛≤Œ ˝£¨–ﬁ∏ƒ…Ë÷√*/
+/*ËΩØ‰ª∂ÂèÇÊï∞Ôºå‰øÆÊîπËÆæÁΩÆ*/
 #define SERVO_KP                   (0)
 #define SERVO_KD                   (0)
 #define SERVO_ERR2_K               (0)
@@ -21,7 +21,7 @@
 
 #define CAMERA_LASER_ROW           (50)
 
-/*”≤º˛≈‰÷√£¨–ﬁ∏ƒ…Ë÷√*/
+/*Á°¨‰ª∂ÈÖçÁΩÆÔºå‰øÆÊîπËÆæÁΩÆ*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
 #define MOTOR_PWM_FREQ             (17000)
 #define MOTOR_DUTY_LIMIT           (9000)
@@ -35,6 +35,7 @@
 
 #define CAMERA_EXPOSURE            (120)
 #define CAMERA_GAIN                (20)
+#define CAMERA_THRESHOLD_OFFSET    (0)
 #define CAMERA_INIT_RETRY          (5)
 #define CAMERA_INIT_DELAY_MS       (100)
 
@@ -47,45 +48,45 @@
 #define IRQ_PRIORITY_MOTOR         (2)
 #define IRQ_PRIORITY_NORMAL        (0)
 
-/*”≤º˛£¨“˝Ω≈∂®“Â£¨≤ª”√∂Ø*/
-#define LED_DEBUG                  (IO_P52)                 // ∫À–ƒ∞ÂLED
+/*Á°¨‰ª∂ÔºåÂºïËÑöÂÆö‰πâÔºå‰∏çÁî®Âä®*/
+#define LED_DEBUG                  (IO_P52)                 // Ê†∏ÂøÉÊùøLED
 
-#define BUZZER                     (IO_P96)                 // ∑‰√˘∆˜
+#define BUZZER                     (IO_P96)                 // ËúÇÈ∏£Âô®
 
-#define BATTERY_ADC                (ADC1_CH0_P10)           // µÁ≥ÿµÁ—π≤…—˘
+#define BATTERY_ADC                (ADC1_CH0_P10)           // ÁîµÊ±†ÁîµÂéãÈááÊ†∑
 
-#define LASER_LEFT_2               (IO_P95)                 // 5∏ˆº§π‚
+#define LASER_LEFT_2               (IO_P95)                 // 5‰∏™ÊøÄÂÖâ
 #define LASER_LEFT_1               (IO_P94)
 #define LASER_CENTER               (IO_P92)
 #define LASER_RIGHT_1              (IO_P93)
 #define LASER_RIGHT_2              (IO_P91)
 
-#define SWITCH_MODE1               (IO_PB0)                 // ≤¶¬Îø™πÿ
+#define SWITCH_MODE1               (IO_PB0)                 // Êã®Á†ÅÂºÄÂÖ≥
 #define SWITCH_MODE2               (IO_PB1)
 
-#define KEY_BACK                   (IO_PB2)                 // 4∏ˆ∞¥≈•
+#define KEY_BACK                   (IO_PB2)                 // 4‰∏™ÊåâÈíÆ
 #define KEY_UP                     (IO_PB3)
 #define KEY_DOWN                   (IO_PB4)
 #define KEY_ENTER                  (IO_P32)
 
-#define SERVO_PWM                  (PWME_CH3P_PA4)          // ∂Êª˙
+#define SERVO_PWM                  (PWME_CH3P_PA4)          // ËàµÊú∫
 
-#define FAN_LEFT_PWM               (PWMF_CH1_PA1)           // ∏∫—π∑Á…»
+#define FAN_LEFT_PWM               (PWMF_CH1_PA1)           // Ë¥üÂéãÈ£éÊâá
 #define FAN_RIGHT_PWM              (PWMF_CH2_PA3)
 
-#define MOTOR_RIGHT_DIR            (IO_P75)                 // ◊Û”“µÁª˙
+#define MOTOR_RIGHT_DIR            (IO_P75)                 // Â∑¶Âè≥ÁîµÊú∫
 #define MOTOR_RIGHT_PWM            (PWMB_CH1_P74)
 #define MOTOR_LEFT_DIR             (IO_P77)
 #define MOTOR_LEFT_PWM             (PWMB_CH3_P76)
 
-#define ENCODER_LEFT               (PWMC_ENCODER)           // ±‡¬Î∆˜
+#define ENCODER_LEFT               (PWMC_ENCODER)           // ÁºñÁ†ÅÂô®
 #define ENCODER_LEFT_CHA           (PWMC_ENCODER_CH1P_P40)
 #define ENCODER_LEFT_CHB           (PWMC_ENCODER_CH2P_P42)
 #define ENCODER_RIGHT              (PWMA_ENCODER)
 #define ENCODER_RIGHT_CHA          (PWMA_ENCODER_CH1P_P60)
 #define ENCODER_RIGHT_CHB          (PWMA_ENCODER_CH2P_P62)
 
-#define IPS_SPI                    (IPS200_SPI)             // ∆¡ƒª
+#define IPS_SPI                    (IPS200_SPI)             // Â±èÂπï
 #define IPS_SCL                    (IPS200_SCL_PIN)
 #define IPS_SDA                    (IPS200_SDA_PIN)
 #define IPS_RST                    (IPS200_RST_PIN)
@@ -93,12 +94,12 @@
 #define IPS_CS                     (IPS200_CS_PIN)
 #define IPS_BLK                    (IPS200_BLK_PIN)
 
-#define IMU_SPC                    (IMU660RA_SPC_PIN)				// Õ”¬›“«
+#define IMU_SPC                    (IMU660RA_SPC_PIN)				// ÈôÄËû∫‰ª™
 #define IMU_SDI                    (IMU660RA_SDI_PIN)
 #define IMU_SDO                    (IMU660RA_SDO_PIN)
 #define IMU_CS                     (IMU660RA_CS_PIN)
 
-#define CAMERA_SCL                 (MT9V03X_COF_IIC_SCL)   // …„œÒÕ∑
+#define CAMERA_SCL                 (MT9V03X_COF_IIC_SCL)   // ÊëÑÂÉèÂ§¥
 #define CAMERA_SDA                 (MT9V03X_COF_IIC_SDA)
 #define CAMERA_D0                  (MT9V03X_D0_PIN)
 #define CAMERA_D1                  (MT9V03X_D1_PIN)
@@ -140,6 +141,7 @@ typedef struct
 {
     uint16 exposure;
     uint8 gain;
+    int16 threshold_offset;
     uint8 laser_row;
 } camera_para;
 

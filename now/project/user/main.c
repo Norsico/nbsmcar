@@ -46,7 +46,7 @@ void main(void)
 
             case CAR_MODE_STOP:
             {
-								pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
+				pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
                 motor_output(0, 0);
                 fan_set_duty(0);
             } break;
