@@ -1,10 +1,10 @@
 #include "headfile.h"
 
-static int16 ServoAngle = SERVO_ANGLE_CENTER;//èˆµæœºå½“å‰è§’
-static int16 ServoLastError = 0;						 //ä¸Šä¸€æ—¶åˆ»è¯¯å·®
-static uint32 ServoLastSequence = 0;
+static int16 ServoAngle = SERVO_ANGLE_CENTER;//¶æ»úµ±Ç°½Ç
+static int16 ServoLastError = 0;						 //ÉÏÒ»Ê±¿ÌÎó²î
+static uint16 ServoLastSequence = 0;
 
-//é™å¹…
+//ÏŞ·ù
 static int16 servo_limit(int16 angle)
 {
     if(angle < SERVO_ANGLE_MIN)
@@ -19,7 +19,7 @@ static int16 servo_limit(int16 angle)
 }
 
 
-//é˜¿å…‹æ›¼
+//°¢¿ËÂü
 static void servo_update_motor_target(void)
 {
     int16 speed;
@@ -56,7 +56,7 @@ void servo_init(void)
     pwm_init(SERVO_PWM, SERVO_PWM_FREQ, SERVO_ANGLE_CENTER/3+1500);
 		while(1){
 			if(imu660ra_init())
-				printf("\r\nIMU660RA init error.");      // IMU660RA åˆå§‹åŒ–å¤±è´¥
+				printf("\r\nIMU660RA init error.");      // IMU660RA ³õÊ¼»¯Ê§°Ü
       else
         break;
 		}
@@ -68,30 +68,30 @@ void servo_update(void)
     int16 error_d;
     int16 control;
 
-    if((0U == image_is_ready()) || (0U == image_is_result_ready()))
+    if((Image.ready == 0) || (Image.result_ready == 0))
     {
         return;
     }
-    if(image_get_result_sequence() == ServoLastSequence)
+    if(Image.sequence == ServoLastSequence)
     {
         return;
     }
-    ServoLastSequence = image_get_result_sequence();
+    ServoLastSequence = Image.sequence;
 
-    error = (int16)(ImageStatus.Det_True - ImageSensorMid);
+    error = Image.error;//ĞŞ¸Ä
     error_d = error - ServoLastError;
 		imu660ra_get_gyro();
     if(error >= 0)
     {
         control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-									+(int32)SmartCar.servo.err2_k * error * error / 10
-									-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 10);
+									+(int32)SmartCar.servo.err2_k * error * error / 100
+									-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
     }
     else
     {
         control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-									-(int32)SmartCar.servo.err2_k * error * error / 10
-									-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 10);
+									-(int32)SmartCar.servo.err2_k * error * error / 100
+									-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
     }
     ServoLastError = error;
 		

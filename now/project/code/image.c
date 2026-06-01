@@ -1,20 +1,22 @@
-#include "image.h"
-#include "motor.h"
-#include "state.h"
-#include "ui.h"
-#include "stdlib.h"
+#include "headfile.h"
 
-uint8 Image_Use[IMAGE_H][IMAGE_W];
-uint8 Pixle[IMAGE_H][IMAGE_W];
+image_data Image;
+uint8 ImageGray[IMAGE_H][IMAGE_W];
+uint8 ImageBin[IMAGE_H][IMAGE_W];
 
+/* Frame flow:
+ * mt9v03x_image -> ImageGray -> ImageBin -> ImageDeal -> Image.
+ * This file keeps base tracking, cross line fill, ring and zebra handling.
+ * Ramp and target-ring laser logic are not included here.
+ */
 #define IMAGE_COMPRESS_CUT_COL         (1)
 #define IMAGE_COMPRESS_CUT_ROW_TOP     (0)
 #define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (10)
 #define IMAGE_COMPRESS_SRC_H           (MT9V03X_H - IMAGE_COMPRESS_CUT_ROW_TOP - IMAGE_COMPRESS_CUT_ROW_BOTTOM)
 #define IMAGE_COMPRESS_SRC_W           (MT9V03X_W - (IMAGE_COMPRESS_CUT_COL * 2))
 
-#define IMAGE_THRESHOLD_DETACH         (150)//二值化大阈值
-#define IMAGE_THRESHOLD_STATIC         (40)	//二值化小阈值
+#define IMAGE_THRESHOLD_DETACH         (150)//��ֵ������ֵ
+#define IMAGE_THRESHOLD_STATIC         (40)	//��ֵ��С��ֵ
 #define IMAGE_STOP_RAW_THRESHOLD       (25)
 #define IMAGE_OFFLINE_INIT             (2)
 #define IMAGE_SCAN_INTERVAL            (2)
@@ -25,17 +27,68 @@ uint8 Pixle[IMAGE_H][IMAGE_W];
 #define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)
 #define IMAGE_ZEBRA_EDGE_MIN           (4)
 #define IMAGE_ZEBRA_STOP_COUNT         (2)
-#define IMAGE_OUTTRACK_BLACK_PERCENT   (90)
-#define IMAGE_OUTTRACK_CONFIRM_COUNT   (10)
-#define IMAGE_OUTTRACK_SAMPLE_ROWS     (2)
+#define IMAGE_LOST_STOP_COUNT          (4)
+#define IMAGE_RUN_START_IGNORE_FRAMES  (3)
 
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
 #define LimitH(H)                      (H = ((H > 78) ? 78 : H))
 #define IMAGE_ABS(V)                   (((V) < 0) ? (-(V)) : (V))
-#define OtsuRawThreshold               ImageRawThreshold
 
-ImageDealDatatypedef ImageDeal[IMAGE_H];
-ImageStatustypedef ImageStatus =
+
+typedef struct
+{
+    int16 point;
+    uint8 type;          /* T: edge found, W: white/no edge, H: hidden */
+} image_jump;
+
+typedef struct
+{
+    uint8 IsRightFind;   /* right edge flag */
+    uint8 IsLeftFind;    /* left edge flag */
+    int16 Wide;          /* RightBorder - LeftBorder */
+    int16 LeftBorder;    /* left edge column */
+    int16 RightBorder;   /* right edge column */
+    int16 close_LeftBorder;
+    int16 close_RightBorder;
+    int16 Center;        /* row center column */
+    int16 RightTemp;
+    int16 LeftTemp;
+    int16 LeftBoundary_First;
+    int16 RightBoundary_First;
+    int16 LeftBoundary;
+    int16 RightBoundary;
+} image_deal;
+
+typedef struct
+{
+    uint8 TowPoint;          /* configured tow point */
+    int16 TowPoint_True;     /* tow point after visible-range limit */
+    int16 Det_True;          /* weighted center column */
+    uint8 Threshold;         /* final threshold after lower limit */
+    uint16 Threshold_static; /* threshold lower limit */
+    uint8 Threshold_detach;  /* otsu scan upper limit */
+    uint8 Left_Line;         /* left side white/no-edge rows */
+    uint8 Right_Line;        /* right side white/no-edge rows */
+    uint8 OFFLine;           /* first reliable row from top */
+    uint8 WhiteLine;         /* both sides white/no-edge rows */
+    RoadType_e Road_type;
+    int16 WhiteLine_L;
+    int16 WhiteLine_R;
+    int16 OFFLineBoundary;
+    int16 straight_acc;
+    int16 variance_acc;
+} image_status;
+
+typedef struct
+{
+    int16 image_element_rings;       /* 0:none, 1:left ring, 2:right ring */
+    int16 ring_big_small;
+    int16 image_element_rings_flag;  /* 1/2: mouth found, 5/6: enter fill, 7/8: inside/exit, 9: finish */
+    int16 straight_long;
+} image_flag;
+
+static image_deal ImageDeal[IMAGE_H];
+static image_status ImageStatus =
 {
     SERVO_POINT,
     SERVO_POINT,
@@ -55,23 +108,20 @@ ImageStatustypedef ImageStatus =
     0
 };
 
-ImageFlagtypedef ImageFlag = {0};
+static image_flag ImageFlag = {0};
 
-static uint8 image_ready = 0;
-static uint8 image_result_ready = 0;
-static uint32 image_result_sequence = 0;
-
-static uint8 CompressRowMap[IMAGE_H];
-static uint8 CompressColMap[IMAGE_W];
-static uint8 CompressMapReady = 0;
+static uint8 ImageRowMap[IMAGE_H];
+static uint8 ImageColMap[IMAGE_W];
+static uint8 ImageMapReady = 0;
+static uint16 ImageHist[256];
 static uint8 ImageRawThreshold = 0;
 static uint8 ZebraHit = 0;
 static uint8 ZebraDetectCount = 0;
 static uint8 ZebraFrameLatch = 0;
 static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
-static uint8 runtime_tow_point = 0;
-static uint8 OutTrackStopHitCount = 0;
+static uint8 ImageLostCount = 0;
+static uint8 ImageRunFrameCount = 0;
 
 static int16 Ysite = 0;
 static int16 Xsite = 0;
@@ -114,80 +164,98 @@ static const float Weighting[10] =
     0.71f, 0.65f, 0.59f, 0.53f, 0.47f
 };
 
-/* 按当前赛道状态和车速口径求本帧前瞻行。 */
-static uint8 SearchLine_GetRuntimeTowPoint(void)
+static uint8 image_tow_point(void)
 {
-    int TowPoint;
-    float SpeedGain;
-    int speed_left;
-    int speed_right;
-    int speed_now;
-    int speed_normal;
-    int speed_min;
+    int16 tow_point;
 
-    speed_normal = (int)SmartCar.motor.target_speed;
-    speed_min = speed_normal - 10;
-    if(speed_min < 0)
+    if((ImageFlag.image_element_rings_flag == 1) ||
+       (ImageFlag.image_element_rings_flag == 2))
     {
-        speed_min = 0;
+        tow_point = 30;
     }
-
-    speed_left = Motor.read_left;
-    if(speed_left < 0)
+    else if(ImageFlag.image_element_rings != 0)
     {
-        speed_left = -speed_left;
-    }
-
-    speed_right = Motor.read_right;
-    if(speed_right < 0)
-    {
-        speed_right = -speed_right;
-    }
-
-    speed_now = (speed_left + speed_right) / 2;
-
-    if((ImageStatus.Road_type == ROAD_RIGHT_RING || ImageStatus.Road_type == ROAD_LEFT_RING))
-    {
-        TowPoint = 28;
-    }
-    else if(ImageStatus.Road_type == ROAD_STRAIGHT)
-    {
-        TowPoint = ImageStatus.TowPoint;
-    }
-    else if(ImageFlag.image_element_rings_flag == 1 || ImageFlag.image_element_rings_flag == 2)
-    {
-        TowPoint = 30;
+        tow_point = 28;
     }
     else
     {
-        SpeedGain = ((float)(speed_now - speed_min) * 0.2f) + 0.5f;
-        if(SpeedGain > 3.0f)
-        {
-            SpeedGain = 3.0f;
-        }
-        else if(SpeedGain < -1.0f)
-        {
-            SpeedGain = -1.0f;
-        }
-
-        TowPoint = (int)((float)ImageStatus.TowPoint - SpeedGain);
+        tow_point = SmartCar.servo.tow_point;
     }
-
-    if(TowPoint < ImageStatus.OFFLine)
-        TowPoint = ImageStatus.OFFLine + 1;
-
-    if(TowPoint >= 49)
-        TowPoint = 49;
-
-    if(TowPoint <= 0)
+    if(tow_point < ImageStatus.OFFLine)
     {
-        TowPoint = 1;
+        tow_point = ImageStatus.OFFLine + 1;
+    }
+    if(tow_point >= 49)
+    {
+        tow_point = 49;
+    }
+    if(tow_point <= 0)
+    {
+        tow_point = 1;
     }
 
-    return (uint8)TowPoint;
+    return (uint8)tow_point;
 }
 
-/* 将 80 列图像坐标映射到预览窗口 X 轴。 */
+/* Clear per-row tracking result before processing a new frame. */
+static void image_clear_deal(void)
+{
+    ImageStatus.OFFLine = IMAGE_OFFLINE_INIT;
+    ImageStatus.WhiteLine = 0;
+    ImageStatus.WhiteLine_L = 0;
+    ImageStatus.WhiteLine_R = 0;
+    ImageStatus.OFFLineBoundary = 5;
+    ImageStatus.Left_Line = 0;
+    ImageStatus.Right_Line = 0;
+    ImageStatus.TowPoint = (uint8)SmartCar.servo.tow_point;
+    ImageStatus.TowPoint_True = image_tow_point();
+
+    for(Ysite = IMAGE_H - 1; Ysite >= ImageStatus.OFFLine; Ysite--)
+    {
+        ImageDeal[Ysite].IsLeftFind = 'F';
+        ImageDeal[Ysite].IsRightFind = 'F';
+        ImageDeal[Ysite].LeftBorder = 0;
+        ImageDeal[Ysite].RightBorder = 79;
+        ImageDeal[Ysite].LeftTemp = 0;
+        ImageDeal[Ysite].RightTemp = 79;
+        ImageDeal[Ysite].close_LeftBorder = 0;
+        ImageDeal[Ysite].close_RightBorder = 79;
+        ImageDeal[Ysite].Center = IMAGE_MID;
+        ImageDeal[Ysite].Wide = 79;
+        ImageDeal[Ysite].LeftBoundary_First = 0;
+        ImageDeal[Ysite].RightBoundary_First = 79;
+        ImageDeal[Ysite].LeftBoundary = 0;
+        ImageDeal[Ysite].RightBoundary = 79;
+    }
+}
+
+/* Copy internal result to the public Image structure used by UI/servo. */
+static void image_export_result(void)
+{
+    Image.threshold = ImageStatus.Threshold;
+    Image.tow_row = (uint8)ImageStatus.TowPoint_True;
+    Image.center = ImageStatus.Det_True;
+    Image.error = (int16)(Image.center - IMAGE_MID);
+    Image.valid_count = (uint8)((ImageStatus.OFFLine < IMAGE_H) ? (IMAGE_H - ImageStatus.OFFLine) : 0);
+    Image.lost = 0;
+
+    if(ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD)
+    {
+        Image.lost = 1;
+    }
+    if(ImageStatus.OFFLine > 50)
+    {
+        Image.lost = 1;
+    }
+
+    Image.result_ready = Image.lost ? 0 : 1;
+    Image.ring = (uint8)ImageFlag.image_element_rings;
+    Image.ring_step = (uint8)ImageFlag.image_element_rings_flag;
+    Image.zebra = ZebraHit;
+    Image.zebra_count = ZebraDetectCount;
+}
+
+/* Map 80-column image coordinate to the preview area. */
 static uint16 image_debug_x(uint16 x, uint16 w, int16 col)
 {
     if(col < 0)
@@ -202,7 +270,7 @@ static uint16 image_debug_x(uint16 x, uint16 w, int16 col)
     return (uint16)(x + (((uint16)col * w) + (IMAGE_W / 2)) / IMAGE_W);
 }
 
-/* 将 60 行图像坐标映射到预览窗口 Y 轴。 */
+/* Map 60-row image coordinate to the preview area. */
 static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
 {
     if(row < 0)
@@ -217,7 +285,7 @@ static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
     return (uint16)(y + (((uint16)row * h) + (IMAGE_H / 2)) / IMAGE_H);
 }
 
-/* 在摄像头预览上叠加左右边线、中线和前瞻行。 */
+/* Draw green borders, red center line and yellow tow row on UI preview. */
 void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
 {
     uint8 row;
@@ -225,7 +293,7 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
     uint16 draw_y;
     uint16 tow_y;
 
-    if((0U == image_ready) || (0U == image_result_sequence))
+    if((Image.ready == 0) || (Image.sequence == 0))
     {
         return;
     }
@@ -263,13 +331,12 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
     }
 }
 
-/* 将当前曝光、增益等参数重新写入摄像头。 */
 void image_apply_camera(void)
 {
     uint8 i;
     short int config[MT9V03X_CONFIG_FINISH][2];
 
-    if(0U == image_ready)
+    if(Image.ready == 0)
     {
         return;
     }
@@ -301,226 +368,31 @@ void image_apply_camera(void)
     mt9v03x_sccb_set_config(config);
 }
 
-/* 大津法阈值计算，pixel_threshold 用来截断搜索上限。 */
-uint8 Threshold_deal(uint8 *image,
-                     uint16 col,
-                     uint16 row,
-                     uint32 pixel_threshold)
-{
-    uint16 width;
-    uint16 height;
-    int pixelCount[256];
-    float pixelPro[256];
-    uint16 i;
-    uint16 j;
-    int pixelSum;
-    uint8 threshold;
-    uint8 *image_data;
-    uint32 gray_sum;
-    float w0;
-    float w1;
-    float u0tmp;
-    float u1tmp;
-    float u0;
-    float u1;
-    float u;
-    float deltaTmp;
-    float deltaMax;
-    float diff0;
-    float diff1;
-    float inv_pixel_sum;
-
-    width = col;
-    height = row;
-    pixelSum = width * height;
-    threshold = 0;
-    image_data = image;
-    gray_sum = 0;
-    w0 = 0.0f;
-    u0tmp = 0.0f;
-    u = 0.0f;
-    deltaMax = 0.0f;
-    inv_pixel_sum = 0.0f;
-
-    if(0 == pixelSum)
-    {
-        return 0;
-    }
-
-    for(i = 0; i < 256; i++)
-    {
-        pixelCount[i] = 0;
-        pixelPro[i] = 0.0f;
-    }
-
-    for(i = 0; i < height; i++)
-    {
-        for(j = 0; j < width; j++)
-        {
-            pixelCount[(int)image_data[i * width + j]]++;
-            gray_sum += (int)image_data[i * width + j];
-        }
-    }
-
-    inv_pixel_sum = 1.0f / (float)pixelSum;
-
-    for(i = 0; i < 256; i++)
-    {
-        pixelPro[i] = (float)pixelCount[i] * inv_pixel_sum;
-    }
-
-    u = (float)gray_sum * inv_pixel_sum;
-
-    for(j = 0; j < (uint16)pixel_threshold; j++)
-    {
-        w0 += pixelPro[j];
-        if(0.0f == w0)
-        {
-            continue;
-        }
-
-        u0tmp += j * pixelPro[j];
-        w1 = 1.0f - w0;
-        if(0.0f == w1)
-        {
-            break;
-        }
-
-        u1tmp = u - u0tmp;
-        u0 = u0tmp / w0;
-        u1 = u1tmp / w1;
-        diff0 = u0 - u;
-        diff1 = u1 - u;
-        deltaTmp = w0 * diff0 * diff0 + w1 * diff1 * diff1;
-        if(deltaTmp > deltaMax)
-        {
-            deltaMax = deltaTmp;
-            threshold = (uint8)j;
-        }
-        if(deltaTmp < deltaMax)
-        {
-            break;
-        }
-    }
-
-    return threshold;
-}
-
-/* 使用大津阈值完成二值化，并对左右边缘做一点补偿。 */
-void Get01change_dajin(void)
-{
-    uint8 i = 0;
-    uint8 j = 0;
-    uint8 thre = 0;
-    int threshold_value = 0;
-
-    threshold_value = (int)Threshold_deal(Image_Use[0], LCDW, LCDH, ImageStatus.Threshold_detach) +
-                      (int)SmartCar.camera.threshold_offset;
-    if(threshold_value < 0)
-    {
-        threshold_value = 0;
-    }
-    else if(threshold_value > 255)
-    {
-        threshold_value = 255;
-    }
-
-    OtsuRawThreshold = (uint8)threshold_value;
-    ImageStatus.Threshold = OtsuRawThreshold;
-    if(ImageStatus.Threshold < ImageStatus.Threshold_static)
-    {
-        ImageStatus.Threshold = (uint8)ImageStatus.Threshold_static;
-    }
-
-    for(i = 0; i < LCDH; i++)
-    {
-        for(j = 0; j < LCDW; j++)
-        {
-            if(j <= 15)
-            {
-                thre = (uint8)(ImageStatus.Threshold - 10);
-            }
-            else if((j > 70) && (j <= 75))
-            {
-                thre = (uint8)(ImageStatus.Threshold - 10);
-            }
-            else if(j >= 65)
-            {
-                thre = (uint8)(ImageStatus.Threshold - 10);
-            }
-            else
-            {
-                thre = ImageStatus.Threshold;
-            }
-
-            if(Image_Use[i][j] > thre)
-            {
-                Pixle[i][j] = 1;
-            }
-            else
-            {
-                Pixle[i][j] = 0;
-            }
-        }
-    }
-}
-
-/* 统计底部黑块占比，连续命中后判定出界停车。 */
-static void CheckOutTrackEmergency(void)
-{
-    uint8 row;
-    uint8 col;
-    uint16 black_count = 0;
-
-    if(CAR_MODE_RUN != CarMode)
-    {
-        OutTrackStopHitCount = 0;
-        return;
-    }
-
-    for(row = (uint8)(LCDH - IMAGE_OUTTRACK_SAMPLE_ROWS); row < LCDH; row++)
-    {
-        for(col = 0; col < LCDW; col++)
-        {
-            if(0 == Pixle[row][col])
-            {
-                black_count++;
-            }
-        }
-    }
-
-    if(black_count > (uint16)(((uint16)(LCDW * IMAGE_OUTTRACK_SAMPLE_ROWS) * IMAGE_OUTTRACK_BLACK_PERCENT) / 100U))
-    {
-        if(OutTrackStopHitCount < IMAGE_OUTTRACK_CONFIRM_COUNT)
-        {
-            OutTrackStopHitCount++;
-        }
-    }
-    else
-    {
-        OutTrackStopHitCount = 0;
-    }
-
-    if(OutTrackStopHitCount >= IMAGE_OUTTRACK_CONFIRM_COUNT)
-    {
-        CarMode = CAR_MODE_STOP;
-    }
-}
-
-/* 初始化摄像头和图像模块状态。 */
 void image_init(void)
 {
     uint8 retry;
 
-    image_ready = 0;
-    image_result_ready = 0;
-    image_result_sequence = 0;
+    Image.ready = 0;
+    Image.sequence = 0;
+    Image.threshold = 0;
+    Image.white_count = 0;
+    Image.center = IMAGE_MID;
+    Image.error = 0;
+    Image.valid_count = 0;
+    Image.lost = 1;
+    Image.result_ready = 0;
+    Image.ring = 0;
+    Image.ring_step = 0;
+    Image.zebra = 0;
+    Image.zebra_count = 0;
     ImageRawThreshold = 0;
     ZebraHit = 0;
     ZebraDetectCount = 0;
     ZebraFrameLatch = 0;
     ZebraMissFrames = 0;
     ZebraCooldownFrames = 0;
+    ImageLostCount = 0;
+    ImageRunFrameCount = 0;
 
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
 
@@ -529,7 +401,7 @@ void image_init(void)
     {
         if(mt9v03x_init() == 0)
         {
-            image_ready = 1;
+            Image.ready = 1;
             break;
         }
         retry++;
@@ -540,64 +412,167 @@ void image_init(void)
     mt9v03x_finish_flag = 0;
 }
 
-/* 摄像头初始化是否完成。 */
-uint8 image_is_ready(void)
+/* Compress MT9V03X raw frame to 80x60 grayscale buffer. */
+static void image_compress(void)
 {
-    return image_ready;
-}
+    int16 row;
+    int16 col;
+    uint8 src_row;
+    uint8 *dst;
+    uint8 *src;
 
-/* 当前帧结果是否已经更新完成。 */
-uint8 image_is_result_ready(void)
-{
-    return image_result_ready;
-}
-
-/* 图像结果序号，每成功处理一帧递增一次。 */
-uint32 image_get_result_sequence(void)
-{
-    return image_result_sequence;
-}
-
-/* 将原始 MT9V03X 图像裁剪压缩到 80x60。 */
-void compressimage(void)
-{
-    int i, j, row;
-    uint8 *dst_row;
-    uint8 *src_row;
-
-    if(!CompressMapReady)
+    if(ImageMapReady == 0)
     {
-        /* 当前裁剪口径固定，只在首帧生成一次压缩映射，避免每像素做浮点缩放。 */
-        for(i = 0; i < LCDH; i++)
+        for(row = 0; row < IMAGE_H; row++)
         {
-            CompressRowMap[i] = (uint8)(IMAGE_COMPRESS_CUT_ROW_TOP +
-                                        ((i * IMAGE_COMPRESS_SRC_H + (LCDH / 2)) / LCDH));
+            ImageRowMap[row] = (uint8)(IMAGE_COMPRESS_CUT_ROW_TOP +
+                                       (((uint16)row * IMAGE_COMPRESS_SRC_H + (IMAGE_H / 2)) / IMAGE_H));
         }
-        for(j = 0; j < LCDW; j++)
+        for(col = 0; col < IMAGE_W; col++)
         {
-            CompressColMap[j] = (uint8)(IMAGE_COMPRESS_CUT_COL +
-                                        ((j * IMAGE_COMPRESS_SRC_W + (LCDW / 2)) / LCDW));
+            ImageColMap[col] = (uint8)(IMAGE_COMPRESS_CUT_COL +
+                                       (((uint16)col * IMAGE_COMPRESS_SRC_W + (IMAGE_W / 2)) / IMAGE_W));
         }
-        CompressMapReady = 1;
+        ImageMapReady = 1;
     }
 
-    for(i = 0; i < LCDH; i++)
+    for(row = 0; row < IMAGE_H; row++)
     {
-        row = CompressRowMap[i];
-        dst_row = Image_Use[i];
-        src_row = mt9v03x_image[row];
-        for(j = 0; j < LCDW; j++)
+        src_row = ImageRowMap[row];
+        dst = ImageGray[row];
+        src = mt9v03x_image[src_row];
+        for(col = 0; col < IMAGE_W; col++)
         {
-            dst_row[j] = src_row[CompressColMap[j]];
+            dst[col] = src[ImageColMap[col]];
         }
     }
-    mt9v03x_finish_flag = 0;  //使用完一帧DMA传输的图像  可以开始传输下一帧
+
+    mt9v03x_finish_flag = 0;
 }
 
-/* 底边初始化。 */
-static uint8 DrawLinesFirst(void)
+/* Otsu threshold on ImageGray. */
+static uint8 image_otsu(void)
 {
-    PicTemp = Pixle[59];
+    int16 row;
+    int16 col;
+    int16 i;
+    uint16 total;
+    uint16 weight_back;
+    uint16 weight_front;
+    uint16 mean_back;
+    uint16 mean_front;
+    uint16 diff;
+    uint32 sum_all;
+    uint32 sum_back;
+    uint32 score;
+    uint32 best_score;
+    uint8 threshold;
+
+    for(i = 0; i < 256; i++)
+    {
+        ImageHist[i] = 0;
+    }
+
+    total = IMAGE_W * IMAGE_H;
+    sum_all = 0;
+    for(row = 0; row < IMAGE_H; row++)
+    {
+        for(col = 0; col < IMAGE_W; col++)
+        {
+            ImageHist[ImageGray[row][col]]++;
+            sum_all += ImageGray[row][col];
+        }
+    }
+
+    weight_back = 0;
+    sum_back = 0;
+    best_score = 0;
+    threshold = 0;
+
+    for(i = 0; i < IMAGE_THRESHOLD_DETACH; i++)
+    {
+        weight_back += ImageHist[i];
+        if(weight_back == 0)
+        {
+            continue;
+        }
+
+        weight_front = total - weight_back;
+        if(weight_front == 0)
+        {
+            break;
+        }
+
+        sum_back += (uint32)i * ImageHist[i];
+        mean_back = (uint16)(sum_back / weight_back);
+        mean_front = (uint16)((sum_all - sum_back) / weight_front);
+
+        diff = (mean_front > mean_back) ? (mean_front - mean_back) : (mean_back - mean_front);
+        score = (((uint32)weight_back * weight_front) / 1024U) * (uint32)diff * diff;
+        if(score > best_score)
+        {
+            best_score = score;
+            threshold = (uint8)i;
+        }
+    }
+
+    return threshold;
+}
+
+/* Convert ImageGray to 0/1 ImageBin. */
+static void image_binarize(uint8 threshold)
+{
+    uint8 row;
+    uint8 col;
+    uint8 thre;
+    uint16 threshold_value;
+
+    threshold_value = (uint16)threshold + SmartCar.camera.threshold_offset;
+    if(threshold_value > 255)
+    {
+        threshold_value = 255;
+    }
+
+    threshold = (uint8)threshold_value;
+    ImageRawThreshold = threshold;
+    if(threshold < IMAGE_THRESHOLD_STATIC)
+    {
+        threshold = IMAGE_THRESHOLD_STATIC;
+    }
+
+    ImageStatus.Threshold = threshold;
+    Image.white_count = 0;
+
+    for(row = 0; row < IMAGE_H; row++)
+    {
+        for(col = 0; col < IMAGE_W; col++)
+        {
+            if((col <= 15) || ((col > 70) && (col <= 75)) || (col >= 65))
+            {
+                thre = (uint8)(threshold - 10);
+            }
+            else
+            {
+                thre = threshold;
+            }
+
+            if(ImageGray[row][col] > thre)
+            {
+                ImageBin[row][col] = IMAGE_WHITE;
+                Image.white_count++;
+            }
+            else
+            {
+                ImageBin[row][col] = IMAGE_BLACK;
+            }
+        }
+    }
+}
+
+/* Find the first five bottom rows as the seed for edge tracking. */
+static void image_draw_bottom(void)
+{
+    PicTemp = ImageBin[59];
     BottomBorderLeft = 0;
     BottomBorderRight = 79;
 
@@ -691,7 +666,7 @@ static uint8 DrawLinesFirst(void)
 
     for(Ysite = 58; Ysite > 54; Ysite--)
     {
-        PicTemp = Pixle[Ysite];
+        PicTemp = ImageBin[Ysite];
 
         for(Xsite = 79; Xsite > ImageDeal[Ysite + 1].Center; Xsite--)
         {
@@ -726,76 +701,45 @@ static uint8 DrawLinesFirst(void)
         ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
         ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
     }
-    return 'T';
 }
 
-//---------------------------------------------------------------------------------------------------------------------------------------------------------------
-//  @name           Search_Bottom_Line_OTSU
-//  @brief          获取底层左右边线
-//  @param          imageInput[IMAGE_ROW][IMAGE_COL]        传入的图像数组
-//  @param          Row                                     图像的Ysite
-//  @param          Col                                     图像的Xsite
-//  @param          Bottonline                              底边行选择
-//  @return         无
-//  @time           2022年10月9日
-//  @Author
-//  Sample usage:   Search_Bottom_Line_OTSU(imageInput, Row, Col, Bottonline);
-//--------------------------------------------------------------------------------------------------------------------------------------------
-static void Search_Bottom_Line_OTSU(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
+static void image_search_bottom_boundary(uint8 bottom_row)
 {
-    if((0U == Row) || (0U == Col) || (Bottonline >= Row))
-    {
-        return;
-    }
+    ImageDeal[bottom_row].LeftBoundary = 0;
+    ImageDeal[bottom_row].RightBoundary = IMAGE_W - 1;
 
-    ImageDeal[Bottonline].LeftBoundary = 0;
-    ImageDeal[Bottonline].RightBoundary = Col - 1;
-
-    for(Xsite = (Col / 2 - 2); Xsite > 1; Xsite--)
+    for(Xsite = (IMAGE_W / 2 - 2); Xsite > 1; Xsite--)
     {
-        if((imageInput[Bottonline][Xsite] == IMAGE_WHITE) &&
-           (imageInput[Bottonline][Xsite - 1] == IMAGE_BLACK))
+        if((ImageBin[bottom_row][Xsite] == IMAGE_WHITE) &&
+           (ImageBin[bottom_row][Xsite - 1] == IMAGE_BLACK))
         {
-            ImageDeal[Bottonline].LeftBoundary = Xsite;
+            ImageDeal[bottom_row].LeftBoundary = Xsite;
             break;
         }
     }
 
-    for(Xsite = (Col / 2 + 2); Xsite < (Col - 1); Xsite++)
+    for(Xsite = (IMAGE_W / 2 + 2); Xsite < (IMAGE_W - 1); Xsite++)
     {
-        if((imageInput[Bottonline][Xsite] == IMAGE_WHITE) &&
-           (imageInput[Bottonline][Xsite + 1] == IMAGE_BLACK))
+        if((ImageBin[bottom_row][Xsite] == IMAGE_WHITE) &&
+           (ImageBin[bottom_row][Xsite + 1] == IMAGE_BLACK))
         {
-            ImageDeal[Bottonline].RightBoundary = Xsite;
+            ImageDeal[bottom_row].RightBoundary = Xsite;
             break;
         }
     }
 }
 
-/* 带边界保护地读取一个二值像素。 */
-static uint8 image_pixel(uint8 imageInput[LCDH][LCDW], int16 row, int16 col, uint8 Row, uint8 Col)
+static uint8 image_pixel(int16 row, int16 col)
 {
-    if((row < 0) || (row >= Row) || (col < 0) || (col >= Col))
+    if((row < 0) || (row >= IMAGE_H) || (col < 0) || (col >= IMAGE_W))
     {
         return IMAGE_BLACK;
     }
 
-    return imageInput[row][col];
+    return ImageBin[row][col];
 }
 
-//---------------------------------------------------------------------------------------------------------------------------------------------------------------
-//  @name           Search_Left_and_Right_Lines
-//  @brief          通过八邻域追踪提取左右边线
-//  @param          imageInput[IMAGE_ROW][IMAGE_COL]        传入的图像数组
-//  @param          Row                                     图像的Ysite
-//  @param          Col                                     图像的Xsite
-//  @param          Bottonline                              底边行选择
-//  @return         无
-//  @time           2022年10月7日
-//  @Author
-//  Sample usage:   Search_Left_and_Right_Lines(imageInput, Row, Col, Bottonline);
-//--------------------------------------------------------------------------------------------------------------------------------------------
-static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
+static void image_search_left_right_boundary(uint8 bottom_row)
 {
     static const int8 left_rule[2][8] =
     {
@@ -820,24 +764,18 @@ static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row,
     int16 pixel_right_y;
     int16 pixel_right_x;
 
-    if((0U == Row) || (0U == Col) || (Bottonline >= Row))
-    {
-        return;
-    }
-
     count = 0;
-
-    left_y = Bottonline;
-    left_x = ImageDeal[Bottonline].LeftBoundary;
+    left_y = bottom_row;
+    left_x = ImageDeal[bottom_row].LeftBoundary;
     left_dir = 0;
-    pixel_left_y = Bottonline;
+    pixel_left_y = bottom_row;
     pixel_left_x = left_x;
-    right_y = Bottonline;
-    right_x = ImageDeal[Bottonline].RightBoundary;
+    right_y = bottom_row;
+    right_x = ImageDeal[bottom_row].RightBoundary;
     right_dir = 0;
-    pixel_right_y = Bottonline;
+    pixel_right_y = bottom_row;
     pixel_right_x = right_x;
-    scan_y = Bottonline;
+    scan_y = bottom_row;
     ImageStatus.OFFLineBoundary = 5;
 
     while(1)
@@ -864,7 +802,7 @@ static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row,
             pixel_left_y = left_y + left_rule[0][2 * left_dir + 1];
             pixel_left_x = left_x + left_rule[0][2 * left_dir];
 
-            if(image_pixel(imageInput, pixel_left_y, pixel_left_x, Row, Col) == IMAGE_BLACK)
+            if(image_pixel(pixel_left_y, pixel_left_x) == IMAGE_BLACK)
             {
                 left_dir = (left_dir == 3) ? 0 : (left_dir + 1);
             }
@@ -873,7 +811,7 @@ static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row,
                 pixel_left_y = left_y + left_rule[1][2 * left_dir + 1];
                 pixel_left_x = left_x + left_rule[1][2 * left_dir];
 
-                if(image_pixel(imageInput, pixel_left_y, pixel_left_x, Row, Col) == IMAGE_BLACK)
+                if(image_pixel(pixel_left_y, pixel_left_x) == IMAGE_BLACK)
                 {
                     left_y = left_y + left_rule[0][2 * left_dir + 1];
                     left_x = left_x + left_rule[0][2 * left_dir];
@@ -901,7 +839,7 @@ static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row,
             pixel_right_y = right_y + right_rule[0][2 * right_dir + 1];
             pixel_right_x = right_x + right_rule[0][2 * right_dir];
 
-            if(image_pixel(imageInput, pixel_right_y, pixel_right_x, Row, Col) == IMAGE_BLACK)
+            if(image_pixel(pixel_right_y, pixel_right_x) == IMAGE_BLACK)
             {
                 right_dir = (right_dir == 0) ? 3 : (right_dir - 1);
             }
@@ -910,7 +848,7 @@ static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row,
                 pixel_right_y = right_y + right_rule[1][2 * right_dir + 1];
                 pixel_right_x = right_x + right_rule[1][2 * right_dir];
 
-                if(image_pixel(imageInput, pixel_right_y, pixel_right_x, Row, Col) == IMAGE_BLACK)
+                if(image_pixel(pixel_right_y, pixel_right_x) == IMAGE_BLACK)
                 {
                     right_y = right_y + right_rule[0][2 * right_dir + 1];
                     right_x = right_x + right_rule[0][2 * right_dir];
@@ -941,8 +879,48 @@ static void Search_Left_and_Right_Lines(uint8 imageInput[LCDH][LCDW], uint8 Row,
     }
 }
 
-/* 在给定搜索窗口内寻找左右跳变点。T 为正常找到，W 为整段偏白，H 为整段偏黑。 */
-void GetJumpPointFromDet(uint8 *line, uint8 type, int16 low, int16 high, JumpPointtypedef *jump)
+/* Trace raw binary boundaries used by ring element detection. */
+static void image_search_border(uint8 bottom_row)
+{
+    for(Xsite = 0; Xsite < IMAGE_W; Xsite++)
+    {
+        ImageBin[0][Xsite] = IMAGE_BLACK;
+        if((bottom_row + 1) < IMAGE_H)
+        {
+            ImageBin[bottom_row + 1][Xsite] = IMAGE_BLACK;
+        }
+    }
+
+    for(Ysite = 0; Ysite < IMAGE_H; Ysite++)
+    {
+        ImageDeal[Ysite].LeftBoundary_First = 0;
+        ImageDeal[Ysite].RightBoundary_First = IMAGE_W - 1;
+        ImageDeal[Ysite].LeftBoundary = 0;
+        ImageDeal[Ysite].RightBoundary = IMAGE_W - 1;
+        ImageBin[Ysite][0] = IMAGE_BLACK;
+        ImageBin[Ysite][IMAGE_W - 1] = IMAGE_BLACK;
+    }
+
+    ImageStatus.WhiteLine_L = 0;
+    ImageStatus.WhiteLine_R = 0;
+    image_search_bottom_boundary(bottom_row);
+    image_search_left_right_boundary(bottom_row);
+
+    for(Ysite = bottom_row; Ysite > (ImageStatus.OFFLineBoundary + 1); Ysite--)
+    {
+        if(ImageDeal[Ysite].LeftBoundary < 3)
+        {
+            ImageStatus.WhiteLine_L++;
+        }
+        if(ImageDeal[Ysite].RightBoundary > (IMAGE_W - 3))
+        {
+            ImageStatus.WhiteLine_R++;
+        }
+    }
+}
+
+/* Search one row around previous edge and classify the jump point. */
+static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image_jump *jump)
 {
     int16 i;
 
@@ -1012,8 +990,8 @@ void GetJumpPointFromDet(uint8 *line, uint8 type, int16 low, int16 high, JumpPoi
     }
 }
 
-/* 边线追逐大致得到全部边线。 */
-static void DrawLinesProcess(void)
+/* Track left/right borders from bottom to top. */
+static void image_draw_lines(void)
 {
     uint8 L_Found_T;
     uint8 Get_L_line;
@@ -1026,7 +1004,7 @@ static void DrawLinesProcess(void)
     int16 ysite;
     uint8 L_found_point;
     uint8 R_found_point;
-    JumpPointtypedef JumpPoint[2];
+    image_jump JumpPoint[2];
 
     L_Found_T = 'F';
     Get_L_line = 'F';
@@ -1046,15 +1024,15 @@ static void DrawLinesProcess(void)
 
     for(Ysite = 54; Ysite > ImageStatus.OFFLine; Ysite--)
     {
-        PicTemp = Pixle[Ysite];
+        PicTemp = ImageBin[Ysite];
 
         IntervalLow = ImageDeal[Ysite + 1].RightBorder - IMAGE_SCAN_INTERVAL;
         IntervalHigh = ImageDeal[Ysite + 1].RightBorder + IMAGE_SCAN_INTERVAL;
-        GetJumpPointFromDet(PicTemp, 'R', IntervalLow, IntervalHigh, &JumpPoint[1]);
+        image_get_jump(PicTemp, 'R', IntervalLow, IntervalHigh, &JumpPoint[1]);
 
         IntervalLow = ImageDeal[Ysite + 1].LeftBorder - IMAGE_SCAN_INTERVAL;
         IntervalHigh = ImageDeal[Ysite + 1].LeftBorder + IMAGE_SCAN_INTERVAL;
-        GetJumpPointFromDet(PicTemp, 'L', IntervalLow, IntervalHigh, &JumpPoint[0]);
+        image_get_jump(PicTemp, 'L', IntervalLow, IntervalHigh, &JumpPoint[0]);
 
         if(JumpPoint[0].type == 'W')
         {
@@ -1257,8 +1235,8 @@ static void DrawLinesProcess(void)
     }
 }
 
-/* 十字补线沿用当前版本实现，不回退到 past。 */
-static void DrawExtensionLine(void)
+/* Fill missing edges and smooth center line. */
+static void image_draw_extension_line(void)
 {
     int16 center_temp;
     int16 line_temp;
@@ -1412,8 +1390,7 @@ static void DrawExtensionLine(void)
     }
 }
 
-/* 用中线方差粗判当前是否为可加速直道。 */
-static void Straightacc_Test(void)
+static void image_straight_acc_test(void)
 {
     int16 sum;
     int16 row_count;
@@ -1447,8 +1424,7 @@ static void Straightacc_Test(void)
     }
 }
 
-/* 计算某一侧边线在给定行段内的直线程度。 */
-static float Straight_Judge(uint8 dir, uint8 start_row, uint8 end_row)
+static float image_straight_judge(uint8 dir, uint8 start_row, uint8 end_row)
 {
     int16 row;
     int16 count;
@@ -1510,13 +1486,12 @@ static float Straight_Judge(uint8 dir, uint8 start_row, uint8 end_row)
     return sum / (float)count;
 }
 
-/* 左环入口判定。 */
-static void Element_Judgment_Left_Rings(void)
+static void image_judge_left_ring(void)
 {
     if((ImageStatus.Right_Line > 7) ||
        (ImageStatus.Left_Line < 13) ||
        (ImageStatus.OFFLine > 10) ||
-       (Straight_Judge(2, 25, 45) > 50.0f) ||
+       (image_straight_judge(2, 25, 45) > 50.0f) ||
        (ImageStatus.WhiteLine > 15) ||
        (ImageDeal[52].IsLeftFind == 'W') ||
        (ImageDeal[53].IsLeftFind == 'W') ||
@@ -1588,15 +1563,14 @@ static void Element_Judgment_Left_Rings(void)
     Ring_Help_Flag = 0;
 }
 
-/* 右环入口判定。 */
-static void Element_Judgment_Right_Rings(void)
+static void image_judge_right_ring(void)
 {
     int16 point_span;
 
     if((ImageStatus.Left_Line > 7) ||
        (ImageStatus.Right_Line < 13) ||
        (ImageStatus.OFFLine > 10) ||
-       (Straight_Judge(1, 25, 45) > IMAGE_RIGHT_RING_STRAIGHT_MAX) ||
+       (image_straight_judge(1, 25, 45) > IMAGE_RIGHT_RING_STRAIGHT_MAX) ||
        (ImageStatus.WhiteLine > 15) ||
        (ImageDeal[52].IsRightFind == 'W') ||
        (ImageDeal[53].IsRightFind == 'W') ||
@@ -1674,22 +1648,20 @@ static void Element_Judgment_Right_Rings(void)
     Ring_Help_Flag = 0;
 }
 
-/* 元素总判定，当前主要负责直道和左右环入口检测。 */
-void Element_Test(void)
+static void image_element_test(void)
 {
     if((ImageStatus.Road_type != ROAD_LEFT_RING) &&
        (ImageStatus.Road_type != ROAD_RIGHT_RING))
     {
         ImageStatus.Road_type = ROAD_NORMAL;
-        Straightacc_Test();
+        image_straight_acc_test();
     }
 
-    Element_Judgment_Left_Rings();
-    Element_Judgment_Right_Rings();
+    image_judge_left_ring();
+    image_judge_right_ring();
 }
 
-/* 左环状态机执行和补线。 */
-static void Element_Handle_Left_Rings(void)
+static void image_handle_left_ring(void)
 {
     int16 num;
     int16 flag_x;
@@ -1725,7 +1697,7 @@ static void Element_Handle_Left_Rings(void)
     if((ImageFlag.image_element_rings_flag == 2) && (num < 8))
     {
         ImageFlag.image_element_rings_flag = 5;
-        /* 响一下，提示左环进入第 5 步，开始进环补线。 */
+        /* buzzer means step 5: enter-ring border fill starts */
         buzzer_short();
     }
     if((ImageFlag.image_element_rings_flag == 5) && (ImageStatus.Right_Line > 15))
@@ -1805,8 +1777,8 @@ static void Element_Handle_Left_Rings(void)
                 Xsite < (ImageDeal[Ysite].RightBorder - 1);
                 Xsite++)
             {
-                if((Pixle[Ysite][Xsite] == IMAGE_WHITE) &&
-                   (Pixle[Ysite][Xsite + 1] == IMAGE_BLACK))
+                if((ImageBin[Ysite][Xsite] == IMAGE_WHITE) &&
+                   (ImageBin[Ysite][Xsite + 1] == IMAGE_BLACK))
                 {
                     flag_y = Ysite;
                     flag_x = Xsite;
@@ -1860,8 +1832,8 @@ static void Element_Handle_Left_Rings(void)
                 LimitH(scan_end);
                 for(Xsite = scan_start; Xsite < scan_end; Xsite++)
                 {
-                    if((Pixle[Ysite][Xsite] == IMAGE_WHITE) &&
-                       (Pixle[Ysite][Xsite + 1] == IMAGE_BLACK))
+                    if((ImageBin[Ysite][Xsite] == IMAGE_WHITE) &&
+                       (ImageBin[Ysite][Xsite + 1] == IMAGE_BLACK))
                     {
                         ImageDeal[Ysite].RightBorder = Xsite;
                         ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
@@ -1892,8 +1864,8 @@ static void Element_Handle_Left_Rings(void)
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][28] == IMAGE_WHITE) &&
-               (Pixle[Ysite - 1][28] == IMAGE_BLACK))
+            if((ImageBin[Ysite][28] == IMAGE_WHITE) &&
+               (ImageBin[Ysite - 1][28] == IMAGE_BLACK))
             {
                 Repair_Point_Xsite = 28;
                 Repair_Point_Ysite = Ysite - 1;
@@ -1932,8 +1904,7 @@ static void Element_Handle_Left_Rings(void)
     }
 }
 
-/* 右环状态机执行和补线。 */
-static void Element_Handle_Right_Rings(void)
+static void image_handle_right_ring(void)
 {
     int16 num;
     int16 flag_x;
@@ -1970,7 +1941,7 @@ static void Element_Handle_Right_Rings(void)
     if((ImageFlag.image_element_rings_flag == 2) && (num < 8))
     {
         ImageFlag.image_element_rings_flag = 5;
-        /* 响一下，提示右环进入第 5 步，开始进环补线。 */
+        /* buzzer means step 5: enter-ring border fill starts */
         buzzer_short();
     }
     if((ImageFlag.image_element_rings_flag == 5) && (ImageStatus.Left_Line > 15))
@@ -2055,8 +2026,8 @@ static void Element_Handle_Right_Rings(void)
                 Xsite < (ImageDeal[Ysite].RightBorder - 1);
                 Xsite++)
             {
-                if((Pixle[Ysite][Xsite] == IMAGE_WHITE) &&
-                   (Pixle[Ysite][Xsite + 1] == IMAGE_BLACK))
+                if((ImageBin[Ysite][Xsite] == IMAGE_WHITE) &&
+                   (ImageBin[Ysite][Xsite + 1] == IMAGE_BLACK))
                 {
                     flag_y = Ysite;
                     flag_x = Xsite;
@@ -2112,8 +2083,8 @@ static void Element_Handle_Right_Rings(void)
                 LimitH(scan_end);
                 for(Xsite = scan_start; Xsite > scan_end; Xsite--)
                 {
-                    if((Pixle[Ysite][Xsite] == IMAGE_WHITE) &&
-                       (Pixle[Ysite][Xsite - 1] == IMAGE_BLACK))
+                    if((ImageBin[Ysite][Xsite] == IMAGE_WHITE) &&
+                       (ImageBin[Ysite][Xsite - 1] == IMAGE_BLACK))
                     {
                         ImageDeal[Ysite].LeftBorder = Xsite;
                         ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
@@ -2148,8 +2119,8 @@ static void Element_Handle_Right_Rings(void)
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][51] == IMAGE_WHITE) &&
-               (Pixle[Ysite - 1][51] == IMAGE_BLACK))
+            if((ImageBin[Ysite][51] == IMAGE_WHITE) &&
+               (ImageBin[Ysite - 1][51] == IMAGE_BLACK))
             {
                 Repair_Point_Xsite = 51;
                 Repair_Point_Ysite = Ysite - 1;
@@ -2187,20 +2158,19 @@ static void Element_Handle_Right_Rings(void)
     }
 }
 
-/* 按当前环岛方向分发执行逻辑。 */
-void Element_Handle(void)
+static void image_element_handle(void)
 {
     if(ImageFlag.image_element_rings == 1)
     {
-        Element_Handle_Left_Rings();
+        image_handle_left_ring();
     }
     else if(ImageFlag.image_element_rings == 2)
     {
-        Element_Handle_Right_Rings();
+        image_handle_right_ring();
     }
 }
 
-/* 通过统计黑白跳变次数检测斑马线。 */
+/* Scan zebra line by counting repeated black-to-white edges. */
 static uint8 image_zebra_scan(void)
 {
     int16 row;
@@ -2244,8 +2214,8 @@ static uint8 image_zebra_scan(void)
 
         for(col = left_limit; col < right_limit; col++)
         {
-            if((Pixle[row][col] == IMAGE_BLACK) &&
-               (Pixle[row][col + 1] == IMAGE_WHITE))
+            if((ImageBin[row][col] == IMAGE_BLACK) &&
+               (ImageBin[row][col + 1] == IMAGE_WHITE))
             {
                 edge_count++;
                 if(edge_count > IMAGE_ZEBRA_EDGE_MIN)
@@ -2259,8 +2229,7 @@ static uint8 image_zebra_scan(void)
     return 0;
 }
 
-/* 第一次斑马线只记数鸣叫，第二次有效命中后停车。 */
-static void CheckZebraEmergency(void)
+static void image_check_zebra(void)
 {
     ZebraHit = image_zebra_scan();
 
@@ -2310,196 +2279,85 @@ static void CheckZebraEmergency(void)
     }
 }
 
-/*误差按权重重新整定*/
-static void GetDet(uint8 TowPoint)
+/* Get weighted center at the current tow point. */
+static void image_get_det(uint8 tow_point)
 {
-    float DetTemp;
-    float UnitAll;
+    float det_temp;
+    float unit_all;
 
-    DetTemp = 0.0f;
-    UnitAll = 0.0f;
+    det_temp = 0.0f;
+    unit_all = 0.0f;
 
-    if((TowPoint - 5) >= ImageStatus.OFFLine)
+    if((tow_point - 5) >= ImageStatus.OFFLine)
     {
-        for(Ysite = (int16)(TowPoint - 5); Ysite < TowPoint; Ysite++)
+        for(Ysite = (int16)(tow_point - 5); Ysite < tow_point; Ysite++)
         {
-            DetTemp += Weighting[TowPoint - Ysite - 1] * (float)ImageDeal[Ysite].Center;
-            UnitAll += Weighting[TowPoint - Ysite - 1];
+            det_temp += Weighting[tow_point - Ysite - 1] * (float)ImageDeal[Ysite].Center;
+            unit_all += Weighting[tow_point - Ysite - 1];
         }
-        for(Ysite = (int16)(TowPoint + 5); Ysite > TowPoint; Ysite--)
+        for(Ysite = (int16)(tow_point + 5); Ysite > tow_point; Ysite--)
         {
-            DetTemp += Weighting[Ysite - TowPoint - 1] * (float)ImageDeal[Ysite].Center;
-            UnitAll += Weighting[Ysite - TowPoint - 1];
+            det_temp += Weighting[Ysite - tow_point - 1] * (float)ImageDeal[Ysite].Center;
+            unit_all += Weighting[Ysite - tow_point - 1];
         }
-        DetTemp = ((float)ImageDeal[TowPoint].Center + DetTemp) / (UnitAll + 1.0f);
+        det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
     }
-    else if(TowPoint > ImageStatus.OFFLine)
+    else if(tow_point > ImageStatus.OFFLine)
     {
-        for(Ysite = ImageStatus.OFFLine; Ysite < TowPoint; Ysite++)
+        for(Ysite = ImageStatus.OFFLine; Ysite < tow_point; Ysite++)
         {
-            DetTemp += Weighting[TowPoint - Ysite - 1] * (float)ImageDeal[Ysite].Center;
-            UnitAll += Weighting[TowPoint - Ysite - 1];
+            det_temp += Weighting[tow_point - Ysite - 1] * (float)ImageDeal[Ysite].Center;
+            unit_all += Weighting[tow_point - Ysite - 1];
         }
-        for(Ysite = (int16)(TowPoint + TowPoint - ImageStatus.OFFLine); Ysite > TowPoint; Ysite--)
+        for(Ysite = (int16)(tow_point + tow_point - ImageStatus.OFFLine); Ysite > tow_point; Ysite--)
         {
-            DetTemp += Weighting[Ysite - TowPoint - 1] * (float)ImageDeal[Ysite].Center;
-            UnitAll += Weighting[Ysite - TowPoint - 1];
+            det_temp += Weighting[Ysite - tow_point - 1] * (float)ImageDeal[Ysite].Center;
+            unit_all += Weighting[Ysite - tow_point - 1];
         }
-        DetTemp = ((float)ImageDeal[TowPoint].Center + DetTemp) / (UnitAll + 1.0f);
+        det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
     }
     else if(ImageStatus.OFFLine < 49)
     {
         for(Ysite = (int16)(ImageStatus.OFFLine + 3); Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            DetTemp += Weighting[Ysite - TowPoint - 1] * (float)ImageDeal[Ysite].Center;
-            UnitAll += Weighting[Ysite - TowPoint - 1];
+            det_temp += Weighting[Ysite - tow_point - 1] * (float)ImageDeal[Ysite].Center;
+            unit_all += Weighting[Ysite - tow_point - 1];
         }
-        DetTemp = ((float)ImageDeal[ImageStatus.OFFLine].Center + DetTemp) / (UnitAll + 1.0f);
+        det_temp = ((float)ImageDeal[ImageStatus.OFFLine].Center + det_temp) / (unit_all + 1.0f);
     }
     else
     {
-        DetTemp = (float)ImageStatus.Det_True;
+        det_temp = (float)ImageStatus.Det_True;
     }
 
-    ImageStatus.Det_True = (int16)DetTemp;
-    ImageStatus.TowPoint_True = TowPoint;
+    ImageStatus.Det_True = (int16)det_temp;
+    ImageStatus.TowPoint_True = tow_point;
 }
 
-//---------------------------------------------------------------------------------------------------------------------------------------------------------------
-//  @name           Search_Border_OTSU
-//  @brief          通过OTSU获取边线 和信息
-//  @param          imageInput[IMAGE_ROW][IMAGE_COL]        传入的图像数组
-//  @param          Row                                     图像的Ysite
-//  @param          Col                                     图像的Xsite
-//  @param          Bottonline                              底边行选择
-//  @return         无
-//  @time           2022年10月7日
-//  @Author
-//  Sample usage:   Search_Border_OTSU(mt9v03x_image, IMAGE_ROW, IMAGE_COL, IMAGE_ROW-8);
-//--------------------------------------------------------------------------------------------------------------------------------------------
-static void Search_Border_OTSU(uint8 imageInput[LCDH][LCDW], uint8 Row, uint8 Col, uint8 Bottonline)
+/* One complete frame processing pass. */
+static void image_process(void)
 {
-    ImageStatus.WhiteLine_L = 0;
-    ImageStatus.WhiteLine_R = 0;
-    for(Xsite = 0; Xsite < LCDW; Xsite++)
-    {
-        imageInput[0][Xsite] = 0;
-        imageInput[Bottonline + 1][Xsite] = 0;
-    }
+    gpio_set_level(LED_DEBUG, GPIO_LOW);
 
-    for(Ysite = 0; Ysite < LCDH; Ysite++)
-    {
-        ImageDeal[Ysite].LeftBoundary_First = 0;
-        ImageDeal[Ysite].RightBoundary_First = 79;
-        ImageDeal[Ysite].LeftBoundary = 0;
-        ImageDeal[Ysite].RightBoundary = 79;
-        imageInput[Ysite][0] = 0;
-        imageInput[Ysite][LCDW - 1] = 0;
-    }
+    image_compress();
+    image_clear_deal();
+    image_binarize(image_otsu());
+    image_draw_bottom();
+    image_draw_lines();
+    image_search_border(IMAGE_H - 2);
+    image_element_test();
+    image_draw_extension_line();
+    image_element_handle();
+    image_check_zebra();
+    image_get_det(image_tow_point());
+    image_export_result();
 
-    Search_Bottom_Line_OTSU(imageInput, Row, Col, Bottonline);
-    Search_Left_and_Right_Lines(imageInput, Row, Col, Bottonline);
-
-    for(Ysite = Bottonline; Ysite > ImageStatus.OFFLineBoundary + 1; Ysite--)
-    {
-        if(ImageDeal[Ysite].LeftBoundary < 3)
-        {
-            ImageStatus.WhiteLine_L++;
-        }
-        if(ImageDeal[Ysite].RightBoundary > LCDW - 3)
-        {
-            ImageStatus.WhiteLine_R++;
-        }
-    }
+    gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }
 
-/* 中线滤波平滑。 */
-static void RouteFilter(void)
-{
-    int CenterTemp = 0;
-    int LineTemp = 0;
-
-    for(Ysite = 58; Ysite >= (ImageStatus.OFFLine + 5); Ysite--)
-    {
-        if(ImageDeal[Ysite].IsLeftFind == 'W'
-           && ImageDeal[Ysite].IsRightFind == 'W'
-           && Ysite <= 45
-           && ImageDeal[Ysite - 1].IsLeftFind == 'W'
-           && ImageDeal[Ysite - 1].IsRightFind == 'W')
-        {
-            ytemp = Ysite;
-            while(ytemp >= (ImageStatus.OFFLine + 5))
-            {
-                ytemp--;
-                if(ImageDeal[ytemp].IsLeftFind == 'T'
-                   && ImageDeal[ytemp].IsRightFind == 'T')
-                {
-                    DetR = (float)(ImageDeal[ytemp - 1].Center - ImageDeal[Ysite + 2].Center) /
-                           (float)(ytemp - 1 - Ysite - 2);
-                    CenterTemp = ImageDeal[Ysite + 2].Center;
-                    LineTemp = Ysite + 2;
-                    while(Ysite >= ytemp)
-                    {
-                        ImageDeal[Ysite].Center = (int)(CenterTemp + DetR * (float)(Ysite - LineTemp));
-                        Ysite--;
-                    }
-                    break;
-                }
-            }
-        }
-        ImageDeal[Ysite].Center = (ImageDeal[Ysite - 1].Center + 2 * ImageDeal[Ysite].Center) / 3;
-    }
-}
-
-/* 图像主处理流程：压缩、二值化、搜线、判元素、算偏差。 */
-void ImageProcess(void)
-{
-    gpio_set_level(IO_P52, 0);
-
-    compressimage();          //对图像进行压缩
-    ImageStatus.OFFLine = 2;  //限制图像顶端
-    ImageStatus.WhiteLine = 0;
-    for(Ysite = 59; Ysite >= ImageStatus.OFFLine; Ysite--)//从下往上搜线（因为第60行是最上面）
-    {
-        ImageDeal[Ysite].IsLeftFind = 'F';
-        ImageDeal[Ysite].IsRightFind = 'F';
-        ImageDeal[Ysite].LeftBorder = 0;
-        ImageDeal[Ysite].RightBorder = 79;
-        ImageDeal[Ysite].LeftTemp = 0;
-        ImageDeal[Ysite].RightTemp = 79;
-        ImageDeal[Ysite].close_LeftBorder = 0;
-        ImageDeal[Ysite].close_RightBorder = 79;
-    }                     //边界与标志位初始化
-
-    // Get01change_roi_mix();  /* 图像二值化 */
-    Get01change_dajin();       /* 图像二值化 */
-
-    // 出界停车检测
-    CheckOutTrackEmergency();
-
-    DrawLinesFirst();     //绘制底边
-    DrawLinesProcess();   //搜边线
-
-    Search_Border_OTSU(Pixle, LCDH, LCDW, LCDH - 2);//58行位底行
-
-    Element_Test();       //元素判断
-    DrawExtensionLine();  /* 绘制延长线，补线。 */
-    RouteFilter();        /* 中线滤波平滑。 */
-    CheckZebraEmergency();  /* 斑马线第一次只记数，第二次命中进入零速闭环刹停。 */
-
-    Element_Handle();     //环岛执行
-    ImageStatus.TowPoint = (uint8)SmartCar.servo.tow_point;
-    runtime_tow_point = SearchLine_GetRuntimeTowPoint();
-    // SearchLine_ApplyCenterCompensation(runtime_tow_point);  // 中线压缩补偿
-    GetDet(runtime_tow_point);             //获取动态前瞻  并且计算图像偏差
-    
-    gpio_set_level(IO_P52, 1);
-}
-
-/* 图像更新：等一帧 DMA 完成后跑完整处理流程并发布结果。 */
 void image_update(void)
 {
-    if(0U == image_ready)
+    if(Image.ready == 0)
     {
         return;
     }
@@ -2509,20 +2367,37 @@ void image_update(void)
         return;
     }
 
-    ImageProcess();
-    if(CAR_MODE_STOP == CarMode)
+    image_process();
+    Image.sequence++;
+
+    if(CarMode != CAR_MODE_RUN)
     {
-        image_result_ready = 0;
+        ImageLostCount = 0;
+        ImageRunFrameCount = 0;
         return;
     }
 
-    if((CAR_MODE_RUN == CarMode) && (ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD))
+    if(ImageRunFrameCount < IMAGE_RUN_START_IGNORE_FRAMES)
     {
-        image_result_ready = 0;
-        CarMode = CAR_MODE_STOP;
+        ImageRunFrameCount++;
+        ImageLostCount = 0;
         return;
     }
 
-    image_result_ready = 1;
-    image_result_sequence++;
+    if(Image.lost)
+    {
+        if(ImageLostCount < IMAGE_LOST_STOP_COUNT)
+        {
+            ImageLostCount++;
+        }
+        if(ImageLostCount >= IMAGE_LOST_STOP_COUNT)
+        {
+            CarMode = CAR_MODE_STOP;
+        }
+    }
+    else
+    {
+        ImageLostCount = 0;
+    }
 }
+

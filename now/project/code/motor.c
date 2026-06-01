@@ -46,11 +46,11 @@ static void motor_timer(void)
 
     output_left = Motor.write_left_duty +
                   (SmartCar.motor.left_kp * (error_left - last_error_left) +
-                  SmartCar.motor.left_ki * error_left)/100;
+                  SmartCar.motor.left_ki * error_left);
 
     output_right = Motor.write_right_duty +
                    (SmartCar.motor.right_kp * (error_right - last_error_right) +
-                   SmartCar.motor.right_ki * error_right)/100;
+                   SmartCar.motor.right_ki * error_right);
 
     last_error_left = error_left;
     last_error_right = error_right;

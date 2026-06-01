@@ -290,7 +290,7 @@
           <Lx51>
             <useFile>0</useFile>
             <linkonly>0</linkonly>
-            <UseMemoryFromTarget>1</UseMemoryFromTarget>
+            <UseMemoryFromTarget>0</UseMemoryFromTarget>
             <CaseSensitiveSymbols>1</CaseSensitiveSymbols>
             <WarningLevel>2</WarningLevel>
             <DataOverlaying>1</DataOverlaying>
@@ -301,7 +301,7 @@
             <Assign></Assign>
             <ReserveString></ReserveString>
             <CClasses></CClasses>
-            <UserClasses>ECODE (0XFC4800-0XFDFFFF), HCONST (0XFE0000-0XFFFFFF)</UserClasses>
+            <UserClasses>EDATA (0X0-0X3FFF), HDATA (0X0-0X3FFF, 0X10000-0X2FFFF), ECODE (0XFC4800-0XFDFFFF), HCONST (0XFE0000-0XFFFFFF)</UserClasses>
             <CSection></CSection>
             <UserSection></UserSection>
             <CodeBaseAddress></CodeBaseAddress>
