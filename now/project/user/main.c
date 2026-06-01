@@ -75,8 +75,24 @@ void main(void)
             case CAR_MODE_RUN:
             {
                 image_update();
+                if(CarMode != CAR_MODE_RUN)
+                {
+                    pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
+                    fan_set_duty(0);
+                    if(CarMode == CAR_MODE_STOP)
+                    {
+                        motor_output(0, 0);
+                    }
+                    break;
+                }
                 servo_update();
                 fan_set_duty(SmartCar.motor.fan_duty);
+            } break;
+
+            case CAR_MODE_BRAKE_STOP:
+            {
+                pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
+                fan_set_duty(0);
             } break;
 
             case CAR_MODE_STOP:

@@ -17,6 +17,15 @@ void buzzer_short(void)
     }
 }
 
+void buzzer_long(void)
+{
+    if(BuzzerTime == 0)
+    {
+        BuzzerTime = BUZZER_LONG_MS;
+        gpio_set_level(BUZZER, GPIO_HIGH);
+    }
+}
+
 void buzzer_tick(void)
 {
     if(BuzzerTime == 0)

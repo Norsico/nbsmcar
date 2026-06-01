@@ -4,6 +4,9 @@ motor_data Motor;
 
 static int16 last_error_left = 0;
 static int16 last_error_right = 0;
+static uint8 motor_brake_stop_stable_count = 0;
+static const uint8 motor_brake_stop_speed_threshold = 2;
+static const uint8 motor_brake_stop_stable_ticks = 3;
 
 static int16 motor_limit(int16 value)
 {
@@ -27,6 +30,9 @@ static void motor_timer(void)
     int16 error_right;
     int16 output_left;
     int16 output_right;
+    int16 left_abs_count;
+    int16 right_abs_count;
+    uint8 brake_stop_mode;
 
     buzzer_tick();
 
@@ -36,9 +42,25 @@ static void motor_timer(void)
     encoder_clear_count(ENCODER_LEFT);
     encoder_clear_count(ENCODER_RIGHT);
 
-    if(CarMode != CAR_MODE_RUN)
+    brake_stop_mode = (CAR_MODE_BRAKE_STOP == CarMode) ? 1U : 0U;
+
+    if(CarMode == CAR_MODE_STOP)
     {
+        motor_brake_stop_stable_count = 0;
+        motor_output(0, 0);
         return;
+    }
+
+    if((CarMode != CAR_MODE_RUN) && !brake_stop_mode)
+    {
+        motor_brake_stop_stable_count = 0;
+        return;
+    }
+
+    if(brake_stop_mode)
+    {
+        Motor.target_left = 0;
+        Motor.target_right = 0;
     }
 
     error_left = Motor.target_left - Motor.read_left;
@@ -56,6 +78,44 @@ static void motor_timer(void)
     last_error_right = error_right;
 
     motor_output(motor_limit(output_left), motor_limit(output_right));
+
+    if(brake_stop_mode)
+    {
+        left_abs_count = Motor.read_left;
+        if(left_abs_count < 0)
+        {
+            left_abs_count = -left_abs_count;
+        }
+
+        right_abs_count = Motor.read_right;
+        if(right_abs_count < 0)
+        {
+            right_abs_count = -right_abs_count;
+        }
+
+        if((left_abs_count <= motor_brake_stop_speed_threshold) &&
+           (right_abs_count <= motor_brake_stop_speed_threshold))
+        {
+            if(motor_brake_stop_stable_count < motor_brake_stop_stable_ticks)
+            {
+                motor_brake_stop_stable_count++;
+            }
+        }
+        else
+        {
+            motor_brake_stop_stable_count = 0;
+        }
+
+        if(motor_brake_stop_stable_count >= motor_brake_stop_stable_ticks)
+        {
+            CarMode = CAR_MODE_STOP;
+            motor_output(0, 0);
+        }
+    }
+    else
+    {
+        motor_brake_stop_stable_count = 0;
+    }
 }
 
 void motor_init(void)
@@ -68,6 +128,7 @@ void motor_init(void)
     Motor.write_right_duty = 0;
     last_error_left = 0;
     last_error_right = 0;
+    motor_brake_stop_stable_count = 0;
 
     gpio_init(MOTOR_RIGHT_DIR, GPO, GPIO_LOW, GPO_PUSH_PULL);
     pwm_init(MOTOR_RIGHT_PWM, MOTOR_PWM_FREQ, 0);

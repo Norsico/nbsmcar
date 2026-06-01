@@ -44,6 +44,7 @@
 #define BATTERY_SAMPLE_COUNT       (3)
 
 #define BUZZER_SHORT_MS            (80)
+#define BUZZER_LONG_MS             (800)
 
 #define IRQ_PRIORITY_MOTOR         (2)
 #define IRQ_PRIORITY_NORMAL        (0)

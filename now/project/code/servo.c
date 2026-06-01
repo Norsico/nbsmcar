@@ -28,7 +28,7 @@ static void servo_update_motor_target(void)
     int16 speed_delta;
     int32 diff_scale;
 
-    speed = SmartCar.motor.target_speed;
+    speed = (int16)image_get_speed_goal();
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
     tan_value = (int16)(((int32)steer_angle * 175) / 1000);
