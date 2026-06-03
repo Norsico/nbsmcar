@@ -80,9 +80,9 @@ static int16 Repair_Point_Xsite = 0;
 static int16 Repair_Point_Ysite = 0;
 static int ImageScanInterval = 2;
 static int ImageScanInterval_Cross = 2;
+static int Fork_dowm = 0;
 static float variance = 0.0f;
 static float variance_acc = 25.0f;
-static const float RingPreEnterExtendSlopeMin = -1.5f;         /* 环岛入口前允许补线出现小负斜率，避免入口张口时边线直接断掉。 */
 static const uint8 RightRingPreEnterCenterBiasStage12 = 6;      /* 右环前两阶段中线额外右移。 */
 static const uint8 RightRingPreEnterCenterBiasDefault = 2;      /* 右环准备进环阶段默认右移量。 */
 static const uint8 LeftRingExitCenterBias = 3;                  /* 左环出环时中线额外左移。 */
@@ -126,30 +126,6 @@ static int Limit(int value, int numH, int numL)
         value = numL;
     }
     return value;
-}
-
-static uint8 LeftRing_PreEnterActive(void)
-{
-    if((ImageFlag.image_element_rings == 1) &&
-       (ImageFlag.image_element_rings_flag >= 1) &&
-       (ImageFlag.image_element_rings_flag <= 4))
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
-static uint8 RightRing_PreEnterActive(void)
-{
-    if((ImageFlag.image_element_rings == 2) &&
-       (ImageFlag.image_element_rings_flag >= 1) &&
-       (ImageFlag.image_element_rings_flag <= 4))
-    {
-        return 1;
-    }
-
-    return 0;
 }
 
 /* 将当前帧内部结果同步到老的 Image 导出结构，保持外围代码不变。 */
@@ -623,6 +599,10 @@ void image_init(void)
     Image.zebra = 0;
     Image.zebra_count = 0;
     ImageStatus.TowPoint = (uint8)SmartCar.servo.tow_point;
+    ImageStatus.IsCinqueOutIn = 'F';
+    ImageStatus.CirquePass = 'F';
+    ImageStatus.CirqueOut = 'F';
+    ImageStatus.CirqueOff = 'F';
     ImageRawThreshold = 0;
     Speed_Goal = (uint16)((SmartCar.motor.target_speed < 0) ? 0 : SmartCar.motor.target_speed);
     ZebraHit = 0;
@@ -1283,8 +1263,7 @@ static void DrawLinesProcess(void)
                         D_R = ((float)(ImageDeal[Ysite + R_found_point].RightBorder -
                                        ImageDeal[Ysite + 3].RightBorder)) /
                               ((float)(R_found_point - 3));
-                        if((D_R > 0.0f) ||
-                           (RightRing_PreEnterActive() && (D_R > RingPreEnterExtendSlopeMin)))
+                        if(D_R > 0.0f)
                         {
                             R_Found_T = 'T';
                         }
@@ -1329,8 +1308,7 @@ static void DrawLinesProcess(void)
                         D_L = ((float)(ImageDeal[Ysite + 3].LeftBorder -
                                        ImageDeal[Ysite + L_found_point].LeftBorder)) /
                               ((float)(L_found_point - 3));
-                        if((D_L > 0.0f) ||
-                           (LeftRing_PreEnterActive() && (D_L > RingPreEnterExtendSlopeMin)))
+                        if(D_L > 0.0f)
                         {
                             L_Found_T = 'T';
                         }
@@ -1393,113 +1371,119 @@ static void DrawLinesProcess(void)
     }
 }
 
-/* 十字补线沿用当前版本实现，不回退到 past。 */
+/* 绘制延长线并重新确定中线，把补线补成斜线。 */
 static void DrawExtensionLine(void)
 {
-    TFSite = 55;
-    FTSite = 0;
-
-    if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+    if(
+        (Fork_dowm == 0
+         &&ImageStatus.CirquePass == 'F'
+         &&ImageStatus.IsCinqueOutIn == 'F'
+         &&ImageStatus.CirqueOut == 'F'
+         &&ImageStatus.Road_type != Barn_in
+         &&ImageStatus.Road_type != Ramp)
+        &&ImageStatus.Road_type != Cross_ture
+        ||ImageStatus.CirqueOff == 'T')
     {
-        TFSite = 55;
-    }
-
-    if(ExtenLFlag != 'F')
-    {
-        for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
-        {
-            if(ImageDeal[Ysite].IsLeftFind == 'W')
+        if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+            TFSite = 55;
+        if(ImageStatus.CirqueOff == 'T' && ImageStatus.Road_type == LeftCirque)
+            TFSite = 55;
+        if(ExtenLFlag != 'F')
+            for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
             {
-                if(ImageDeal[Ysite + 1].LeftBorder >= 70)
+                PicTemp = Pixle[Ysite];
+                if(ImageDeal[Ysite].IsLeftFind == 'W')
                 {
-                    ImageStatus.OFFLine = Ysite + 1;
-                    break;
-                }
-
-                while(Ysite >= (ImageStatus.OFFLine + 4))
-                {
-                    Ysite--;
-                    if((ImageDeal[Ysite].IsLeftFind == 'T') &&
-                       (ImageDeal[Ysite - 1].IsLeftFind == 'T') &&
-                       (ImageDeal[Ysite - 2].IsLeftFind == 'T') &&
-                       (ImageDeal[Ysite - 2].LeftBorder > 0) &&
-                       (ImageDeal[Ysite - 2].LeftBorder < 70))
+                    if(ImageDeal[Ysite + 1].LeftBorder >= 70)
                     {
-                        FTSite = Ysite - 2;
+                        ImageStatus.OFFLine = Ysite + 1;
                         break;
                     }
-                }
 
-                if(FTSite > ImageStatus.OFFLine)
-                {
-                    DetL = ((float)(ImageDeal[FTSite].LeftBorder -
-                                    ImageDeal[TFSite].LeftBorder)) /
-                           ((float)(FTSite - TFSite));
-                    for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                    while(Ysite >= (ImageStatus.OFFLine + 4))
                     {
-                        ImageDeal[ytemp].LeftBorder =
-                            (int16)(DetL * (float)(ytemp - TFSite)) + ImageDeal[TFSite].LeftBorder;
+                        Ysite--;
+                        if(ImageDeal[Ysite].IsLeftFind == 'T' &&
+                           ImageDeal[Ysite - 1].IsLeftFind == 'T' &&
+                           ImageDeal[Ysite - 2].IsLeftFind == 'T' &&
+                           ImageDeal[Ysite - 2].LeftBorder > 0 &&
+                           ImageDeal[Ysite - 2].LeftBorder < 70)
+                        {
+                            FTSite = Ysite - 2;
+                            break;
+                        }
+                    }
+
+                    if(FTSite > ImageStatus.OFFLine)
+                    {
+                        DetL =
+                            ((float)(ImageDeal[FTSite].LeftBorder -
+                                     ImageDeal[TFSite].LeftBorder)) /
+                            ((float)(FTSite - TFSite));
+                        for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                        {
+                            ImageDeal[ytemp].LeftBorder =
+                                (int16)(DetL * ((float)(ytemp - TFSite))) +
+                                ImageDeal[TFSite].LeftBorder;
+                        }
                     }
                 }
-            }
-            else
-            {
-                TFSite = Ysite + 2;
-            }
-        }
-    }
-
-    if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
-    {
-        TFSite = 55;
-    }
-
-    if(ExtenRFlag != 'F')
-    {
-        FTSite = 0;
-        for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
-        {
-            if(ImageDeal[Ysite].IsRightFind == 'W')
-            {
-                if(ImageDeal[Ysite + 1].RightBorder <= 10)
+                else
                 {
-                    ImageStatus.OFFLine = Ysite + 1;
-                    break;
+                    TFSite = Ysite + 2;
                 }
+            }
 
-                while(Ysite >= (ImageStatus.OFFLine + 4))
+        if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+            TFSite = 55;
+        if(ImageStatus.CirqueOff == 'T' && ImageStatus.Road_type == RightCirque)
+            TFSite = 55;
+        if(ExtenRFlag != 'F')
+            for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
+            {
+                PicTemp = Pixle[Ysite];
+
+                if(ImageDeal[Ysite].IsRightFind == 'W')
                 {
-                    Ysite--;
-                    if((ImageDeal[Ysite].IsRightFind == 'T') &&
-                       (ImageDeal[Ysite - 1].IsRightFind == 'T') &&
-                       (ImageDeal[Ysite - 2].IsRightFind == 'T') &&
-                       (ImageDeal[Ysite - 2].RightBorder < 70) &&
-                       (ImageDeal[Ysite - 2].RightBorder > 10))
+                    if(ImageDeal[Ysite + 1].RightBorder <= 10)
                     {
-                        FTSite = Ysite - 2;
+                        ImageStatus.OFFLine = Ysite + 1;
                         break;
                     }
-                }
-
-                if(FTSite > ImageStatus.OFFLine)
-                {
-                    DetR = ((float)(ImageDeal[FTSite].RightBorder -
-                                    ImageDeal[TFSite].RightBorder)) /
-                           ((float)(FTSite - TFSite));
-                    for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                    while(Ysite >= (ImageStatus.OFFLine + 4))
                     {
-                        ImageDeal[ytemp].RightBorder =
-                            (int16)(DetR * (float)(ytemp - TFSite)) + ImageDeal[TFSite].RightBorder;
+                        Ysite--;
+                        if(ImageDeal[Ysite].IsRightFind == 'T' &&
+                           ImageDeal[Ysite - 1].IsRightFind == 'T' &&
+                           ImageDeal[Ysite - 2].IsRightFind == 'T' &&
+                           ImageDeal[Ysite - 2].RightBorder < 70 &&
+                           ImageDeal[Ysite - 2].RightBorder > 10)
+                        {
+                            FTSite = Ysite - 2;
+                            break;
+                        }
+                    }
+
+                    if(FTSite > ImageStatus.OFFLine)
+                    {
+                        DetR =
+                            ((float)(ImageDeal[FTSite].RightBorder -
+                                     ImageDeal[TFSite].RightBorder)) /
+                            ((float)(FTSite - TFSite));
+                        for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                        {
+                            ImageDeal[ytemp].RightBorder =
+                                (int16)(DetR * ((float)(ytemp - TFSite))) +
+                                ImageDeal[TFSite].RightBorder;
+                        }
                     }
                 }
+                else
+                {
+                    TFSite = Ysite + 2;
+                }
             }
-            else
-            {
-                TFSite = Ysite + 2;
-            }
-        }
     }
-
     for(Ysite = 59; Ysite >= ImageStatus.OFFLine; Ysite--)
     {
         LimitL(ImageDeal[Ysite].LeftBorder);
@@ -1507,7 +1491,7 @@ static void DrawExtensionLine(void)
         LimitL(ImageDeal[Ysite].RightBorder);
         LimitH(ImageDeal[Ysite].RightBorder);
         ImageDeal[Ysite].Center = (ImageDeal[Ysite].LeftBorder + ImageDeal[Ysite].RightBorder) / 2;
-        ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
+        ImageDeal[Ysite].Wide = -ImageDeal[Ysite].LeftBorder + ImageDeal[Ysite].RightBorder;
     }
 }
 
