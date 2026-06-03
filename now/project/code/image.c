@@ -16,7 +16,6 @@ uint8 Pixle[IMAGE_H][IMAGE_W];
 #define IMAGE_ZEBRA_MISS_COUNT         (3)
 #define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)
 #define IMAGE_ZEBRA_EDGE_MIN           (4)
-#define IMAGE_ZEBRA_ROW_HIT_MIN        (2)
 #define IMAGE_ZEBRA_STOP_COUNT         (2)
 #define IMAGE_OUTTRACK_BLACK_PERCENT   (90)
 #define IMAGE_OUTTRACK_CONFIRM_COUNT   (10)
@@ -2314,14 +2313,13 @@ void Element_Handle(void)
     }
 }
 
-/* 扫描中下部斑马线跳变，至少两行同时命中，减少单行噪声误判。 */
+/* 按 past 当前口径，扫描中下部黑白跳变。 */
 static uint8 ZebraScanHit(void)
 {
     int row = 0;
     int col = 0;
     int left_limit = 0;
     int right_limit = 0;
-    uint8 hit_rows = 0;
     uint8 edge_count = 0;
 
     if((ImageStatus.Road_type == LeftCirque) ||
@@ -2349,17 +2347,16 @@ static uint8 ZebraScanHit(void)
                 edge_count++;
                 if(edge_count > IMAGE_ZEBRA_EDGE_MIN)
                 {
-                    hit_rows++;
-                    break;
+                    return 1;
                 }
             }
         }
     }
 
-    return (hit_rows >= IMAGE_ZEBRA_ROW_HIT_MIN) ? 1U : 0U;
+    return 0;
 }
 
-/* 第一次斑马线只记数鸣叫，第二次有效命中后停车。 */
+/* 第一次斑马线只记数鸣叫，第二次有效命中后切普通停车。 */
 static void CheckZebraEmergency(void)
 {
     uint8 zebra_hit;
@@ -2397,8 +2394,7 @@ static void CheckZebraEmergency(void)
                 buzzer_short();
                 if(ZebraDetectCount >= IMAGE_ZEBRA_STOP_COUNT)
                 {
-                    Speed_Goal = 0;
-                    CarMode = CAR_MODE_BRAKE_STOP;
+                    CarMode = CAR_MODE_STOP;
                 }
 
                 ZebraCooldownFrames = IMAGE_ZEBRA_COOLDOWN_FRAMES;
@@ -2618,7 +2614,6 @@ void image_update(void)
     ImageProcess();
     if(CAR_MODE_STOP == CarMode)
     {
-        Speed_Goal = 0;
         image_result_ready = 0;
         image_export_result();
         return;
@@ -2626,7 +2621,6 @@ void image_update(void)
 
     if((CAR_MODE_RUN == CarMode) && (ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD))
     {
-        Speed_Goal = 0;
         image_result_ready = 0;
         CarMode = CAR_MODE_STOP;
         image_export_result();
