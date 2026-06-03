@@ -81,7 +81,8 @@ static const ui_param_t motor_params[] = {
 static const ui_param_t camera_params[] = {
     {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
-    {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
+    {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
+
 };
 
 // 页面路由汇总表
@@ -248,7 +249,7 @@ static void ui_move(int8 dir)
 //页面标题
 static void ui_show_title(const char *title)
 {
-    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+    ips200_set_color(RGB565_CYAN, RGB565_WHITE);
     ips200_show_string(0, 0, title);
     if(UiEdit) {
         ips200_show_string(176, 0, "EDIT");
@@ -262,7 +263,7 @@ static void ui_show_power(void)
         ips200_set_color(RGB565_RED, RGB565_WHITE);
         ips200_show_string(200, 0, "low");
     } else {
-        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+        ips200_set_color(RGB565_CYAN, RGB565_WHITE);
         ips200_show_uint8(200, 0, UiPowerPercent);
         ips200_show_string(224, 0, "%");
     }
@@ -278,8 +279,8 @@ static void ui_show_main(void)
 
     for(i = 0; i < MAIN_MENU_COUNT; i++) {
         y = (uint16)(48 + i * UI_ROW_H);
-        ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_BLACK,
-                         (i == UiSelect) ? RGB565_BLACK : RGB565_WHITE);
+        ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_PINK,
+                         (i == UiSelect) ? RGB565_PINK : RGB565_WHITE);
         ips200_show_string(0, y, (i == UiSelect) ? ">" : " ");
         ips200_show_string(UI_NAME_X, y, main_menu_names[i]);
     }
@@ -300,8 +301,8 @@ static void ui_show_generic_page(ui_page page)
         y = (uint16)((i + 1) * UI_ROW_H);
         p = &menu->params[i];
 
-        ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_BLACK,
-                         (i == UiSelect) ? RGB565_BLACK : RGB565_WHITE);
+        ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_PINK,
+                         (i == UiSelect) ? RGB565_PINK : RGB565_WHITE);
 
         ips200_show_string(0, y, (i == UiSelect) ? (UiEdit ? "*" : ">") : " ");
         ips200_show_string(UI_NAME_X, y, p->name);
@@ -497,5 +498,4 @@ void ui_update(void)
     if(UiPage == UI_PAGE_DEBUG) {
         ui_show_camera_image();
     }
-    system_delay_ms(10);
 }
