@@ -20,6 +20,8 @@ uint8 Pixle[IMAGE_H][IMAGE_W];
 #define IMAGE_OUTTRACK_BLACK_PERCENT   (90)
 #define IMAGE_OUTTRACK_CONFIRM_COUNT   (10)
 #define IMAGE_OUTTRACK_SAMPLE_ROWS     (2)
+#define IMAGE_NOFRAME_STOP_MS          (200)
+#define IMAGE_RAW_STOP_CONFIRM_COUNT   (3)
 
 #define IMAGE_ABS(V)                   (((V) < 0) ? (-(V)) : (V))
 #define OtsuRawThreshold               ImageRawThreshold
@@ -52,7 +54,9 @@ static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
 static uint8 OutTrackStopHitCount = 0;
+static uint8 RawStopHitCount = 0;
 static uint16 Speed_Goal = 0;
+static uint32 ImageLastFrameTickMs = 0;
 
 static int16 Ysite = 0;
 static int16 Xsite = 0;
@@ -80,15 +84,8 @@ static int16 Repair_Point_Xsite = 0;
 static int16 Repair_Point_Ysite = 0;
 static int ImageScanInterval = 2;
 static int ImageScanInterval_Cross = 2;
-static int Fork_dowm = 0;
 static float variance = 0.0f;
 static float variance_acc = 25.0f;
-static const uint8 RightRingPreEnterCenterBiasStage12 = 6;      /* 右环前两阶段中线额外右移。 */
-static const uint8 RightRingPreEnterCenterBiasDefault = 2;      /* 右环准备进环阶段默认右移量。 */
-static const uint8 LeftRingExitCenterBias = 3;                  /* 左环出环时中线额外左移。 */
-static const uint8 RightRingExitCenterBias = 3;                 /* 右环出环时中线额外右移。 */
-static const float RightRingDetectLeftEdgeStraightMax = 40.0f;  /* 右环入口前左边界直线度上限。 */
-static const uint8 RightRingDetectPointSpanMax = 18;            /* 右环两个候选拐点纵向间隔上限。 */
 
 static const uint8 Half_Road_Wide[IMAGE_H] =
 {
@@ -211,7 +208,7 @@ static uint8 SearchLine_GetRuntimeTowPoint(void)
     if((ImageStatus.Road_type == RightCirque || ImageStatus.Road_type == LeftCirque) &&
        ImageStatus.CirqueOff == 'F')
     {
-        TowPoint = 28;
+        TowPoint = 30;
     }
     else if(ImageStatus.Road_type == Straight)
     {
@@ -610,6 +607,8 @@ void image_init(void)
     ZebraFrameLatch = 0;
     ZebraMissFrames = 0;
     ZebraCooldownFrames = 0;
+    RawStopHitCount = 0;
+    ImageLastFrameTickMs = motor_get_tick_ms();
 
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
 
@@ -1374,21 +1373,17 @@ static void DrawLinesProcess(void)
 /* 绘制延长线并重新确定中线，把补线补成斜线。 */
 static void DrawExtensionLine(void)
 {
-    if(
-        (Fork_dowm == 0
-         &&ImageStatus.CirquePass == 'F'
-         &&ImageStatus.IsCinqueOutIn == 'F'
-         &&ImageStatus.CirqueOut == 'F'
-         &&ImageStatus.Road_type != Barn_in
-         &&ImageStatus.Road_type != Ramp)
-        &&ImageStatus.Road_type != Cross_ture
-        ||ImageStatus.CirqueOff == 'T')
+    if((ImageStatus.Road_type != Barn_in
+        &&ImageStatus.Road_type != Ramp
+        &&ImageStatus.Road_type != LeftCirque
+        &&ImageStatus.Road_type != RightCirque))
     {
         if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+        {
             TFSite = 55;
-        if(ImageStatus.CirqueOff == 'T' && ImageStatus.Road_type == LeftCirque)
-            TFSite = 55;
+        }
         if(ExtenLFlag != 'F')
+        {
             for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
             {
                 PicTemp = Pixle[Ysite];
@@ -1433,12 +1428,14 @@ static void DrawExtensionLine(void)
                     TFSite = Ysite + 2;
                 }
             }
+        }
 
         if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+        {
             TFSite = 55;
-        if(ImageStatus.CirqueOff == 'T' && ImageStatus.Road_type == RightCirque)
-            TFSite = 55;
+        }
         if(ExtenRFlag != 'F')
+        {
             for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
             {
                 PicTemp = Pixle[Ysite];
@@ -1483,6 +1480,7 @@ static void DrawExtensionLine(void)
                     TFSite = Ysite + 2;
                 }
             }
+        }
     }
     for(Ysite = 59; Ysite >= ImageStatus.OFFLine; Ysite--)
     {
@@ -1587,6 +1585,8 @@ static float Straight_Judge(uint8 dir, uint8 start_row, uint8 end_row)
 /* 左环入口判定。 */
 static void Element_Judgment_Left_Rings(void)
 {
+    int16 ring_ysite;
+
     if((ImageStatus.Right_Line > 7) ||
        (ImageStatus.Left_Line < 13) ||
        (ImageStatus.OFFLine > 10) ||
@@ -1603,9 +1603,10 @@ static void Element_Judgment_Left_Rings(void)
         return;
     }
 
+    ring_ysite = 25;
     Left_RingsFlag_Point1_Ysite = 0;
     Left_RingsFlag_Point2_Ysite = 0;
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > ring_ysite; Ysite--)
     {
         if((ImageDeal[Ysite].LeftBoundary_First -
             ImageDeal[Ysite - 1].LeftBoundary_First) > 4)
@@ -1615,7 +1616,7 @@ static void Element_Judgment_Left_Rings(void)
         }
     }
 
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > ring_ysite; Ysite--)
     {
         if((ImageDeal[Ysite + 1].LeftBoundary -
             ImageDeal[Ysite].LeftBoundary) > 4)
@@ -1623,11 +1624,6 @@ static void Element_Judgment_Left_Rings(void)
             Left_RingsFlag_Point2_Ysite = Ysite;
             break;
         }
-    }
-
-    if(Left_RingsFlag_Point1_Ysite > 52)
-    {
-        Left_RingsFlag_Point1_Ysite = 52;
     }
 
     for(Ysite = Left_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
@@ -1643,10 +1639,12 @@ static void Element_Judgment_Left_Rings(void)
     }
 
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
-       (Ring_Help_Flag == 0) &&
-       (ImageStatus.Left_Line > 13))
+       (Ring_Help_Flag == 0))
     {
-        Ring_Help_Flag = 1;
+        if(ImageStatus.Left_Line > 13)
+        {
+            Ring_Help_Flag = 1;
+        }
     }
 
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
@@ -1665,12 +1663,12 @@ static void Element_Judgment_Left_Rings(void)
 /* 右环入口判定。 */
 static void Element_Judgment_Right_Rings(void)
 {
-    int16 point_span;
+    int16 ring_ysite;
 
     if((ImageStatus.Left_Line > 7) ||
        (ImageStatus.Right_Line < 13) ||
        (ImageStatus.OFFLine > 10) ||
-       (Straight_Judge(1, 25, 45) > RightRingDetectLeftEdgeStraightMax) ||
+       (Straight_Judge(1, 25, 45) > 50.0f) ||
        (ImageStatus.WhiteLine > 15) ||
        (ImageDeal[52].IsRightFind == 'W') ||
        (ImageDeal[53].IsRightFind == 'W') ||
@@ -1683,9 +1681,10 @@ static void Element_Judgment_Right_Rings(void)
         return;
     }
 
+    ring_ysite = 25;
     Right_RingsFlag_Point1_Ysite = 0;
     Right_RingsFlag_Point2_Ysite = 0;
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > ring_ysite; Ysite--)
     {
         if((ImageDeal[Ysite - 1].RightBoundary_First -
             ImageDeal[Ysite].RightBoundary_First) > 4)
@@ -1695,7 +1694,7 @@ static void Element_Judgment_Right_Rings(void)
         }
     }
 
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > ring_ysite; Ysite--)
     {
         if((ImageDeal[Ysite].RightBoundary -
             ImageDeal[Ysite + 1].RightBoundary) > 4)
@@ -1705,22 +1704,7 @@ static void Element_Judgment_Right_Rings(void)
         }
     }
 
-    if(Right_RingsFlag_Point1_Ysite > 52)
-    {
-        Right_RingsFlag_Point1_Ysite = 52;
-    }
-
-    point_span = Right_RingsFlag_Point2_Ysite - Right_RingsFlag_Point1_Ysite;
-    if((Right_RingsFlag_Point1_Ysite <= 25) ||
-       (Right_RingsFlag_Point2_Ysite <= 25) ||
-       (point_span <= 3) ||
-       (point_span > RightRingDetectPointSpanMax))
-    {
-        Ring_Help_Flag = 0;
-        return;
-    }
-
-    for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
+    for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
         if((ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder) &&
            (ImageDeal[Ysite + 5].RightBorder > ImageDeal[Ysite + 3].RightBorder) &&
@@ -1732,12 +1716,18 @@ static void Element_Judgment_Right_Rings(void)
         }
     }
 
-    if((Ring_Help_Flag == 0) && (ImageStatus.Right_Line > 7))
+    if((Right_RingsFlag_Point2_Ysite > (Right_RingsFlag_Point1_Ysite + 3)) &&
+       (Ring_Help_Flag == 0))
     {
-        Ring_Help_Flag = 1;
+        if(ImageStatus.Right_Line > 7)
+        {
+            Ring_Help_Flag = 1;
+        }
     }
 
-    if((Ring_Help_Flag == 1) && (ImageFlag.image_element_rings_flag == 0))
+    if((Right_RingsFlag_Point2_Ysite > (Right_RingsFlag_Point1_Ysite + 3)) &&
+       (Ring_Help_Flag == 1) &&
+       (ImageFlag.image_element_rings_flag == 0))
     {
         ImageFlag.image_element_rings = 2;
         ImageFlag.image_element_rings_flag = 1;
@@ -1783,8 +1773,6 @@ static void Element_Handle_Left_Rings(void)
     int16 num;
     int16 flag_x;
     int16 flag_y;
-    int16 scan_start;
-    int16 scan_end;
     float slope;
 
     num = 0;
@@ -1814,8 +1802,6 @@ static void Element_Handle_Left_Rings(void)
     if((ImageFlag.image_element_rings_flag == 2) && (num < 8))
     {
         ImageFlag.image_element_rings_flag = 5;
-        /* 响一下，提示左环进入第 5 步，开始进环补线。 */
-        buzzer_long();
     }
     if((ImageFlag.image_element_rings_flag == 5) && (ImageStatus.Right_Line > 15))
     {
@@ -1869,11 +1855,11 @@ static void Element_Handle_Left_Rings(void)
         }
         if(num < 5)
         {
+            ImageStatus.Road_type = 0;
             ImageStatus.Road_type = Normol;
             ImageFlag.image_element_rings_flag = 0;
             ImageFlag.image_element_rings = 0;
             ImageFlag.ring_big_small = 0;
-            buzzer_short();
         }
     }
 
@@ -1882,7 +1868,7 @@ static void Element_Handle_Left_Rings(void)
     {
         for(Ysite = 57; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 3;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 5;
         }
     }
 
@@ -1944,11 +1930,9 @@ static void Element_Handle_Left_Rings(void)
             ImageDeal[flag_y].RightBorder = flag_x;
             for(Ysite = flag_y - 1; Ysite > 10; Ysite--)
             {
-                scan_start = ImageDeal[Ysite + 1].RightBorder - 10;
-                scan_end = ImageDeal[Ysite + 1].RightBorder + 2;
-                LimitL(scan_start);
-                LimitH(scan_end);
-                for(Xsite = scan_start; Xsite < scan_end; Xsite++)
+                for(Xsite = ImageDeal[Ysite + 1].RightBorder - 10;
+                    Xsite < (ImageDeal[Ysite + 1].RightBorder + 2);
+                    Xsite++)
                 {
                     if((Pixle[Ysite][Xsite] == IMAGE_WHITE) &&
                        (Pixle[Ysite][Xsite + 1] == IMAGE_BLACK))
@@ -1969,9 +1953,11 @@ static void Element_Handle_Left_Rings(void)
                 {
                     continue;
                 }
-
-                ImageStatus.OFFLine = Ysite + 2;
-                break;
+                else
+                {
+                    ImageStatus.OFFLine = Ysite + 2;
+                    break;
+                }
             }
         }
     }
@@ -1997,11 +1983,8 @@ static void Element_Handle_Left_Rings(void)
             ImageDeal[Ysite].RightBorder =
                 (ImageDeal[58].RightBorder - Repair_Point_Xsite) * (Ysite - 58) /
                 (58 - Repair_Point_Ysite) + ImageDeal[58].RightBorder;
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - LeftRingExitCenterBias;
-            if(ImageDeal[Ysite].Center <= ImageDeal[Ysite].LeftBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + 1;
-            }
+            ImageDeal[Ysite].Center =
+                (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
         }
     }
 
@@ -2010,11 +1993,7 @@ static void Element_Handle_Left_Rings(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - LeftRingExitCenterBias;
-            if(ImageDeal[Ysite].Center <= ImageDeal[Ysite].LeftBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + 1;
-            }
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite];
         }
     }
 }
@@ -2025,9 +2004,6 @@ static void Element_Handle_Right_Rings(void)
     int16 num;
     int16 flag_x;
     int16 flag_y;
-    int16 scan_start;
-    int16 scan_end;
-    int16 center_bias;
     float slope;
 
     num = 0;
@@ -2057,8 +2033,6 @@ static void Element_Handle_Right_Rings(void)
     if((ImageFlag.image_element_rings_flag == 2) && (num < 8))
     {
         ImageFlag.image_element_rings_flag = 5;
-        /* 响一下，提示右环进入第 5 步，开始进环补线。 */
-        buzzer_long();
     }
     if((ImageFlag.image_element_rings_flag == 5) && (ImageStatus.Left_Line > 15))
     {
@@ -2093,11 +2067,14 @@ static void Element_Handle_Right_Rings(void)
         }
     }
 
-    if((ImageFlag.image_element_rings_flag == 8) &&
-       (ImageStatus.Left_Line < 9) &&
-       (ImageStatus.OFFLine < 10))
+    if(ImageFlag.image_element_rings_flag == 8)
     {
-        ImageFlag.image_element_rings_flag = 9;
+        if((Straight_Judge(1, ImageStatus.OFFLine + 10, 45) < 1.0f) &&
+           (ImageStatus.Left_Line < 9) &&
+           (ImageStatus.OFFLine < 20))
+        {
+            ImageFlag.image_element_rings_flag = 9;
+        }
     }
 
     if(ImageFlag.image_element_rings_flag == 9)
@@ -2112,27 +2089,20 @@ static void Element_Handle_Right_Rings(void)
         }
         if(num < 5)
         {
+            ImageStatus.Road_type = 0;
             ImageStatus.Road_type = Normol;
             ImageFlag.image_element_rings_flag = 0;
             ImageFlag.image_element_rings = 0;
             ImageFlag.ring_big_small = 0;
-            buzzer_short();
         }
     }
 
     if((ImageFlag.image_element_rings_flag >= 1) &&
        (ImageFlag.image_element_rings_flag <= 4))
     {
-        center_bias = (ImageFlag.image_element_rings_flag <= 2) ?
-                      RightRingPreEnterCenterBiasStage12 :
-                      RightRingPreEnterCenterBiasDefault;
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + center_bias;
-            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
-            }
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
         }
     }
 
@@ -2194,13 +2164,9 @@ static void Element_Handle_Right_Rings(void)
             ImageDeal[flag_y].LeftBorder = flag_x;
             for(Ysite = flag_y - 1; Ysite > 10; Ysite--)
             {
-                scan_start = ImageDeal[Ysite + 1].LeftBorder + 8;
-                scan_end = ImageDeal[Ysite + 1].LeftBorder - 4;
-                LimitL(scan_start);
-                LimitH(scan_start);
-                LimitL(scan_end);
-                LimitH(scan_end);
-                for(Xsite = scan_start; Xsite > scan_end; Xsite--)
+                for(Xsite = ImageDeal[Ysite + 1].LeftBorder + 8;
+                    Xsite > (ImageDeal[Ysite + 1].LeftBorder - 4);
+                    Xsite--)
                 {
                     if((Pixle[Ysite][Xsite] == IMAGE_WHITE) &&
                        (Pixle[Ysite][Xsite - 1] == IMAGE_BLACK))
@@ -2225,23 +2191,25 @@ static void Element_Handle_Right_Rings(void)
                 {
                     continue;
                 }
-
-                ImageStatus.OFFLine = Ysite + 2;
-                break;
+                else
+                {
+                    ImageStatus.OFFLine = Ysite + 2;
+                    break;
+                }
             }
         }
     }
 
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        Repair_Point_Xsite = 59;
+        Repair_Point_Xsite = 20;
         Repair_Point_Ysite = 0;
-        for(Ysite = 40; Ysite > 5; Ysite--)
+        for(Ysite = 40; Ysite > 8; Ysite--)
         {
-            if((Pixle[Ysite][51] == IMAGE_WHITE) &&
-               (Pixle[Ysite - 1][51] == IMAGE_BLACK))
+            if((Pixle[Ysite][28] == IMAGE_WHITE) &&
+               (Pixle[Ysite - 1][28] == IMAGE_BLACK))
             {
-                Repair_Point_Xsite = 51;
+                Repair_Point_Xsite = 28;
                 Repair_Point_Ysite = Ysite - 1;
                 ImageStatus.OFFLine = Ysite + 1;
                 break;
@@ -2253,11 +2221,8 @@ static void Element_Handle_Right_Rings(void)
             ImageDeal[Ysite].LeftBorder =
                 (ImageDeal[58].LeftBorder - Repair_Point_Xsite) * (Ysite - 58) /
                 (58 - Repair_Point_Ysite) + ImageDeal[58].LeftBorder;
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + RightRingExitCenterBias;
-            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
-            }
+            ImageDeal[Ysite].Center =
+                (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
         }
     }
 
@@ -2265,11 +2230,7 @@ static void Element_Handle_Right_Rings(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + RightRingExitCenterBias;
-            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
-            }
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
         }
     }
 }
@@ -2575,16 +2536,27 @@ void ImageProcess(void)
 /* 图像更新：等一帧 DMA 完成后跑完整处理流程并发布结果。 */
 void image_update(void)
 {
+    uint32 now_tick_ms;
+
     if(0U == image_ready)
     {
         return;
     }
 
+    now_tick_ms = motor_get_tick_ms();
     if(mt9v03x_finish_flag == 0)
     {
+        if((CAR_MODE_RUN == CarMode) &&
+           ((now_tick_ms - ImageLastFrameTickMs) >= IMAGE_NOFRAME_STOP_MS))
+        {
+            image_result_ready = 0;
+            CarMode = CAR_MODE_STOP;
+            image_export_result();
+        }
         return;
     }
 
+    ImageLastFrameTickMs = now_tick_ms;
     ImageProcess();
     if(CAR_MODE_STOP == CarMode)
     {
@@ -2595,10 +2567,21 @@ void image_update(void)
 
     if((CAR_MODE_RUN == CarMode) && (ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD))
     {
-        image_result_ready = 0;
-        CarMode = CAR_MODE_STOP;
-        image_export_result();
-        return;
+        if(RawStopHitCount < IMAGE_RAW_STOP_CONFIRM_COUNT)
+        {
+            RawStopHitCount++;
+        }
+        if(RawStopHitCount >= IMAGE_RAW_STOP_CONFIRM_COUNT)
+        {
+            image_result_ready = 0;
+            CarMode = CAR_MODE_STOP;
+            image_export_result();
+            return;
+        }
+    }
+    else
+    {
+        RawStopHitCount = 0;
     }
 
     image_result_ready = 1;

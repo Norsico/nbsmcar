@@ -79,6 +79,10 @@ uint8 flash_load_para(void)
     }
 
     SmartCar = store.para;
+    if((SmartCar.motor.fan_duty < 0) || (SmartCar.motor.fan_duty > 100))
+    {
+        SmartCar.motor.fan_duty = 0;
+    }
     return 1;
 }
 
