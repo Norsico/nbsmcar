@@ -158,8 +158,3 @@ void fan_set_duty(int16 duty)
     pwm_set_duty(FAN_LEFT_PWM, pwm_duty);
     pwm_set_duty(FAN_RIGHT_PWM, pwm_duty);
 }
-
-uint32 motor_get_tick_ms(void)
-{
-    return motor_tick_ms;
-}

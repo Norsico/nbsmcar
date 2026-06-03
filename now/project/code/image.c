@@ -20,9 +20,6 @@ uint8 Pixle[IMAGE_H][IMAGE_W];
 #define IMAGE_OUTTRACK_BLACK_PERCENT   (90)
 #define IMAGE_OUTTRACK_CONFIRM_COUNT   (10)
 #define IMAGE_OUTTRACK_SAMPLE_ROWS     (2)
-#define IMAGE_NOFRAME_STOP_MS          (200)
-#define IMAGE_RAW_STOP_CONFIRM_COUNT   (3)
-
 #define IMAGE_ABS(V)                   (((V) < 0) ? (-(V)) : (V))
 #define OtsuRawThreshold               ImageRawThreshold
 
@@ -54,9 +51,7 @@ static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
 static uint8 runtime_tow_point = 0;
 static uint8 OutTrackStopHitCount = 0;
-static uint8 RawStopHitCount = 0;
 static uint16 Speed_Goal = 0;
-static uint32 ImageLastFrameTickMs = 0;
 
 static int16 Ysite = 0;
 static int16 Xsite = 0;
@@ -607,9 +602,6 @@ void image_init(void)
     ZebraFrameLatch = 0;
     ZebraMissFrames = 0;
     ZebraCooldownFrames = 0;
-    RawStopHitCount = 0;
-    ImageLastFrameTickMs = motor_get_tick_ms();
-
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
 
     retry = 0;
@@ -2536,27 +2528,16 @@ void ImageProcess(void)
 /* 图像更新：等一帧 DMA 完成后跑完整处理流程并发布结果。 */
 void image_update(void)
 {
-    uint32 now_tick_ms;
-
     if(0U == image_ready)
     {
         return;
     }
 
-    now_tick_ms = motor_get_tick_ms();
     if(mt9v03x_finish_flag == 0)
     {
-        if((CAR_MODE_RUN == CarMode) &&
-           ((now_tick_ms - ImageLastFrameTickMs) >= IMAGE_NOFRAME_STOP_MS))
-        {
-            image_result_ready = 0;
-            CarMode = CAR_MODE_STOP;
-            image_export_result();
-        }
         return;
     }
 
-    ImageLastFrameTickMs = now_tick_ms;
     ImageProcess();
     if(CAR_MODE_STOP == CarMode)
     {
@@ -2567,21 +2548,10 @@ void image_update(void)
 
     if((CAR_MODE_RUN == CarMode) && (ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD))
     {
-        if(RawStopHitCount < IMAGE_RAW_STOP_CONFIRM_COUNT)
-        {
-            RawStopHitCount++;
-        }
-        if(RawStopHitCount >= IMAGE_RAW_STOP_CONFIRM_COUNT)
-        {
-            image_result_ready = 0;
-            CarMode = CAR_MODE_STOP;
-            image_export_result();
-            return;
-        }
-    }
-    else
-    {
-        RawStopHitCount = 0;
+        image_result_ready = 0;
+        CarMode = CAR_MODE_STOP;
+        image_export_result();
+        return;
     }
 
     image_result_ready = 1;
