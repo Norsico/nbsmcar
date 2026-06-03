@@ -67,12 +67,12 @@ static const ui_param_t servo_params[] = {
 
 // Motor ≤Àµ•≈‰÷√
 static const ui_param_t motor_params[] = {
-	  {"left kp",  &SmartCar.motor.left_kp,        VAL_TYPE_INT16, 10},
-    {"left ki",  &SmartCar.motor.left_ki,        VAL_TYPE_INT16, 10},
-    {"right kp", &SmartCar.motor.right_kp,       VAL_TYPE_INT16, 10},
-    {"right ki", &SmartCar.motor.right_ki,       VAL_TYPE_INT16, 10},
+	{"left kp",  &SmartCar.motor.left_kp,        VAL_TYPE_INT16, 1},
+    {"left ki",  &SmartCar.motor.left_ki,        VAL_TYPE_INT16, 1},
+    {"right kp", &SmartCar.motor.right_kp,       VAL_TYPE_INT16, 1},
+    {"right ki", &SmartCar.motor.right_ki,       VAL_TYPE_INT16, 1},
     {"target",   &SmartCar.motor.target_speed,   VAL_TYPE_INT16, 10},
-    {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 5}, 
+    {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 10}, 
     {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 100},
 
 };
