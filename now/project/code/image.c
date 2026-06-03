@@ -82,6 +82,7 @@ static int ImageScanInterval = 2;
 static int ImageScanInterval_Cross = 2;
 static float variance = 0.0f;
 static float variance_acc = 25.0f;
+static const float RingPreEnterExtendSlopeMin = -1.5f;         /* 环岛入口前允许补线出现小负斜率，避免入口张口时边线直接断掉。 */
 static const uint8 RightRingPreEnterCenterBiasStage12 = 6;      /* 右环前两阶段中线额外右移。 */
 static const uint8 RightRingPreEnterCenterBiasDefault = 2;      /* 右环准备进环阶段默认右移量。 */
 static const uint8 LeftRingExitCenterBias = 3;                  /* 左环出环时中线额外左移。 */
@@ -125,6 +126,30 @@ static int Limit(int value, int numH, int numL)
         value = numL;
     }
     return value;
+}
+
+static uint8 LeftRing_PreEnterActive(void)
+{
+    if((ImageFlag.image_element_rings == 1) &&
+       (ImageFlag.image_element_rings_flag >= 1) &&
+       (ImageFlag.image_element_rings_flag <= 4))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
+static uint8 RightRing_PreEnterActive(void)
+{
+    if((ImageFlag.image_element_rings == 2) &&
+       (ImageFlag.image_element_rings_flag >= 1) &&
+       (ImageFlag.image_element_rings_flag <= 4))
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /* 将当前帧内部结果同步到老的 Image 导出结构，保持外围代码不变。 */
@@ -1258,7 +1283,8 @@ static void DrawLinesProcess(void)
                         D_R = ((float)(ImageDeal[Ysite + R_found_point].RightBorder -
                                        ImageDeal[Ysite + 3].RightBorder)) /
                               ((float)(R_found_point - 3));
-                        if(D_R > 0.0f)
+                        if((D_R > 0.0f) ||
+                           (RightRing_PreEnterActive() && (D_R > RingPreEnterExtendSlopeMin)))
                         {
                             R_Found_T = 'T';
                         }
@@ -1303,7 +1329,8 @@ static void DrawLinesProcess(void)
                         D_L = ((float)(ImageDeal[Ysite + 3].LeftBorder -
                                        ImageDeal[Ysite + L_found_point].LeftBorder)) /
                               ((float)(L_found_point - 3));
-                        if(D_L > 0.0f)
+                        if((D_L > 0.0f) ||
+                           (LeftRing_PreEnterActive() && (D_L > RingPreEnterExtendSlopeMin)))
                         {
                             L_Found_T = 'T';
                         }
@@ -1369,9 +1396,6 @@ static void DrawLinesProcess(void)
 /* 十字补线沿用当前版本实现，不回退到 past。 */
 static void DrawExtensionLine(void)
 {
-    int16 center_temp;
-    int16 line_temp;
-
     TFSite = 55;
     FTSite = 0;
 
@@ -1484,40 +1508,6 @@ static void DrawExtensionLine(void)
         LimitH(ImageDeal[Ysite].RightBorder);
         ImageDeal[Ysite].Center = (ImageDeal[Ysite].LeftBorder + ImageDeal[Ysite].RightBorder) / 2;
         ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
-    }
-
-    center_temp = 0;
-    line_temp = 0;
-    for(Ysite = 58; Ysite >= (ImageStatus.OFFLine + 5); Ysite--)
-    {
-        if((ImageDeal[Ysite].IsLeftFind == 'W') &&
-           (ImageDeal[Ysite].IsRightFind == 'W') &&
-           (Ysite <= 45) &&
-           (ImageDeal[Ysite - 1].IsLeftFind == 'W') &&
-           (ImageDeal[Ysite - 1].IsRightFind == 'W'))
-        {
-            ytemp = Ysite;
-            while(ytemp >= (ImageStatus.OFFLine + 5))
-            {
-                ytemp--;
-                if((ImageDeal[ytemp].IsLeftFind == 'T') &&
-                   (ImageDeal[ytemp].IsRightFind == 'T'))
-                {
-                    DetR = ((float)(ImageDeal[ytemp - 1].Center - ImageDeal[Ysite + 2].Center)) /
-                           ((float)(ytemp - 1 - Ysite - 2));
-                    center_temp = ImageDeal[Ysite + 2].Center;
-                    line_temp = Ysite + 2;
-                    while(Ysite >= ytemp)
-                    {
-                        ImageDeal[Ysite].Center =
-                            (int16)((float)center_temp + DetR * (float)(Ysite - line_temp));
-                        Ysite--;
-                    }
-                    break;
-                }
-            }
-        }
-        ImageDeal[Ysite].Center = (ImageDeal[Ysite - 1].Center + 2 * ImageDeal[Ysite].Center) / 3;
     }
 }
 
