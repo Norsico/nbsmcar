@@ -33,6 +33,9 @@
 #define SERVO_ANGLE_MAX            (10700-400)
 
 #define FAN_PWM_FREQ               (300)
+#define FAN_ESC_DUTY_MIN           (3000)
+#define FAN_ESC_DUTY_MAX           (6000)
+#define FAN_ESC_DUTY_STEP          (30)
 
 #define CAMERA_EXPOSURE            (120)
 #define CAMERA_GAIN                (20)
@@ -44,7 +47,6 @@
 #define BATTERY_SAMPLE_COUNT       (3)
 
 #define BUZZER_SHORT_MS            (80)
-#define BUZZER_LONG_MS             (800)
 
 #define IRQ_PRIORITY_MOTOR         (2)
 #define IRQ_PRIORITY_NORMAL        (0)

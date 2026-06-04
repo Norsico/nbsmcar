@@ -45,11 +45,7 @@ void main(void)
 		state_init();
 		buzzer_init();
     motor_init();
-    if(CarMode != CAR_MODE_STOP)
-    {
-        image_init();
-    }
-
+    image_init();
     if(CarMode == CAR_MODE_UI)
     {
         ui_init();
@@ -75,25 +71,15 @@ void main(void)
             case CAR_MODE_RUN:
             {
                 image_update();
-                if(CarMode != CAR_MODE_RUN)
-                {
-                    pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
-                    fan_set_duty(0);
-                    if(CarMode == CAR_MODE_STOP)
-                    {
-                        motor_output(0, 0);
-                    }
-                    break;
-                }
                 servo_update();
-                fan_set_duty(SmartCar.motor.fan_duty);
             } break;
 
             case CAR_MODE_STOP:
             {
 								pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
                 motor_output(0, 0);
-                fan_set_duty(0);
+                pwm_set_duty(FAN_LEFT_PWM, 3000);
+								pwm_set_duty(FAN_RIGHT_PWM, 3000);
             } break;
         }
     }

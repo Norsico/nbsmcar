@@ -79,10 +79,6 @@ uint8 flash_load_para(void)
     }
 
     SmartCar = store.para;
-    if((SmartCar.motor.fan_duty < 0) || (SmartCar.motor.fan_duty > 100))
-    {
-        SmartCar.motor.fan_duty = 0;
-    }
     return 1;
 }
 
@@ -106,17 +102,4 @@ void flash_save_para(void)
 
     iap_erase_page(FLASH_PARA_ADDR);
     iap_write_buff(FLASH_PARA_ADDR, (uint8 *)&store, sizeof(store));
-}
-
-void flash_get_camera_page(flash_camera_page_t *page)
-{
-    if(0 == page)
-    {
-        return;
-    }
-
-    page->exp_time = SmartCar.camera.exposure;
-    page->gain = SmartCar.camera.gain;
-    page->threshold_offset = SmartCar.camera.threshold_offset;
-    page->laser_row = SmartCar.camera.laser_row;
 }

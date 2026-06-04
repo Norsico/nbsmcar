@@ -4,11 +4,6 @@ motor_data Motor;
 
 static int16 last_error_left = 0;
 static int16 last_error_right = 0;
-static volatile uint32 motor_tick_ms = 0;
-
-#define FAN_ESC_DUTY_MIN              (1U * FAN_PWM_FREQ * 10U)
-#define FAN_ESC_DUTY_MAX              (2U * FAN_PWM_FREQ * 10U)
-#define FAN_ESC_DUTY_STEP             (1U * FAN_PWM_FREQ * 10U / 100U)
 
 static int16 motor_limit(int16 value)
 {
@@ -16,9 +11,9 @@ static int16 motor_limit(int16 value)
     {
         return MOTOR_DUTY_LIMIT;
     }
-    else if(value < 0)
+    else if(value < -MOTOR_DUTY_LIMIT)
     {
-        return 0;
+        return -MOTOR_DUTY_LIMIT;
     }
     else
     {
@@ -38,7 +33,29 @@ static uint32 fan_transform_percent_to_duty(int16 percent)
         return FAN_ESC_DUTY_MAX;
     }
 
-    return FAN_ESC_DUTY_MIN + ((uint32)percent * FAN_ESC_DUTY_STEP);
+    return FAN_ESC_DUTY_MIN + (percent * FAN_ESC_DUTY_STEP);
+}
+
+static void fan_write_percent(int16 duty)
+{
+    int16 pwm_duty;
+
+    pwm_duty = fan_transform_percent_to_duty(duty);
+    pwm_set_duty(FAN_LEFT_PWM, pwm_duty);
+    pwm_set_duty(FAN_RIGHT_PWM, pwm_duty);
+}
+
+static void fan_start_ramp(int16 target_duty)
+{
+    int16 duty;
+
+    for(duty = 0;
+        duty <= target_duty;
+        duty += 1)
+    {
+        fan_write_percent(duty);
+        system_delay_ms(30);
+    }
 }
 
 static void motor_timer(void)
@@ -55,13 +72,6 @@ static void motor_timer(void)
 
     encoder_clear_count(ENCODER_LEFT);
     encoder_clear_count(ENCODER_RIGHT);
-    motor_tick_ms += MOTOR_CTRL_PERIOD_MS;
-
-    if(CarMode == CAR_MODE_STOP)
-    {
-        motor_output(0, 0);
-        return;
-    }
 
     if(CarMode != CAR_MODE_RUN)
     {
@@ -87,8 +97,8 @@ static void motor_timer(void)
 
 void motor_init(void)
 {
-    Motor.target_left = 0;
-    Motor.target_right = 0;
+    Motor.target_left = SmartCar.motor.target_speed;
+    Motor.target_right = SmartCar.motor.target_speed;
     Motor.read_left = 0;
     Motor.read_right = 0;
     Motor.write_left_duty = 0;
@@ -101,16 +111,18 @@ void motor_init(void)
     gpio_init(MOTOR_LEFT_DIR, GPO, GPIO_LOW, GPO_PUSH_PULL);
     pwm_init(MOTOR_LEFT_PWM, MOTOR_PWM_FREQ, 0);
 
-    pwm_init(FAN_LEFT_PWM, FAN_PWM_FREQ, fan_transform_percent_to_duty(0));
-    pwm_init(FAN_RIGHT_PWM, FAN_PWM_FREQ, fan_transform_percent_to_duty(0));
+    pwm_init(FAN_LEFT_PWM, FAN_PWM_FREQ, 3000);
+    pwm_init(FAN_RIGHT_PWM, FAN_PWM_FREQ, 3000);
+    if(CarMode == CAR_MODE_RUN)
+    {
+        fan_start_ramp(SmartCar.motor.fan_duty);
+    }
 
     encoder_dir_init(ENCODER_LEFT, ENCODER_LEFT_CHA, ENCODER_LEFT_CHB);
     encoder_dir_init(ENCODER_RIGHT, ENCODER_RIGHT_CHA, ENCODER_RIGHT_CHB);
 
     pit_ms_init(TIM1_PIT, MOTOR_CTRL_PERIOD_MS, motor_timer);
     interrupt_set_priority(TIMER1_IRQn, IRQ_PRIORITY_MOTOR);
-
-    fan_set_duty(0);
 }
 
 void motor_output(int16 left_duty, int16 right_duty)
@@ -139,22 +151,4 @@ void motor_output(int16 left_duty, int16 right_duty)
         gpio_set_level(MOTOR_RIGHT_DIR, GPIO_HIGH);
         pwm_set_duty(MOTOR_RIGHT_PWM, -right_duty);
     }
-}
-
-void fan_set_duty(int16 duty)
-{
-    uint32 pwm_duty;
-
-    if(duty < 0)
-    {
-        duty = 0;
-    }
-    else if(duty > 100)
-    {
-        duty = 100;
-    }
-
-    pwm_duty = fan_transform_percent_to_duty(duty);
-    pwm_set_duty(FAN_LEFT_PWM, pwm_duty);
-    pwm_set_duty(FAN_RIGHT_PWM, pwm_duty);
 }

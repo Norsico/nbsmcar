@@ -1,10 +1,10 @@
 #include "headfile.h"
 
-static int16 ServoAngle = SERVO_ANGLE_CENTER;//¶æ»úµ±Ç°½Ç
-static int16 ServoLastError = 0;						 //ÉÏÒ»Ê±¿ÌÎó²î
+static int16 ServoAngle = SERVO_ANGLE_CENTER;//ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½
+static int16 ServoLastError = 0;						 //ï¿½ï¿½Ò»Ê±ï¿½ï¿½ï¿½ï¿½ï¿½
 static uint16 ServoLastSequence = 0;
 
-//ÏÞ·ù
+//ï¿½Þ·ï¿½
 static int16 servo_limit(int16 angle)
 {
     if(angle < SERVO_ANGLE_MIN)
@@ -19,7 +19,7 @@ static int16 servo_limit(int16 angle)
 }
 
 
-//°¢¿ËÂü
+//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static void servo_update_motor_target(void)
 {
     int16 speed;
@@ -28,7 +28,7 @@ static void servo_update_motor_target(void)
     int16 speed_delta;
     int32 diff_scale;
 
-    speed = (int16)image_get_speed_goal();
+    speed = SmartCar.motor.target_speed;
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
     tan_value = (int16)(((int32)steer_angle * 175) / 1000);
@@ -42,7 +42,7 @@ static void servo_update_motor_target(void)
     }
     else if(speed_delta > 0)
     {
-        Motor.target_right = speed - speed_delta;
+        Motor.target_right = speed- speed_delta ;
 				Motor.target_left = speed;
     }
 }
@@ -56,7 +56,7 @@ void servo_init(void)
     pwm_init(SERVO_PWM, SERVO_PWM_FREQ, SERVO_ANGLE_CENTER/3+1500);
 		while(1){
 			if(imu660ra_init())
-				printf("\r\nIMU660RA init error.");      // IMU660RA ³õÊ¼»¯Ê§°Ü
+				printf("\r\nIMU660RA init error.");      // IMU660RA ï¿½ï¿½Ê¼ï¿½ï¿½Ê§ï¿½ï¿½
       else
         break;
 		}
@@ -78,7 +78,7 @@ void servo_update(void)
     }
     ServoLastSequence = Image.sequence;
 
-    error = Image.error;//ÐÞ¸Ä
+    error = Image.error;//ï¿½Þ¸ï¿½
     error_d = error - ServoLastError;
 		imu660ra_get_gyro();
     if(error >= 0)

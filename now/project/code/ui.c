@@ -67,13 +67,13 @@ static const ui_param_t servo_params[] = {
 
 // Motor 菜单配置
 static const ui_param_t motor_params[] = {
-	{"left kp",  &SmartCar.motor.left_kp,        VAL_TYPE_INT16, 1},
+	  {"left kp",  &SmartCar.motor.left_kp,        VAL_TYPE_INT16, 1},
     {"left ki",  &SmartCar.motor.left_ki,        VAL_TYPE_INT16, 1},
     {"right kp", &SmartCar.motor.right_kp,       VAL_TYPE_INT16, 1},
     {"right ki", &SmartCar.motor.right_ki,       VAL_TYPE_INT16, 1},
     {"target",   &SmartCar.motor.target_speed,   VAL_TYPE_INT16, 10},
     {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 10}, 
-    {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 5},  
+    {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 5},
 
 };
 
@@ -82,7 +82,7 @@ static const ui_param_t camera_params[] = {
     {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
     {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
-
+    {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
 };
 
 // 页面路由汇总表
@@ -249,7 +249,7 @@ static void ui_move(int8 dir)
 //页面标题
 static void ui_show_title(const char *title)
 {
-    ips200_set_color(RGB565_CYAN, RGB565_WHITE);
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
     ips200_show_string(0, 0, title);
     if(UiEdit) {
         ips200_show_string(176, 0, "EDIT");
@@ -263,7 +263,7 @@ static void ui_show_power(void)
         ips200_set_color(RGB565_RED, RGB565_WHITE);
         ips200_show_string(200, 0, "low");
     } else {
-        ips200_set_color(RGB565_CYAN, RGB565_WHITE);
+        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
         ips200_show_uint8(200, 0, UiPowerPercent);
         ips200_show_string(224, 0, "%");
     }
@@ -356,9 +356,9 @@ static void ui_show_camera_image(void)
     if(Image.ready == 0) return;
 
     if(UiDebugGray) {
-        ips200_show_gray_image(0,0,Image_Use[0],80,60,160,120,0);
+        ips200_show_gray_image(0,0,ImageGray[0],80,60,160,120,0);
     } else {
-        ips200_show_gray_image(0,0,Pixle[0],80,60,160,120,1);
+        ips200_show_gray_image(0,0,ImageBin[0],80,60,160,120,1);
     }
     image_show_debug_overlay(0,0,160,120);
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
@@ -498,4 +498,5 @@ void ui_update(void)
     if(UiPage == UI_PAGE_DEBUG) {
         ui_show_camera_image();
     }
+    system_delay_ms(10);
 }

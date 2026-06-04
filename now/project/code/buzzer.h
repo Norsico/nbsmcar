@@ -5,7 +5,6 @@
 
 void buzzer_init(void);
 void buzzer_short(void);
-void buzzer_long(void);
 void buzzer_tick(void);
 
 #endif
