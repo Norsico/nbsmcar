@@ -11,7 +11,7 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
  */
 #define IMAGE_COMPRESS_CUT_COL         (1)
 #define IMAGE_COMPRESS_CUT_ROW_TOP     (0)
-#define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (10)
+#define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (1)
 #define IMAGE_COMPRESS_SRC_H           (MT9V03X_H - IMAGE_COMPRESS_CUT_ROW_TOP - IMAGE_COMPRESS_CUT_ROW_BOTTOM)
 #define IMAGE_COMPRESS_SRC_W           (MT9V03X_W - (IMAGE_COMPRESS_CUT_COL * 2))
 
@@ -20,8 +20,6 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_STOP_RAW_THRESHOLD       (25)
 #define IMAGE_OFFLINE_INIT             (2)
 #define IMAGE_SCAN_INTERVAL            (3)
-#define IMAGE_RIGHT_RING_STRAIGHT_MAX  (40.0f)
-#define IMAGE_RIGHT_RING_SPAN_MAX      (18)
 #define IMAGE_STRAIGHT_VARIANCE_MAX    (25)
 #define IMAGE_ZEBRA_MISS_COUNT         (3)
 #define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)
@@ -457,15 +455,19 @@ static uint8 image_otsu(void)
     int16 col;
     int16 i;
     uint16 total;
-    uint16 weight_back;
-    uint16 weight_front;
-    uint16 mean_back;
-    uint16 mean_front;
-    uint16 diff;
-    uint32 sum_all;
-    uint32 sum_back;
-    uint32 score;
-    uint32 best_score;
+    uint32 gray_sum;
+    float pixel_sum;
+    float gray_average;
+    float w0;
+    float w1;
+    float u0tmp;
+    float u1tmp;
+    float u0;
+    float u1;
+    float delta_tmp;
+    float delta_max;
+    float diff0;
+    float diff1;
     uint8 threshold;
 
     for(i = 0; i < 256; i++)
@@ -474,45 +476,60 @@ static uint8 image_otsu(void)
     }
 
     total = IMAGE_W * IMAGE_H;
-    sum_all = 0;
+    pixel_sum = (float)total;
+    gray_sum = 0;
     for(row = 0; row < IMAGE_H; row++)
     {
         for(col = 0; col < IMAGE_W; col++)
         {
             ImageHist[ImageGray[row][col]]++;
-            sum_all += ImageGray[row][col];
+            gray_sum += ImageGray[row][col];
         }
     }
 
-    weight_back = 0;
-    sum_back = 0;
-    best_score = 0;
+    gray_average = (float)gray_sum / pixel_sum;
+    w0 = 0.0f;
+    w1 = 0.0f;
+    u0tmp = 0.0f;
+    u1tmp = 0.0f;
+    u0 = 0.0f;
+    u1 = 0.0f;
+    delta_tmp = 0.0f;
+    delta_max = 0.0f;
     threshold = 0;
 
-    for(i = 0; i < IMAGE_THRESHOLD_DETACH; i++)
+    for(i = 0; i < ImageStatus.Threshold_detach; i++)
     {
-        weight_back += ImageHist[i];
-        if(weight_back == 0)
+        w0 += (float)ImageHist[i] / pixel_sum;
+        u0tmp += (float)i * (float)ImageHist[i] / pixel_sum;
+        if(w0 <= 0.0f)
         {
             continue;
         }
 
-        weight_front = total - weight_back;
-        if(weight_front == 0)
+        w1 = 1.0f - w0;
+        if(w1 <= 0.0f)
         {
             break;
         }
 
-        sum_back += (uint32)i * ImageHist[i];
-        mean_back = (uint16)(sum_back / weight_back);
-        mean_front = (uint16)((sum_all - sum_back) / weight_front);
+        u1tmp = gray_average - u0tmp;
+        u0 = u0tmp / w0;
+        u1 = u1tmp / w1;
+        diff0 = u0 - gray_average;
+        diff1 = u1 - gray_average;
+        delta_tmp = (w0 * diff0 * diff0) + (w1 * diff1 * diff1);
 
-        diff = (mean_front > mean_back) ? (mean_front - mean_back) : (mean_back - mean_front);
-        score = (((uint32)weight_back * weight_front) / 1024U) * (uint32)diff * diff;
-        if(score > best_score)
+        if(delta_tmp > delta_max)
         {
-            best_score = score;
+            delta_max = delta_tmp;
             threshold = (uint8)i;
+        }
+
+        /* Same threshold peak rule as the 19th reference code. */
+        if(delta_tmp < delta_max)
+        {
+            break;
         }
     }
 
@@ -535,9 +552,9 @@ static void image_binarize(uint8 threshold)
 
     threshold = (uint8)threshold_value;
     ImageRawThreshold = threshold;
-    if(threshold < IMAGE_THRESHOLD_STATIC)
+    if(threshold < ImageStatus.Threshold_static)
     {
-        threshold = IMAGE_THRESHOLD_STATIC;
+        threshold = (uint8)ImageStatus.Threshold_static;
     }
 
     ImageStatus.Threshold = threshold;
@@ -1107,6 +1124,7 @@ static void image_draw_lines(void)
                     }
                     if(Xsite == (ImageDeal[Ysite].RightBorder - 1))
                     {
+                        ImageDeal[Ysite].LeftBorder = Xsite;
                         ImageDeal[Ysite].IsLeftFind = 'T';
                         break;
                     }
@@ -1267,112 +1285,129 @@ static void image_draw_lines(void)
     }
 }
 
-/* Fill missing edges and smooth center line. */
+static uint8 image_can_draw_extension_line(void)
+{
+    if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
+       (ImageStatus.Road_type == ROAD_RIGHT_RING))
+    {
+        return 0;
+    }
+
+    if((ImageFlag.image_element_rings != 0) ||
+       (ImageFlag.image_element_rings_flag != 0))
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+/* Fill missing edges and refresh center line. */
 static void image_draw_extension_line(void)
 {
-    int16 center_temp;
-    int16 line_temp;
-
-    TFSite = 55;
-    FTSite = 0;
-
-    if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
+    if(image_can_draw_extension_line())
     {
         TFSite = 55;
-    }
+        FTSite = 0;
 
-    if(ExtenLFlag != 'F')
-    {
-        for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
+        if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
         {
-            if(ImageDeal[Ysite].IsLeftFind == 'W')
-            {
-                if(ImageDeal[Ysite + 1].LeftBorder >= 70)
-                {
-                    ImageStatus.OFFLine = Ysite + 1;
-                    break;
-                }
+            TFSite = 55;
+        }
 
-                while(Ysite >= (ImageStatus.OFFLine + 4))
+        if(ExtenLFlag != 'F')
+        {
+            for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
+            {
+                if(ImageDeal[Ysite].IsLeftFind == 'W')
                 {
-                    Ysite--;
-                    if((ImageDeal[Ysite].IsLeftFind == 'T') &&
-                       (ImageDeal[Ysite - 1].IsLeftFind == 'T') &&
-                       (ImageDeal[Ysite - 2].IsLeftFind == 'T') &&
-                       (ImageDeal[Ysite - 2].LeftBorder > 0) &&
-                       (ImageDeal[Ysite - 2].LeftBorder < 70))
+                    if(ImageDeal[Ysite + 1].LeftBorder >= 70)
                     {
-                        FTSite = Ysite - 2;
+                        ImageStatus.OFFLine = Ysite + 1;
                         break;
                     }
-                }
 
-                if(FTSite > ImageStatus.OFFLine)
-                {
-                    DetL = ((float)(ImageDeal[FTSite].LeftBorder -
-                                    ImageDeal[TFSite].LeftBorder)) /
-                           ((float)(FTSite - TFSite));
-                    for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                    while(Ysite >= (ImageStatus.OFFLine + 4))
                     {
-                        ImageDeal[ytemp].LeftBorder =
-                            (int16)(DetL * (float)(ytemp - TFSite)) + ImageDeal[TFSite].LeftBorder;
+                        Ysite--;
+                        if((ImageDeal[Ysite].IsLeftFind == 'T') &&
+                           (ImageDeal[Ysite - 1].IsLeftFind == 'T') &&
+                           (ImageDeal[Ysite - 2].IsLeftFind == 'T') &&
+                           (ImageDeal[Ysite - 2].LeftBorder > 0) &&
+                           (ImageDeal[Ysite - 2].LeftBorder < 70))
+                        {
+                            FTSite = Ysite - 2;
+                            break;
+                        }
+                    }
+
+                    if(FTSite > ImageStatus.OFFLine)
+                    {
+                        DetL = ((float)(ImageDeal[FTSite].LeftBorder -
+                                        ImageDeal[TFSite].LeftBorder)) /
+                               ((float)(FTSite - TFSite));
+                        for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                        {
+                            ImageDeal[ytemp].LeftBorder =
+                                (int16)(DetL * (float)(ytemp - TFSite)) + ImageDeal[TFSite].LeftBorder;
+                        }
                     }
                 }
-            }
-            else
-            {
-                TFSite = Ysite + 2;
+                else
+                {
+                    TFSite = Ysite + 2;
+                }
             }
         }
-    }
 
-    if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
-    {
-        TFSite = 55;
-    }
-
-    if(ExtenRFlag != 'F')
-    {
-        FTSite = 0;
-        for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
+        if(ImageStatus.WhiteLine >= ImageStatus.TowPoint_True - 15)
         {
-            if(ImageDeal[Ysite].IsRightFind == 'W')
-            {
-                if(ImageDeal[Ysite + 1].RightBorder <= 10)
-                {
-                    ImageStatus.OFFLine = Ysite + 1;
-                    break;
-                }
+            TFSite = 55;
+        }
 
-                while(Ysite >= (ImageStatus.OFFLine + 4))
+        if(ExtenRFlag != 'F')
+        {
+            FTSite = 0;
+            for(Ysite = 54; Ysite >= (ImageStatus.OFFLine + 4); Ysite--)
+            {
+                if(ImageDeal[Ysite].IsRightFind == 'W')
                 {
-                    Ysite--;
-                    if((ImageDeal[Ysite].IsRightFind == 'T') &&
-                       (ImageDeal[Ysite - 1].IsRightFind == 'T') &&
-                       (ImageDeal[Ysite - 2].IsRightFind == 'T') &&
-                       (ImageDeal[Ysite - 2].RightBorder < 70) &&
-                       (ImageDeal[Ysite - 2].RightBorder > 10))
+                    if(ImageDeal[Ysite + 1].RightBorder <= 10)
                     {
-                        FTSite = Ysite - 2;
+                        ImageStatus.OFFLine = Ysite + 1;
                         break;
                     }
-                }
 
-                if(FTSite > ImageStatus.OFFLine)
-                {
-                    DetR = ((float)(ImageDeal[FTSite].RightBorder -
-                                    ImageDeal[TFSite].RightBorder)) /
-                           ((float)(FTSite - TFSite));
-                    for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                    while(Ysite >= (ImageStatus.OFFLine + 4))
                     {
-                        ImageDeal[ytemp].RightBorder =
-                            (int16)(DetR * (float)(ytemp - TFSite)) + ImageDeal[TFSite].RightBorder;
+                        Ysite--;
+                        if((ImageDeal[Ysite].IsRightFind == 'T') &&
+                           (ImageDeal[Ysite - 1].IsRightFind == 'T') &&
+                           (ImageDeal[Ysite - 2].IsRightFind == 'T') &&
+                           (ImageDeal[Ysite - 2].RightBorder < 70) &&
+                           (ImageDeal[Ysite - 2].RightBorder > 10))
+                        {
+                            FTSite = Ysite - 2;
+                            break;
+                        }
+                    }
+
+                    if(FTSite > ImageStatus.OFFLine)
+                    {
+                        DetR = ((float)(ImageDeal[FTSite].RightBorder -
+                                        ImageDeal[TFSite].RightBorder)) /
+                               ((float)(FTSite - TFSite));
+                        for(ytemp = TFSite; ytemp >= FTSite; ytemp--)
+                        {
+                            ImageDeal[ytemp].RightBorder =
+                                (int16)(DetR * (float)(ytemp - TFSite)) + ImageDeal[TFSite].RightBorder;
+                        }
                     }
                 }
-            }
-            else
-            {
-                TFSite = Ysite + 2;
+                else
+                {
+                    TFSite = Ysite + 2;
+                }
             }
         }
     }
@@ -1386,6 +1421,13 @@ static void image_draw_extension_line(void)
         ImageDeal[Ysite].Center = (ImageDeal[Ysite].LeftBorder + ImageDeal[Ysite].RightBorder) / 2;
         ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
     }
+}
+
+/* Match RouteFilter from the 19th reference code. */
+static void image_route_filter(void)
+{
+    int16 center_temp;
+    int16 line_temp;
 
     center_temp = 0;
     line_temp = 0;
@@ -1456,89 +1498,90 @@ static void image_straight_acc_test(void)
     }
 }
 
-static float image_straight_judge(uint8 dir, uint8 start_row, uint8 end_row)
+static uint16 image_ring_outer_white_count(uint8 type, uint8 startline)
 {
+    uint16 count;
     int16 row;
-    int16 count;
-    float sum;
-    float err;
-    float slope;
+    int16 row_end;
+    int16 col;
 
-    if(start_row >= IMAGE_H)
+    count = 0;
+    row = (int16)startline;
+    if(row < 0)
     {
-        start_row = IMAGE_H - 1;
+        row = 0;
     }
-    if(end_row >= IMAGE_H)
+    if(row >= IMAGE_H)
     {
-        end_row = IMAGE_H - 1;
-    }
-    if(start_row >= end_row)
-    {
-        return 999.0f;
+        return 0;
     }
 
-    count = (int16)end_row - (int16)start_row;
-    if(count == 0)
+    row_end = row + 10;
+    if(row_end > IMAGE_H)
     {
-        return 999.0f;
+        row_end = IMAGE_H;
     }
 
-    sum = 0.0f;
-    if(dir == 1)
+    if(type == 1)
     {
-        slope = ((float)ImageDeal[start_row].LeftBorder -
-                 (float)ImageDeal[end_row].LeftBorder) /
-                (float)((int16)start_row - (int16)end_row);
-        for(row = 0; row < count; row++)
+        for(; row < row_end; row++)
         {
-            err = ((float)ImageDeal[start_row].LeftBorder +
-                   slope * (float)row -
-                   (float)ImageDeal[start_row + row].LeftBorder);
-            sum += err * err;
-        }
-    }
-    else if(dir == 2)
-    {
-        slope = ((float)ImageDeal[start_row].RightBorder -
-                 (float)ImageDeal[end_row].RightBorder) /
-                (float)((int16)start_row - (int16)end_row);
-        for(row = 0; row < count; row++)
-        {
-            err = ((float)ImageDeal[start_row].RightBorder +
-                   slope * (float)row -
-                   (float)ImageDeal[start_row + row].RightBorder);
-            sum += err * err;
+            for(col = ImageDeal[row].LeftBorder; col > 1; col--)
+            {
+                if(ImageBin[row][col] != IMAGE_BLACK)
+                {
+                    count++;
+                }
+            }
         }
     }
     else
     {
-        return 999.0f;
+        for(; row < row_end; row++)
+        {
+            for(col = ImageDeal[row].RightBorder; col < (IMAGE_W - 2); col++)
+            {
+                if(ImageBin[row][col] != IMAGE_BLACK)
+                {
+                    count++;
+                }
+            }
+        }
     }
 
-    return sum / (float)count;
+    return count;
+}
+
+static uint8 image_ring_bottom_ready(uint8 type)
+{
+    int16 row;
+
+    for(row = 52; row <= 58; row++)
+    {
+        if(type == 1)
+        {
+            if(ImageDeal[row].IsLeftFind == 'W')
+            {
+                return 0;
+            }
+        }
+        else
+        {
+            if(ImageDeal[row].IsRightFind == 'W')
+            {
+                return 0;
+            }
+        }
+    }
+
+    return 1;
 }
 
 static void image_judge_left_ring(void)
 {
-    if((ImageStatus.Right_Line > 7) ||
-       (ImageStatus.Left_Line < 13) ||
-       (ImageStatus.OFFLine > 10) ||
-       (image_straight_judge(2, 25, 45) > 50.0f) ||
-       (ImageStatus.WhiteLine > 15) ||
-       (ImageDeal[52].IsLeftFind == 'W') ||
-       (ImageDeal[53].IsLeftFind == 'W') ||
-       (ImageDeal[54].IsLeftFind == 'W') ||
-       (ImageDeal[55].IsLeftFind == 'W') ||
-       (ImageDeal[56].IsLeftFind == 'W') ||
-       (ImageDeal[57].IsLeftFind == 'W') ||
-       (ImageDeal[58].IsLeftFind == 'W'))
-    {
-        return;
-    }
-
     Left_RingsFlag_Point1_Ysite = 0;
     Left_RingsFlag_Point2_Ysite = 0;
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > 3; Ysite--)
     {
         if((ImageDeal[Ysite].LeftBoundary_First -
             ImageDeal[Ysite - 1].LeftBoundary_First) > 4)
@@ -1548,7 +1591,7 @@ static void image_judge_left_ring(void)
         }
     }
 
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > 3; Ysite--)
     {
         if((ImageDeal[Ysite + 1].LeftBoundary -
             ImageDeal[Ysite].LeftBoundary) > 4)
@@ -1558,12 +1601,7 @@ static void image_judge_left_ring(void)
         }
     }
 
-    if(Left_RingsFlag_Point1_Ysite > 52)
-    {
-        Left_RingsFlag_Point1_Ysite = 52;
-    }
-
-    for(Ysite = Left_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
+    for(Ysite = Left_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
         if((ImageDeal[Ysite + 6].LeftBorder < ImageDeal[Ysite + 3].LeftBorder) &&
            (ImageDeal[Ysite + 5].LeftBorder < ImageDeal[Ysite + 3].LeftBorder) &&
@@ -1577,7 +1615,7 @@ static void image_judge_left_ring(void)
 
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
        (Ring_Help_Flag == 0) &&
-       (ImageStatus.Left_Line > 13))
+       (ImageStatus.Left_Line > 6))
     {
         Ring_Help_Flag = 1;
     }
@@ -1597,27 +1635,9 @@ static void image_judge_left_ring(void)
 
 static void image_judge_right_ring(void)
 {
-    int16 point_span;
-
-    if((ImageStatus.Left_Line > 7) ||
-       (ImageStatus.Right_Line < 13) ||
-       (ImageStatus.OFFLine > 10) ||
-       (image_straight_judge(1, 25, 45) > IMAGE_RIGHT_RING_STRAIGHT_MAX) ||
-       (ImageStatus.WhiteLine > 15) ||
-       (ImageDeal[52].IsRightFind == 'W') ||
-       (ImageDeal[53].IsRightFind == 'W') ||
-       (ImageDeal[54].IsRightFind == 'W') ||
-       (ImageDeal[55].IsRightFind == 'W') ||
-       (ImageDeal[56].IsRightFind == 'W') ||
-       (ImageDeal[57].IsRightFind == 'W') ||
-       (ImageDeal[58].IsRightFind == 'W'))
-    {
-        return;
-    }
-
     Right_RingsFlag_Point1_Ysite = 0;
     Right_RingsFlag_Point2_Ysite = 0;
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > 3; Ysite--)
     {
         if((ImageDeal[Ysite - 1].RightBoundary_First -
             ImageDeal[Ysite].RightBoundary_First) > 4)
@@ -1627,7 +1647,7 @@ static void image_judge_right_ring(void)
         }
     }
 
-    for(Ysite = 58; Ysite > 25; Ysite--)
+    for(Ysite = 58; Ysite > 3; Ysite--)
     {
         if((ImageDeal[Ysite].RightBoundary -
             ImageDeal[Ysite + 1].RightBoundary) > 4)
@@ -1637,22 +1657,7 @@ static void image_judge_right_ring(void)
         }
     }
 
-    if(Right_RingsFlag_Point1_Ysite > 52)
-    {
-        Right_RingsFlag_Point1_Ysite = 52;
-    }
-
-    point_span = Right_RingsFlag_Point2_Ysite - Right_RingsFlag_Point1_Ysite;
-    if((Right_RingsFlag_Point1_Ysite <= 25) ||
-       (Right_RingsFlag_Point2_Ysite <= 25) ||
-       (point_span <= 3) ||
-       (point_span > IMAGE_RIGHT_RING_SPAN_MAX))
-    {
-        Ring_Help_Flag = 0;
-        return;
-    }
-
-    for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
+    for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
         if((ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder) &&
            (ImageDeal[Ysite + 5].RightBorder > ImageDeal[Ysite + 3].RightBorder) &&
@@ -1664,12 +1669,16 @@ static void image_judge_right_ring(void)
         }
     }
 
-    if((Ring_Help_Flag == 0) && (ImageStatus.Right_Line > 7))
+    if((Right_RingsFlag_Point2_Ysite > (Right_RingsFlag_Point1_Ysite + 3)) &&
+       (Ring_Help_Flag == 0) &&
+       (ImageStatus.Right_Line > 7))
     {
         Ring_Help_Flag = 1;
     }
 
-    if((Ring_Help_Flag == 1) && (ImageFlag.image_element_rings_flag == 0))
+    if((Right_RingsFlag_Point2_Ysite > (Right_RingsFlag_Point1_Ysite + 3)) &&
+       (Ring_Help_Flag == 1) &&
+       (ImageFlag.image_element_rings_flag == 0))
     {
         ImageFlag.image_element_rings = 2;
         ImageFlag.image_element_rings_flag = 1;
@@ -1689,8 +1698,24 @@ static void image_element_test(void)
         image_straight_acc_test();
     }
 
-    image_judge_left_ring();
-    image_judge_right_ring();
+    if((ImageStatus.OFFLine < 5) && (ImageStatus.WhiteLine < 3))
+    {
+        if((ImageStatus.Right_Line < 2) &&
+           (ImageStatus.Left_Line > 13) &&
+           image_ring_bottom_ready(1) &&
+           (image_ring_outer_white_count(1, ImageStatus.Left_Line) > 70))
+        {
+            image_judge_left_ring();
+        }
+
+        if((ImageStatus.Left_Line < 2) &&
+           (ImageStatus.Right_Line > 17) &&
+           image_ring_bottom_ready(2) &&
+           (image_ring_outer_white_count(2, ImageStatus.Right_Line) > 120))
+        {
+            image_judge_right_ring();
+        }
+    }
 }
 
 static void image_handle_left_ring(void)
@@ -1736,7 +1761,7 @@ static void image_handle_left_ring(void)
     {
         ImageFlag.image_element_rings_flag = 6;
     }
-    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 3))
+    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 4))
     {
         ImageFlag.image_element_rings_flag = 7;
     }
@@ -1745,21 +1770,17 @@ static void image_handle_left_ring(void)
     {
         Point_Ysite = 0;
         Point_Xsite = 0;
-        for(Ysite = 50; Ysite > (ImageStatus.OFFLine + 3); Ysite--)
+        for(Ysite = 45; Ysite > (ImageStatus.OFFLine + 3); Ysite--)
         {
-            if((ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite + 2].RightBorder) &&
-               (ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite - 2].RightBorder) &&
-               (ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite + 1].RightBorder) &&
-               (ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite - 1].RightBorder) &&
-               (ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite + 4].RightBorder) &&
-               (ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite - 4].RightBorder))
+            if((ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite + 1].RightBorder) &&
+               (ImageDeal[Ysite].RightBorder <= ImageDeal[Ysite - 1].RightBorder))
             {
                 Point_Xsite = ImageDeal[Ysite].RightBorder;
                 Point_Ysite = Ysite;
                 break;
             }
         }
-        if(Point_Ysite > 24)
+        if(Point_Ysite > 22)
         {
             ImageFlag.image_element_rings_flag = 8;
         }
@@ -1796,7 +1817,7 @@ static void image_handle_left_ring(void)
     {
         for(Ysite = 57; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 3;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite];
         }
     }
 
@@ -1894,7 +1915,7 @@ static void image_handle_left_ring(void)
     {
         Repair_Point_Xsite = 20;
         Repair_Point_Ysite = 0;
-        for(Ysite = 40; Ysite > 5; Ysite--)
+        for(Ysite = 40; Ysite > 8; Ysite--)
         {
             if((ImageBin[Ysite][28] == IMAGE_WHITE) &&
                (ImageBin[Ysite - 1][28] == IMAGE_BLACK))
@@ -1913,7 +1934,7 @@ static void image_handle_left_ring(void)
                 ImageDeal[Ysite].RightBorder =
                     (ImageDeal[58].RightBorder - Repair_Point_Xsite) * (Ysite - 58) /
                     (58 - Repair_Point_Ysite) + ImageDeal[58].RightBorder;
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 3;
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite];
                 if(ImageDeal[Ysite].Center <= ImageDeal[Ysite].LeftBorder)
                 {
                     ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + 1;
@@ -1927,7 +1948,7 @@ static void image_handle_left_ring(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 3;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite];
             if(ImageDeal[Ysite].Center <= ImageDeal[Ysite].LeftBorder)
             {
                 ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + 1;
@@ -1943,7 +1964,6 @@ static void image_handle_right_ring(void)
     int16 flag_y;
     int16 scan_start;
     int16 scan_end;
-    int16 center_bias;
     float slope;
 
     num = 0;
@@ -1991,12 +2011,8 @@ static void image_handle_right_ring(void)
         Point_Ysite = 0;
         for(Ysite = 45; Ysite > (ImageStatus.OFFLine + 3); Ysite--)
         {
-            if((ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite + 2].LeftBorder) &&
-               (ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite - 2].LeftBorder) &&
-               (ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite + 1].LeftBorder) &&
-               (ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite - 1].LeftBorder) &&
-               (ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite + 4].LeftBorder) &&
-               (ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite - 4].LeftBorder))
+            if((ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite + 1].LeftBorder) &&
+               (ImageDeal[Ysite].LeftBorder >= ImageDeal[Ysite - 1].LeftBorder))
             {
                 Point_Xsite = ImageDeal[Ysite].LeftBorder;
                 Point_Ysite = Ysite;
@@ -2038,10 +2054,9 @@ static void image_handle_right_ring(void)
     if((ImageFlag.image_element_rings_flag >= 1) &&
        (ImageFlag.image_element_rings_flag <= 4))
     {
-        center_bias = (ImageFlag.image_element_rings_flag <= 2) ? 6 : 2;
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + center_bias;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
             if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
             {
                 ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
@@ -2147,14 +2162,14 @@ static void image_handle_right_ring(void)
 
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        Repair_Point_Xsite = 59;
+        Repair_Point_Xsite = 20;
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((ImageBin[Ysite][51] == IMAGE_WHITE) &&
-               (ImageBin[Ysite - 1][51] == IMAGE_BLACK))
+            if((ImageBin[Ysite][28] == IMAGE_WHITE) &&
+               (ImageBin[Ysite - 1][28] == IMAGE_BLACK))
             {
-                Repair_Point_Xsite = 51;
+                Repair_Point_Xsite = 28;
                 Repair_Point_Ysite = Ysite - 1;
                 ImageStatus.OFFLine = Ysite + 1;
                 break;
@@ -2168,7 +2183,7 @@ static void image_handle_right_ring(void)
                 ImageDeal[Ysite].LeftBorder =
                     (ImageDeal[58].LeftBorder - Repair_Point_Xsite) * (Ysite - 58) /
                     (58 - Repair_Point_Ysite) + ImageDeal[58].LeftBorder;
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
+                ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
                 if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
                 {
                     ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
@@ -2181,7 +2196,7 @@ static void image_handle_right_ring(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
             if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
             {
                 ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
@@ -2379,6 +2394,7 @@ static void image_process(void)
     image_search_border(IMAGE_H - 2);
     image_element_test();
     image_draw_extension_line();
+    image_route_filter();
     image_element_handle();
     image_check_zebra();
     image_get_det(image_tow_point());
