@@ -739,62 +739,48 @@ static uint8 image_pixel(int16 row, int16 col)
     return ImageBin[row][col];
 }
 
-static int16 image_confirm_left_boundary(int16 row, int16 col)
+static int16 image_limit_col(int16 col)
 {
-    int16 scan_col;
-
-    if((row < 0) || (row >= IMAGE_H))
+    if(col < 0)
     {
         return 0;
     }
     if(col >= IMAGE_W)
     {
-        col = IMAGE_W - 1;
-    }
-    if(col < 1)
-    {
-        col = 1;
-    }
-
-    for(scan_col = col; scan_col > 0; scan_col--)
-    {
-        if((ImageBin[row][scan_col] == IMAGE_WHITE) &&
-           (ImageBin[row][scan_col - 1] == IMAGE_BLACK))
-        {
-            return scan_col;
-        }
-    }
-
-    return 0;
-}
-
-static int16 image_confirm_right_boundary(int16 row, int16 col)
-{
-    int16 scan_col;
-
-    if((row < 0) || (row >= IMAGE_H))
-    {
         return IMAGE_W - 1;
     }
-    if(col < 0)
+
+    return col;
+}
+
+static void image_save_left_boundary(int16 row, int16 col)
+{
+    if((row < 0) || (row >= IMAGE_H))
     {
-        col = 0;
-    }
-    if(col >= (IMAGE_W - 1))
-    {
-        col = IMAGE_W - 2;
+        return;
     }
 
-    for(scan_col = col; scan_col < (IMAGE_W - 1); scan_col++)
+    col = image_limit_col(col);
+    if(ImageDeal[row].LeftBoundary_First == 0)
     {
-        if((ImageBin[row][scan_col] == IMAGE_WHITE) &&
-           (ImageBin[row][scan_col + 1] == IMAGE_BLACK))
-        {
-            return scan_col;
-        }
+        ImageDeal[row].LeftBoundary_First = col;
+    }
+    ImageDeal[row].LeftBoundary = col;
+}
+
+static void image_save_right_boundary(int16 row, int16 col)
+{
+    if((row < 0) || (row >= IMAGE_H))
+    {
+        return;
     }
 
-    return IMAGE_W - 1;
+    col = image_limit_col(col);
+    if(ImageDeal[row].RightBoundary_First == (IMAGE_W - 1))
+    {
+        ImageDeal[row].RightBoundary_First = col;
+    }
+    ImageDeal[row].RightBoundary = col;
 }
 
 static void image_search_left_right_boundary(uint8 bottom_row)
@@ -881,15 +867,8 @@ static void image_search_left_right_boundary(uint8 bottom_row)
                     left_dir = (left_dir == 0) ? 3 : (left_dir - 1);
                 }
 
-                if((left_y >= 0) && (left_y < IMAGE_H))
-                {
-                    left_x = image_confirm_left_boundary(left_y, left_x);
-                    if(ImageDeal[left_y].LeftBoundary_First == 0)
-                    {
-                        ImageDeal[left_y].LeftBoundary_First = left_x;
-                    }
-                    ImageDeal[left_y].LeftBoundary = left_x;
-                }
+                /* Match the 19th reference trace: store the walked point itself. */
+                image_save_left_boundary(left_y, left_x);
             }
         }
 
@@ -919,15 +898,8 @@ static void image_search_left_right_boundary(uint8 bottom_row)
                     right_dir = (right_dir == 3) ? 0 : (right_dir + 1);
                 }
 
-                if((right_y >= 0) && (right_y < IMAGE_H))
-                {
-                    right_x = image_confirm_right_boundary(right_y, right_x);
-                    if(ImageDeal[right_y].RightBoundary_First == (IMAGE_W - 1))
-                    {
-                        ImageDeal[right_y].RightBoundary_First = right_x;
-                    }
-                    ImageDeal[right_y].RightBoundary = right_x;
-                }
+                /* Match the 19th reference trace: store the walked point itself. */
+                image_save_right_boundary(right_y, right_x);
             }
         }
 
