@@ -326,30 +326,6 @@ static void ui_show_debug(void)
     }
 }
 
-static const char *ui_ring_name(void)
-{
-    if(Image.ring == 1) {
-        return "left ";
-    }
-    if(Image.ring == 2) {
-        return "right";
-    }
-    return "none ";
-}
-
-static const char *ui_ring_status(void)
-{
-    switch(Image.ring_step) {
-        case 1:  return "find mouth";
-        case 2:  return "near ring ";
-        case 5:  return "enter fill";
-        case 6:  return "enter arc ";
-        case 7:  return "inside    ";
-        case 8:  return "exit find ";
-        case 9:  return "exit line ";
-        default: return "normal    ";
-    }
-}
 //Í¼ÏñÄÚÈÝ
 static void ui_show_camera_image(void)
 {
@@ -373,20 +349,9 @@ static void ui_show_camera_image(void)
     } else {
         ips200_show_string(0, 140, "track ok  ");
     }
-    ips200_show_string(112, 140, "ring");
-    ips200_show_string(160, 140, ui_ring_name());
-
-    ips200_show_string(0, 156, "ring state");
-    ips200_show_string(88, 156, ui_ring_status());
-
-    ips200_show_string(0, 172, "zebra");
-    ips200_show_string(48, 172, Image.zebra ? "hit" : "no ");
-    ips200_show_string(88, 172, "count");
-    ips200_show_string(136, 172, "   ");
-    ips200_show_uint8(136, 172, Image.zebra_count);
-    ips200_show_string(176, 172, "tow");
-    ips200_show_string(208, 172, "  ");
-    ips200_show_uint8(208, 172, Image.tow_row);
+    ips200_show_string(112, 140, "tow y");
+    ips200_show_string(160, 140, "  ");
+    ips200_show_uint8(160, 140, Image.tow_row);
 }
 
 static void ui_show(void)
