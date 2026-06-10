@@ -1,7 +1,7 @@
 #include "headfile.h"
 
 // ==========================================
-// 1. Ã¶¾ÙÓë³£Á¿¶¨Òå
+// 1. Ã¶ï¿½ï¿½ï¿½ë³£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 // ==========================================
 typedef enum
 {
@@ -22,40 +22,40 @@ typedef enum
 } ui_key_event;
 
 /* IPS200_PORTAIT: x 0-239, y 0-319 */
-#define UI_ROW_H                     (16)  //¿ØÖÆÃ¿ÐÐ y ¼ä¾à
-#define UI_NAME_X                    (16)  //¿ØÖÆÃû×Ö x Î»ÖÃ
-#define UI_VALUE_X                   (144) //¿ØÖÆÊý¾Ý x Î»ÖÃ
+#define UI_ROW_H                     (16)  //ï¿½ï¿½ï¿½ï¿½Ã¿ï¿½ï¿½ y ï¿½ï¿½ï¿½
+#define UI_NAME_X                    (16)  //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ x Î»ï¿½ï¿½
+#define UI_VALUE_X                   (144) //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ x Î»ï¿½ï¿½
 
 // ==========================================
-// 2. Êý¾ÝÇý¶¯ UI ºËÐÄ½á¹¹Ìå¶¨Òå 
+// 2. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ UI ï¿½ï¿½ï¿½Ä½á¹¹ï¿½å¶¨ï¿½ï¿½ 
 // ==========================================
-// Ö§³ÖµÄ±äÁ¿ÀàÐÍ
+// Ö§ï¿½ÖµÄ±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 typedef enum {
     VAL_TYPE_INT16,
     VAL_TYPE_UINT16,
     VAL_TYPE_UINT8
 } var_type_e;
 
-// µ¥¸ö²ÎÊý²Ëµ¥ÏîÃèÊö
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 typedef struct {
-    const char *name;     // UI ÉÏÏÔÊ¾µÄÃû×Ö
-    void *val_ptr;        // Ö¸ÏòÕæÊµ±äÁ¿µÄÄÚ´æµØÖ·
-    var_type_e type;      // ±äÁ¿Êµ¼ÊÊý¾ÝÀàÐÍ
-    int16 step;           // Ã¿´Î°´¼ü¼Ó/¼õµÄ²½³¤
+    const char *name;     // UI ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    void *val_ptr;        // Ö¸ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú´ï¿½ï¿½Ö·
+    var_type_e type;      // ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    int16 step;           // Ã¿ï¿½Î°ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½Ä²ï¿½ï¿½ï¿½
 } ui_param_t;
 
-// ×ÓÒ³ÃæÃèÊö
+// ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 typedef struct {
-    const char *title;        // Ò³Ãæ±êÌâ
-    const ui_param_t *params; // ²ÎÊýÊý×éÖ¸Õë
-    uint8 param_count;        // ²ÎÊý¸öÊý
+    const char *title;        // Ò³ï¿½ï¿½ï¿½ï¿½ï¿½
+    const ui_param_t *params; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½
+    uint8 param_count;        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 } ui_menu_t;
 
 // ==========================================
-// 3. ²Ëµ¥Êý¾ÝÅäÖÃ±í (ÐÞ¸Ä²ÎÊýÖ»¸ÄÕâÀï)
+// 3. ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã±ï¿½ (ï¿½Þ¸Ä²ï¿½ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
 // ==========================================
 
-// Servo ²Ëµ¥ÅäÖÃ
+// Servo ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½
 static const ui_param_t servo_params[] = {
     {"kp",       &SmartCar.servo.kp,        VAL_TYPE_INT16, 2},
     {"kd",       &SmartCar.servo.kd,        VAL_TYPE_INT16, 2},
@@ -65,7 +65,7 @@ static const ui_param_t servo_params[] = {
     {"point",    &SmartCar.servo.tow_point, VAL_TYPE_INT16, 1},
 };
 
-// Motor ²Ëµ¥ÅäÖÃ
+// Motor ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½
 static const ui_param_t motor_params[] = {
 	  {"left kp",  &SmartCar.motor.left_kp,        VAL_TYPE_INT16, 1},
     {"left ki",  &SmartCar.motor.left_ki,        VAL_TYPE_INT16, 1},
@@ -77,7 +77,7 @@ static const ui_param_t motor_params[] = {
 
 };
 
-// Camera ²Ëµ¥ÅäÖÃ
+// Camera ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½
 static const ui_param_t camera_params[] = {
     {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
@@ -85,25 +85,25 @@ static const ui_param_t camera_params[] = {
     {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
 };
 
-// Ò³ÃæÂ·ÓÉ»ã×Ü±í
+// Ò³ï¿½ï¿½Â·ï¿½É»ï¿½ï¿½Ü±ï¿½
 static const ui_menu_t menu_pages[] = {
     {"Servo",  servo_params,  (uint8)(sizeof(servo_params) / sizeof(servo_params[0]))},
     {"Motor",  motor_params,  (uint8)(sizeof(motor_params) / sizeof(motor_params[0]))},
     {"Camera", camera_params, (uint8)(sizeof(camera_params) / sizeof(camera_params[0]))},
 };
 
-// Ö÷Ò³²Ëµ¥Ãû×ÖÅäÖÃ
+// ï¿½ï¿½Ò³ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static const char* main_menu_names[] = {"Servo", "Motor", "Camera", "Debug"};
 #define MAIN_MENU_COUNT 4
 
 // ==========================================
-// 4. È«¾Ö×´Ì¬±äÁ¿
+// 4. È«ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ï¿½
 // ==========================================
 static ui_page UiPage = UI_PAGE_MAIN;
-static uint8 UiSelect = 0;//²ÎÊýÑ¡Ôñ×´Ì¬
-static uint8 UiEdit = 0;//±à¼­×´Ì¬
-static uint8 UiDebugGray = 0;//ÏÔÊ¾¶þÖµ»¯»¹ÊÇ»Ò¶È
-static uint8 UiPowerPercent;//µç³Ø°Ù·Ö±È
+static uint8 UiSelect = 0;//ï¿½ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½×´Ì¬
+static uint8 UiEdit = 0;//ï¿½à¼­×´Ì¬
+static uint8 UiDebugGray = 0;//ï¿½ï¿½Ê¾ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½Ç»Ò¶ï¿½
+static uint8 UiPowerPercent;//ï¿½ï¿½Ø°Ù·Ö±ï¿½
 static uint8 KeyLast[4] = {1, 1, 1, 1};
 
 uint8 ui_is_debug(void)
@@ -112,7 +112,7 @@ uint8 ui_is_debug(void)
 }
 
 // ==========================================
-// 5. µ×²ã»ù´¡¹¦ÄÜº¯Êý
+// 5. ï¿½×²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Üºï¿½ï¿½ï¿½
 // ==========================================
 static void ui_read_power(void)
 {
@@ -186,7 +186,7 @@ static ui_key_event ui_key_scan(void)
 }
 
 // ==========================================
-// 6. UI Êý¾Ý²Ù×÷³éÏó²ã
+// 6. UI ï¿½ï¿½ï¿½Ý²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 // ==========================================
 static uint8 get_current_page_item_count(void)
 {
@@ -211,7 +211,7 @@ static void ui_change_current_value(int8 dir)
     p = &menu_pages[UiPage - UI_PAGE_SERVO].params[UiSelect];
     change = (int16)(p->step * dir);
 
-    // ¸ù¾ÝÊý¾ÝÀàÐÍ£¬ÕýÈ·×ª»»Ö¸Õë²¢¼ÓÉÏÆ«ÒÆÁ¿
+    // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í£ï¿½ï¿½ï¿½È·×ªï¿½ï¿½Ö¸ï¿½ë²¢ï¿½ï¿½ï¿½ï¿½Æ«ï¿½ï¿½ï¿½ï¿½
     switch(p->type) {
         case VAL_TYPE_INT16:  *(int16*)p->val_ptr  = (int16)(*(int16*)p->val_ptr + change); break;
         case VAL_TYPE_UINT16: *(uint16*)p->val_ptr = (uint16)((int16)*(uint16*)p->val_ptr + change); break;
@@ -224,7 +224,7 @@ static void ui_show_current_value(const ui_param_t *p, uint16 y)
 {
     int32 val_to_show = 0;
     
-    // È¡³öÊýÖµ²¢Í³Ò»ÓÃ int16 ÏÔÊ¾
+    // È¡ï¿½ï¿½ï¿½ï¿½Öµï¿½ï¿½Í³Ò»ï¿½ï¿½ int16 ï¿½ï¿½Ê¾
     switch (p->type) {
         case VAL_TYPE_INT16:  val_to_show = *(int16*)p->val_ptr; break;
         case VAL_TYPE_UINT16: val_to_show = *(uint16*)p->val_ptr; break;
@@ -244,9 +244,9 @@ static void ui_move(int8 dir)
 }
 
 // ==========================================
-// 7. Ò³ÃæäÖÈ¾Âß¼­
+// 7. Ò³ï¿½ï¿½ï¿½ï¿½È¾ï¿½ß¼ï¿½
 // ==========================================
-//Ò³Ãæ±êÌâ
+//Ò³ï¿½ï¿½ï¿½ï¿½ï¿½
 static void ui_show_title(const char *title)
 {
     ips200_set_color(RGB565_BLACK, RGB565_WHITE);
@@ -255,7 +255,7 @@ static void ui_show_title(const char *title)
         ips200_show_string(176, 0, "EDIT");
     }
 }
-//»­µç³Ø
+//ï¿½ï¿½ï¿½ï¿½ï¿½
 static void ui_show_power(void)
 {
     ui_draw_battery(160, 2, UiPowerPercent);
@@ -268,7 +268,7 @@ static void ui_show_power(void)
         ips200_show_string(224, 0, "%");
     }
 }
-// Ö÷Ò³ÃæäÖÈ¾º¯Êý
+// ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½ï¿½ï¿½
 static void ui_show_main(void)
 {
     uint8 i;
@@ -286,7 +286,7 @@ static void ui_show_main(void)
     }
 }
 
-// Í¨ÓÃµÄ²ÎÊýÒ³ÃæäÖÈ¾º¯Êý 
+// Í¨ï¿½ÃµÄ²ï¿½ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½È¾ï¿½ï¿½ï¿½ï¿½ 
 static void ui_show_generic_page(ui_page page)
 {
     const ui_menu_t *menu;
@@ -310,7 +310,7 @@ static void ui_show_generic_page(ui_page page)
     }
 }
 
-//ÉãÏñÍ·½çÃæ¹Ì¶¨ÄÚÈÝ
+//ï¿½ï¿½ï¿½ï¿½Í·ï¿½ï¿½ï¿½ï¿½Ì¶ï¿½ï¿½ï¿½ï¿½ï¿½
 static void ui_show_debug(void)
 {
     ips200_clear(RGB565_BLACK);
@@ -350,7 +350,7 @@ static const char *ui_ring_status(void)
         default: return "normal    ";
     }
 }
-//Í¼ÏñÄÚÈÝ
+//Í¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 static void ui_show_camera_image(void)
 {
     if(Image.ready == 0) return;
@@ -381,12 +381,12 @@ static void ui_show_camera_image(void)
 
     ips200_show_string(0, 172, "zebra");
     ips200_show_string(48, 172, Image.zebra ? "hit" : "no ");
-    ips200_show_string(88, 172, "count");
-    ips200_show_string(136, 172, "   ");
-    ips200_show_uint8(136, 172, Image.zebra_count);
-    ips200_show_string(176, 172, "tow");
-    ips200_show_string(208, 172, "  ");
-    ips200_show_uint8(208, 172, Image.tow_row);
+    ips200_show_string(76, 172, "count");
+    ips200_show_string(120, 172, "   ");
+    ips200_show_uint8(120, 172, Image.zebra_count);
+    ips200_show_string(156, 172, "cross");
+    ips200_show_string(208, 172, "   ");
+    ips200_show_uint8(208, 172, Image.cross);
 }
 
 static void ui_show(void)
@@ -406,13 +406,13 @@ static void ui_show(void)
 }
 
 // ==========================================
-// 8. ÊÂ¼þ´¦ÀíÂß¼­
+// 8. ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß¼ï¿½
 // ==========================================
 static void ui_handle_key(ui_key_event event)
 {
     if(event == UI_KEY_NONE) return;
 
-    // --- ·µ»Ø¼ü´¦Àí ---
+    // --- ï¿½ï¿½ï¿½Ø¼ï¿½ï¿½ï¿½ï¿½ï¿½ ---
     if(event == UI_KEY_BACK_EVENT) {
         if(UiEdit) {
             UiEdit = 0;
@@ -425,7 +425,7 @@ static void ui_handle_key(ui_key_event event)
         return;
     }
 
-    // --- µ÷ÊÔÒ³ÃæÌØÊâ°´¼ü´¦Àí ---
+    // --- ï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½ï¿½â°´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ---
     if(UiPage == UI_PAGE_DEBUG) {
         if(event == UI_KEY_UP_EVENT || event == UI_KEY_DOWN_EVENT) {
             UiDebugGray = UiDebugGray ? 0 : 1;
@@ -433,10 +433,10 @@ static void ui_handle_key(ui_key_event event)
         return;
     }
 
-    // --- »Ø³µÈ·ÈÏ¼ü´¦Àí ---
+    // --- ï¿½Ø³ï¿½È·ï¿½Ï¼ï¿½ï¿½ï¿½ï¿½ï¿½ ---
     if(event == UI_KEY_ENTER_EVENT) {
         if(UiPage == UI_PAGE_MAIN) {
-            // Í¨¹ýÖ÷²Ëµ¥µÄÑ¡ÔñË÷ÒýÖ±½ÓÓ³Éäµ½×ÓÒ³ÃæÃ¶¾Ù
+            // Í¨ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½Ó³ï¿½äµ½ï¿½ï¿½Ò³ï¿½ï¿½Ã¶ï¿½ï¿½
             UiPage = (ui_page)(UiSelect + 1); 
             UiSelect = 0;
         } else {
@@ -450,20 +450,20 @@ static void ui_handle_key(ui_key_event event)
         }
         return;
     }
-    // --- ÉÏÏÂ¼ü´¦Àí ---
+    // --- ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ ---
     if((event == UI_KEY_UP_EVENT) || (event == UI_KEY_DOWN_EVENT)) {
         if(UiEdit) {
-            // Èç¹û´¦ÓÚ±à¼­×´Ì¬£¬Ö±½Óµ÷ÓÃÍ¨ÓÃµÄÊýÖµÐÞ¸ÄÂß¼­
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ú±à¼­×´Ì¬ï¿½ï¿½Ö±ï¿½Óµï¿½ï¿½ï¿½Í¨ï¿½Ãµï¿½ï¿½ï¿½Öµï¿½Þ¸ï¿½ï¿½ß¼ï¿½
             ui_change_current_value((event == UI_KEY_UP_EVENT) ? 1 : -1);
         } else {
-            // Èç¹û´¦ÓÚÑ¡Ôñ×´Ì¬£¬ÒÆ¶¯¹â±ê 
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ 
             ui_move((event == UI_KEY_UP_EVENT) ? -1 : 1);
         }
     }
 }
 
 // ==========================================
-// 9. Íâ²¿µ÷ÓÃ½Ó¿Ú
+// 9. ï¿½â²¿ï¿½ï¿½ï¿½Ã½Ó¿ï¿½
 // ==========================================
 void ui_init(void)
 {

@@ -8,94 +8,40 @@
 #define IMAGE_H                    (LCDH)
 #define IMAGE_W                    (LCDW)
 #define ImageSensorMid             (39)
-#define IMAGE_MID                  (ImageSensorMid)
+#define IMAGE_MID                  (ImageSensorMid) // 中心列
 #define IMAGE_BLACK                (0)
 #define IMAGE_WHITE                (1)
+#define POINT_NUM                  (100) // 八邻域预留边界点
 
 typedef struct
 {
-    int point;
-    uint8 type;
-} JumpPointtypedef;
-
-typedef struct
-{
-    uint8 IsRightFind;
-    uint8 IsLeftFind;
-    int Wide;
-    int LeftBorder;
-    int RightBorder;
-    int close_LeftBorder;
-    int close_RightBorder;
-    int Center;
-    int RightTemp;
-    int LeftTemp;
-    int LeftBoundary_First;
-    int RightBoundary_First;
-    int LeftBoundary;
-    int RightBoundary;
-} ImageDealDatatypedef;
-
-typedef enum
-{
-    ROAD_NORMAL = 0,
-    ROAD_STRAIGHT,
-    ROAD_LEFT_RING,
-    ROAD_RIGHT_RING
-} RoadType_e;
-
-typedef struct
-{
-    uint8 TowPoint;
-    int TowPoint_True;
-    int Det_True;
-    uint8 Threshold;
-    uint16 Threshold_static;
-    uint8 Threshold_detach;
-    uint8 Left_Line;
-    uint8 Right_Line;
-    uint8 OFFLine;
-    uint8 WhiteLine;
-    RoadType_e Road_type;
-    int16 WhiteLine_L;
-    int16 WhiteLine_R;
-    int16 OFFLineBoundary;
-    int straight_acc;
-    int variance_acc;
-} ImageStatustypedef;
-
-typedef struct
-{
-    int16 image_element_rings;
-    int16 ring_big_small;
-    int16 image_element_rings_flag;
-    int16 straight_long;
-} ImageFlagtypedef;
-
-typedef struct
-{
-    uint8 ready;              /* camera init ok */
-    uint8 result_ready;       /* this frame can be used by servo */
-    uint16 sequence;          /* processed frame counter */
-    uint8 threshold;          /* final binary threshold */
-    uint16 white_count;       /* white pixel count in ImageBin */
-    uint8 tow_row;            /* actual row used as tow point */
-    int16 center;             /* weighted center column */
-    int16 error;              /* center - IMAGE_MID */
-    uint8 valid_count;        /* valid rows from OFFLine to bottom */
-    uint8 lost;               /* no reliable track */
-    uint8 ring;               /* 0 none, 1 left ring, 2 right ring */
-    uint8 ring_step;          /* ring process stage */
-    uint8 zebra;              /* zebra line hit in current frame */
-    uint8 zebra_count;        /* confirmed zebra hit count */
-} image_data;
+    uint8 ready;              /* 摄像头初始化完成标志 */
+    uint8 result_ready;       /* 本帧结果可用，可供舵机控制使用 */
+    uint16 sequence;          /* 已处理的图像帧计数器 */
+    uint8 threshold;          /* 二值化最终阈值 */
+    int16 center;             /* 加权计算得到的赛道中心列 */
+    int16 error;              /* 中心与图像中线的偏差：center - IMAGE_MID */
+    uint8 lost;               /* 是否丢失赛道（无可信赛道信息） */
+    uint8 ring;               /* 环岛标志：0 无，1 左环岛，2 右环岛 */
+    uint8 ring_step;          /* 环岛处理阶段（状态机步骤） */
+    uint8 zebra;              /* 当前帧是否检测到斑马线 */
+    uint8 zebra_count;        /* 累计确认的斑马线检测次数 */
+    uint8 cross;              /* 判断十字标志 */
+} image_data; // 图像整体数据
 
 extern image_data Image;
 extern uint8 ImageGray[IMAGE_H][IMAGE_W];
 extern uint8 ImageBin[IMAGE_H][IMAGE_W];
 
-#define Image_Use                  ImageGray
-#define Pixle                      ImageBin
+typedef struct 
+{
+    uint8 point_left[POINT_NUM][2]; // 左边界 0-x-col 1-y-row
+    uint8 point_right[POINT_NUM][2]; // 右边界 0-x 1-y
+    uint16 left_data_num;
+    uint16 right_data_num;
+    uint8 dir_left[POINT_NUM]; // 左边界生长方向
+    uint8 dir_right[POINT_NUM];// 右边界生长方向
+}border_line; // 八邻域搜线结构体
 
 void image_init(void);
 void image_apply_camera(void);
