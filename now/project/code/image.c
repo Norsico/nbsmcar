@@ -142,32 +142,20 @@ static void image_compress(void)
 /* Otsu threshold on ImageGray. */
 static uint8 image_otsu(void)
 {
-    int width;
-    int height;
-    int pixelCount[IMAGE_GRAYSCALE];
-    float pixelPro[IMAGE_GRAYSCALE];
-    int i;
-    int j;
-    int pixel_sum;
+    int16 row;
+    int16 col;
+    int16 i;
+    uint16 total;
+    uint16 weight_back;
+    uint16 weight_front;
+    uint16 mean_back;
+    uint16 mean_front;
+    uint16 diff;
+    uint32 sum_all;
+    uint32 sum_back;
+    uint32 score;
+    uint32 best_score;
     uint8 threshold;
-    int threshold_j;
-    uint8 *gray_ptr;
-    uint32 gray_sum;
-    float w0;
-    float w1;
-    float u0tmp;
-    float u1tmp;
-    float u0;
-    float u1;
-    float u;
-    float delta_tmp;
-    float delta_max;
-
-    width = (int)col;
-    height = (int)row;
-    pixel_sum = width * height;
-    threshold = 0;
-    gray_ptr = image;
 
     for (i = 0; i < 256; i++)
     {
@@ -297,14 +285,14 @@ static void image_border_clear(void)
     for (i = 0; i < Border.left_data_num; i++)
     {
         Border.point_left[i][0] = 0;
-        Border.point_left[i][1] = 0;
+        Border.point_left[i][1] = IMAGE_H-1;
         Border.dir_left[i] = 0;
     }
     Border.left_data_num = 0;
     for (i = 0; i < Border.right_data_num; i++)
     {
-        Border.point_right[i][0] = 0;
-        Border.point_right[i][1] = 0;
+        Border.point_right[i][0] = IMAGE_W-1;
+        Border.point_right[i][1] = IMAGE_H-1;
         Border.dir_right[i] = 0;
     }
     Border.right_data_num = 0;
@@ -580,7 +568,7 @@ static uint8 image_get_border(void)
     border_balance_score = 0;
 
     // 第一步：把逐行边界和可信度数组清空，默认整行不可信
-    for (i = 0; i < IMAGE_H; i++)
+    for (i = ; i < IMAGE_H; i++)
     {
         border_point[i][0] = 0;           // 左边界
         border_point[i][1] = IMAGE_W - 1; // 右边界
@@ -669,12 +657,13 @@ static uint8 image_get_border(void)
     return 1;
 }
 /* 补线 */
-static void image_find_corss()
+static void image_find_corss(void)
 {
-    // 十字补线 - 新算法：
+    // 十字补线：
+    // 检测向外到向上为转折起点
     // 检测方向"向上"(3,4,5)到"向内"(5,6,7)的转折
     // 转折行是补线终点（丢线区最底行）
-    // 从该行向下找第一个非丢线行，用两点斜率向上回推补线
+    // 以起点下方取两行的斜率使用
     uint16 i, j;
     uint8 enter_row,out_row;
     float k;
@@ -682,6 +671,7 @@ static void image_find_corss()
     uint8 dir_now;
     uint8 enter_prev,enter_now,enter;
     uint8 out_prew,out_now;
+    int16 fill_val;
 
     // 左边
     enter = 0;
@@ -702,7 +692,7 @@ static void image_find_corss()
         if (enter && out_prew && out_now)
         {
             out_row = Border.point_left[i][1];
-            if (out_row >= 2 && enter_row < IMAGE_H - 7)
+            if (out_row >= 2 && enter_row < IMAGE_H - 8) // 第0行无效
             {
                 if (row_lost_left[out_row] && row_lost_left[out_row + 1] && row_lost_left[out_row + 2])
                 {
@@ -710,11 +700,15 @@ static void image_find_corss()
 
                     // 用起点下方第2和第7行计算斜率
                     k = (float)(border_point[enter_row+2][0] - border_point[enter_row+7][0]) / (float)(7-2);
-                    // 从转折行向下补线
+                    if(k<0) k=0.0; // 左k必须大于0
+                    // 从转折行向下补线，结果饱和到 [0, IMAGE_W-1]
                     j = 1;
                     while (j <= enter_row)
                     {
-                        border_point[enter_row - j][0] = border_point[enter_row+2][0] + j * k;
+                        fill_val = (int16)((float)border_point[enter_row+2][0] + (float)j * k);
+                        if (fill_val < 0) fill_val = 0;
+                        if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
+                        border_point[enter_row - j][0] = (uint8)fill_val;
                         j++;
                     }
                     break;
@@ -751,11 +745,14 @@ static void image_find_corss()
                     Image.cross |= 0x01;
 
                     k = (float)(border_point[enter_row+2][1] - border_point[enter_row+7][1]) / (float)(7-2);
-
+                    if(k>0) k=0.0; // 右k必须小于0
                     j = 1;
                     while (j <= enter_row )
                     {
-                        border_point[enter_row-j][1] = border_point[enter_row+2][1] + j * k;
+                        fill_val = (int16)((float)border_point[enter_row+2][1] + (float)j * k);
+                        if (fill_val < 0) fill_val = 0;
+                        if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
+                        border_point[enter_row-j][1] = (uint8)fill_val;
                         j++;
                     }
                     break;
@@ -764,6 +761,23 @@ static void image_find_corss()
         }
         Image.cross = 0;
     }
+}
+
+typedef enum 
+{
+    NORMAL = 0, // 正常
+    STEP1, // 阶段1：找到两个突变点和一条连续边（不在最边）
+    STEP2, // 阶段2
+    STEP3,
+    STEP4,
+    STEP5
+    /* data */
+}Ring_Status;
+
+
+static void image_find_ring(void)
+{
+    // 圆环判断，
 }
 
 /* 动态前瞻 */
@@ -780,12 +794,12 @@ typedef struct
 static tow_row_config TowRowTable[CENTER_POINTS] = {
     {56, 0, 58},
     {45, 1, 50},
-    {35, 1, 40},
-    {27, 1, 33},
-    {19, 2, 29},
-    {13, 2, 23},
-    {8, 3, 22}};
-static const uint8 row_weight[CENTER_POINTS] = {1, 1, 1, 1, 1, 1, 1}; // 建议修改，先平均
+    {35, 2, 45},
+    {27, 3, 43},
+    {19, 4, 39},
+    {13, 5, 38},
+    {8, 5, 33}};
+static const uint8 row_weight[CENTER_POINTS] = {1, 1, 1, 2, 3, 5, 7}; // 建议修改，先平均
 static uint8 sample_center_point[CENTER_POINTS];                      // 中心采样点
 static uint8 center_row[CENTER_POINTS];
 
@@ -845,7 +859,7 @@ static uint16 image_debug_x(uint16 x, uint16 w, int16 col)
         col = IMAGE_W - 1;
     }
 
-    return (uint16)(x + (((uint16)col * w) + (IMAGE_W / 2)) / IMAGE_W);
+    return (uint16)(x + (((uint16)col * w) + (IMAGE_W / 2)) / (IMAGE_W-1));
 }
 static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
 {
@@ -858,7 +872,7 @@ static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
         row = IMAGE_H - 1;
     }
 
-    return (uint16)(y + (((uint16)row * h) + (IMAGE_H / 2)) / IMAGE_H);
+    return (uint16)(y + (((uint16)row * h) + (IMAGE_H / 2)) / (IMAGE_H-1));
 }
 
 static void image_process(void)
@@ -867,7 +881,7 @@ static void image_process(void)
     image_compress();             // 压缩
     image_binarize(image_otsu()); // 二值化
     // 需要使用丢失阈值判断是否出界
-    image_get_start(IMAGE_H - 2); // 底部起点
+    image_get_start(IMAGE_H - 1); // 底部起点
     image_search_line(100);       // 八邻域爬线
     image_get_border();           // 获取点边界
     image_calculate_confidence(); // 计算可信度

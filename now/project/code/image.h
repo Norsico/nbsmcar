@@ -32,7 +32,6 @@ typedef struct
 extern image_data Image;
 extern uint8 ImageGray[IMAGE_H][IMAGE_W];
 extern uint8 ImageBin[IMAGE_H][IMAGE_W];
-extern uint8 Pixle[IMAGE_H][IMAGE_W];
 
 typedef struct 
 {
