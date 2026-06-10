@@ -100,6 +100,7 @@ static uint8 ImageMapReady = 0;     // 映射表是否计算
 static uint16 ImageHist[256];       // 记录255灰度出现次数
 static uint8 ImageRawThreshold = 0; // 原始阈值
 
+
 /* Compress MT9V03X raw frame to 80x60 grayscale buffer. */
 static void image_compress(void)
 {
@@ -150,7 +151,9 @@ static uint8 image_otsu(void)
     uint16 weight_front;
     uint16 mean_back;
     uint16 mean_front;
-    uint16 diff;
+    uint16 mean_total;
+    uint16 diff0;
+    uint16 diff1;
     uint32 sum_all;
     uint32 sum_back;
     uint32 score;
@@ -178,9 +181,11 @@ static uint8 image_otsu(void)
     sum_back = 0;
     best_score = 0;
     threshold = 0;
+    mean_total = (uint16)(sum_all/sum_back);
 
     /* 以 i 为阈值，计算类间方差
-    σ²(t) = wB(t) × wF(t) × [μB(t) - μF(t)]²
+    累加形式类间方差
+    σ²(t) = wB(t) × [μB(t) - μtotal]² + wF(t) × [μF(t) - μtotal]²  
     wB 背景像素占比(灰度 < i 的像素数 / 总像素)
     wF 目标像素占比(灰度 ≥ i 的像素数 / 总像素)
     μB 背景平均灰度
@@ -204,8 +209,9 @@ static uint8 image_otsu(void)
         mean_back = (uint16)(sum_back / weight_back);
         mean_front = (uint16)((sum_all - sum_back) / weight_front);
 
-        diff = (mean_front > mean_back) ? (mean_front - mean_back) : (mean_back - mean_front);
-        score = (((uint32)weight_back * weight_front) >> 10) * (uint32)diff * diff; //
+        diff0 = mean_back > mean_total ? mean_back-mean_total:mean_total-mean_back;
+        diff1 = mean_front>mean_total? mean_front-mean_total:mean_total-mean_front;
+        score = (uint32)weight_back * diff0 * diff0+ (uint32)weight_front * diff1 * diff1; 
         if (score > best_score)
         {
             // 最大方差
@@ -568,7 +574,7 @@ static uint8 image_get_border(void)
     border_balance_score = 0;
 
     // 第一步：把逐行边界和可信度数组清空，默认整行不可信
-    for (i = ; i < IMAGE_H; i++)
+    for (i = 0; i < IMAGE_H; i++)
     {
         border_point[i][0] = 0;           // 左边界
         border_point[i][1] = IMAGE_W - 1; // 右边界
@@ -696,16 +702,16 @@ static void image_find_corss(void)
             {
                 if (row_lost_left[out_row] && row_lost_left[out_row + 1] && row_lost_left[out_row + 2])
                 {
-                    Image.cross |= 0x02;
+                    Image.cross = Image.cross | 0x02;
 
                     // 用起点下方第2和第7行计算斜率
                     k = (float)(border_point[enter_row+2][0] - border_point[enter_row+7][0]) / (float)(7-2);
                     if(k<0) k=0.0; // 左k必须大于0
                     // 从转折行向下补线，结果饱和到 [0, IMAGE_W-1]
                     j = 1;
-                    while (j <= enter_row)
+                    while (enter_row-j>out_row)
                     {
-                        fill_val = (int16)((float)border_point[enter_row+2][0] + (float)j * k);
+                        fill_val = (int16)((float)border_point[enter_row+2][0] + (float)(j+2) * k);
                         if (fill_val < 0) fill_val = 0;
                         if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
                         border_point[enter_row - j][0] = (uint8)fill_val;
@@ -742,14 +748,14 @@ static void image_find_corss(void)
                 // 终点前3行（行号+）
                 if (row_lost_right[out_row] && row_lost_right[out_row + 1] && row_lost_right[out_row + 2])
                 {
-                    Image.cross |= 0x01;
+                    Image.cross = Image.cross | 0x02;
 
                     k = (float)(border_point[enter_row+2][1] - border_point[enter_row+7][1]) / (float)(7-2);
                     if(k>0) k=0.0; // 右k必须小于0
                     j = 1;
-                    while (j <= enter_row )
+                    while (enter_row-j>out_row)
                     {
-                        fill_val = (int16)((float)border_point[enter_row+2][1] + (float)j * k);
+                        fill_val = (int16)((float)border_point[enter_row+2][1] + (float)(j+2) * k);
                         if (fill_val < 0) fill_val = 0;
                         if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
                         border_point[enter_row-j][1] = (uint8)fill_val;
