@@ -43,6 +43,7 @@ void image_init(void)
     uint8 retry;
     Image.ready = 0;
     Image.result_ready = 0;
+    Image.result_ready = 0;
     Image.sequence = 0;
     Image.threshold = 0;
     Image.center = IMAGE_MID;
@@ -141,20 +142,32 @@ static void image_compress(void)
 /* Otsu threshold on ImageGray. */
 static uint8 image_otsu(void)
 {
-    int16 row;
-    int16 col;
-    int16 i;
-    uint16 total;
-    uint16 weight_back;
-    uint16 weight_front;
-    uint16 mean_back;
-    uint16 mean_front;
-    uint16 diff;
-    uint32 sum_all;
-    uint32 sum_back;
-    uint32 score;
-    uint32 best_score;
+    int width;
+    int height;
+    int pixelCount[IMAGE_GRAYSCALE];
+    float pixelPro[IMAGE_GRAYSCALE];
+    int i;
+    int j;
+    int pixel_sum;
     uint8 threshold;
+    int threshold_j;
+    uint8 *gray_ptr;
+    uint32 gray_sum;
+    float w0;
+    float w1;
+    float u0tmp;
+    float u1tmp;
+    float u0;
+    float u1;
+    float u;
+    float delta_tmp;
+    float delta_max;
+
+    width = (int)col;
+    height = (int)row;
+    pixel_sum = width * height;
+    threshold = 0;
+    gray_ptr = image;
 
     for (i = 0; i < 256; i++)
     {
