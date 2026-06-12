@@ -53,6 +53,7 @@ void image_init(void)
     Image.ring_step = 0;
     Image.zebra = 0;
     Image.zebra_count = 0;
+    Image.center_use_side = 0;
 
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
 
@@ -84,7 +85,7 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];  // 二值数据
 #define IMAGE_COMPRESS_CUT_ROW_BOTTOM (10) // 底部裁切
 
 /* OTSU 二值化阈值边界 */
-#define IMAGE_THRESHOLD_DETACH (200) /* OTSU 扫描上限 */
+#define IMAGE_THRESHOLD_DETACH (180) /* OTSU 扫描上限 */
 #define IMAGE_THRESHOLD_STATIC (40)  /* 阈值下限 */
 
 /* 丢失阈值 */
@@ -140,7 +141,8 @@ static void image_compress(void)
     mt9v03x_finish_flag = 0;
 }
 
-/* Otsu threshold on ImageGray. */
+/* Otsu threshold on ImageGray.
+ * 早退假设：双峰直方图下 σ²(t) 单峰；多峰场景会漏峰，对道路场景足够。 */
 static uint8 image_otsu(void)
 {
     int16 row;
@@ -149,15 +151,13 @@ static uint8 image_otsu(void)
     uint16 total;
     uint16 weight_back;
     uint16 weight_front;
-    uint16 mean_back;
-    uint16 mean_front;
-    uint16 mean_total;
-    uint16 diff0;
-    uint16 diff1;
     uint32 sum_all;
     uint32 sum_back;
-    uint32 score;
-    uint32 best_score;
+    float mean_back;
+    float mean_front;
+    float diff;
+    float score;
+    float best_score;
     uint8 threshold;
 
     for (i = 0; i < 256; i++)
@@ -179,19 +179,18 @@ static uint8 image_otsu(void)
 
     weight_back = 0;
     sum_back = 0;
-    best_score = 0;
+    best_score = 0.0f;
     threshold = 0;
-    mean_total = (uint16)(sum_all/sum_back);
 
     /* 以 i 为阈值，计算类间方差
-    累加形式类间方差
-    σ²(t) = wB(t) × [μB(t) - μtotal]² + wF(t) × [μF(t) - μtotal]²  
+    标准形式类间方差
+    σ²(t) = wB(t) × wF(t) × [μB(t) - μF(t)]²
     wB 背景像素占比(灰度 < i 的像素数 / 总像素)
     wF 目标像素占比(灰度 ≥ i 的像素数 / 总像素)
-    μB 背景平均灰度
-    μF 目标平均灰度
+    μB 背景平均灰度 = sum_back / weight_back
+    μF 目标平均灰度 = (sum_all - sum_back) / weight_front
      */
-    for (i = 0; i < IMAGE_THRESHOLD_DETACH; i += 1) // 步进值为2
+    for (i = 0; i < IMAGE_THRESHOLD_DETACH; i += 1)
     {
         weight_back += ImageHist[i];
         if (weight_back == 0)
@@ -206,18 +205,18 @@ static uint8 image_otsu(void)
         }
 
         sum_back += (uint32)i * ImageHist[i];
-        mean_back = (uint16)(sum_back / weight_back);
-        mean_front = (uint16)((sum_all - sum_back) / weight_front);
+        mean_back = (float)sum_back / weight_back;
+        mean_front = (float)(sum_all - sum_back) / weight_front;
+        diff = mean_back - mean_front;
 
-        diff0 = mean_back > mean_total ? mean_back-mean_total:mean_total-mean_back;
-        diff1 = mean_front>mean_total? mean_front-mean_total:mean_total-mean_front;
-        score = (uint32)weight_back * diff0 * diff0+ (uint32)weight_front * diff1 * diff1; 
+        score = (float)weight_back * weight_front * diff * diff;
         if (score > best_score)
         {
             // 最大方差
             best_score = score;
             threshold = i;
         }
+        if (score<best_score) break; // 减说明找到峰
     }
 
     // 更新数据参数状态
@@ -231,7 +230,6 @@ static uint8 image_otsu(void)
 
     return threshold;
 }
-
 /* Convert ImageGray to 0/1 ImageBin. */
 static void image_binarize(uint8 threshold)
 {
@@ -662,107 +660,175 @@ static uint8 image_get_border(void)
 
     return 1;
 }
+/* 拐点检测：基于八邻域生长方向累积变化识别拐点
+ * 0 非拐点 / 1 外拐（由内向外旋）/ 2 内拐（由外向内旋）
+ * 算法：取 d1=dir[i-3], d3=dir[i-1]
+ *   - 环形距离 min(|d1-d3|, 8-|d1-d3|)
+ *   - diff13 >= 2 视作拐点
+ *   - d3 > d1（编码递增方向）= 内拐；d3 < d1 = 外拐
+ *   - 标记写在窗口中点 i-2 */
+static void image_find_corners(void)
+{
+    uint16 i;
+    uint8 d1, d3;
+    uint8 diff13;
+
+    for (i = 0; i < Border.left_data_num;  i++) Border.corner_left[i]  = 0;
+    for (i = 0; i < Border.right_data_num; i++) Border.corner_right[i] = 0;
+
+    // 左边界
+    for (i = 3; i < Border.left_data_num; i++)
+    {
+        d1 = Border.dir_left[i - 3];
+        d3 = Border.dir_left[i - 1];
+
+        diff13 = (d1 > d3) ? (d1 - d3) : (d3 - d1);
+        if (diff13 > 4) diff13 = 8 - diff13;
+
+        if (diff13 >= 2)
+        {
+            // d3 > d1（编码递增）= 由外侧旋向内侧 = 内拐
+            // d3 < d1（编码递减，含 wrap）= 由内侧旋向外侧 = 外拐
+            if (d3 > d1)
+                Border.corner_left[i - 2] = 2;  // 内拐
+            else
+                Border.corner_left[i - 2] = 1;  // 外拐
+        }
+    }
+
+    // 右边界
+    for (i = 3; i < Border.right_data_num; i++)
+    {
+        d1 = Border.dir_right[i - 3];
+        d3 = Border.dir_right[i - 1];
+
+        diff13 = (d1 > d3) ? (d1 - d3) : (d3 - d1);
+        if (diff13 > 4) diff13 = 8 - diff13;
+
+        if (diff13 >= 2)
+        {
+            if (d3 > d1)
+                Border.corner_right[i - 2] = 2;
+            else
+                Border.corner_right[i - 2] = 1;
+        }
+    }
+}
+
 /* 补线 */
 static void image_find_corss(void)
 {
     // 十字补线：
-    // 检测向外到向上为转折起点
-    // 检测方向"向上"(3,4,5)到"向内"(5,6,7)的转折
-    // 转折行是补线终点（丢线区最底行）
+    // 斜向十字的边界依次出现 4 个拐点：起-外、内、入丢线-内、出丢线-内、终-外
+    // 状态机：等待外拐(==1) → 等待第一个内拐(==2) → 等待第二个内拐(==2)
+    // 第一个外拐所在行 = enter_row，第二个内拐所在行 = out_row
+    // 丢线行上的拐点不再 skip
+    // 终点后三行都是丢线 → 确认十字
     // 以起点下方取两行的斜率使用
     uint16 i, j;
-    uint8 enter_row,out_row;
+    uint8 enter_row=0,out_row;
     float k;
-    uint8 dir_prev;
-    uint8 dir_now;
-    uint8 enter_prev,enter_now,enter;
-    uint8 out_prew,out_now;
+    uint8 state; // 0=等待外 1=已见第一个外 2=已见第一个内
     int16 fill_val;
 
     // 左边
-    enter = 0;
-    for (i = 1; i < Border.left_data_num; i++)
+    state = 0;
+    for (i = 2; i < Border.left_data_num; i++) // 跳过靠近种子的若干点（种子无有效生长方向）
     {
-        dir_prev = Border.dir_left[i - 1];
-        dir_now = Border.dir_left[i];
-
-        enter_prev = (dir_prev == 1 || dir_prev == 2 || dir_prev == 3); // 起点
-        enter_now  = (dir_now  == 3 || dir_now  == 4 || dir_now  == 5);
-        out_prew = (dir_prev  == 3 || dir_prev  == 4 || dir_prev  == 5); // 终点
-        out_now = (dir_now  == 5 || dir_now  == 6 || dir_now  == 7);
-        if(enter_prev && enter_now)
+        if (Border.corner_left[i] == 1)
         {
-            enter = 1;
-            enter_row = Border.point_left[i][1];
-        } 
-        if (enter && out_prew && out_now)
-        {
-            out_row = Border.point_left[i][1];
-            if (out_row >= 2 && enter_row < IMAGE_H - 8) // 第0行无效
+            if (state == 0)
             {
-                if (row_lost_left[out_row] && row_lost_left[out_row + 1] && row_lost_left[out_row + 2])
+                // 第一个外拐 = 十字起点行
+                enter_row = Border.point_left[i][1];
+                state = 1;
+            }
+        }
+        else if (Border.corner_left[i] == 2)
+        {
+            if (state == 1)
+            {
+                // 第一个内拐（搜到丢线行）
+                state = 2;
+            }
+            else if (state == 2)
+            {
+                // 第二个内拐 = 十字终点行
+                out_row = Border.point_left[i][1];
+                if (out_row >= 2 && enter_row < IMAGE_H - 8) // 第0行无效
                 {
-                    Image.cross = Image.cross | 0x02;
-
-                    // 用起点下方第2和第7行计算斜率
-                    k = (float)(border_point[enter_row+2][0] - border_point[enter_row+7][0]) / (float)(7-2);
-                    if(k<0) k=0.0; // 左k必须大于0
-                    // 从转折行向下补线，结果饱和到 [0, IMAGE_W-1]
-                    j = 1;
-                    while (enter_row-j>out_row)
+                    if (row_lost_left[out_row] && row_lost_left[out_row + 1] && row_lost_left[out_row + 2])
                     {
-                        fill_val = (int16)((float)border_point[enter_row+2][0] + (float)(j+2) * k);
-                        if (fill_val < 0) fill_val = 0;
-                        if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
-                        border_point[enter_row - j][0] = (uint8)fill_val;
-                        j++;
+                        Image.cross = Image.cross | 0x02;
+
+                        // 用起点下方第2和第7行计算斜率
+                        k = (float)(border_point[enter_row+2][0] - border_point[enter_row+7][0]) / (float)(7-2);
+                        if(k<0) k=0.0; // 左k必须大于0
+                        // 从转折行向下补线，结果饱和到 [0, IMAGE_W-1]
+                        j = 1;
+                        while (enter_row-j>out_row)
+                        {
+                            fill_val = (int16)((float)border_point[enter_row+2][0] + (float)(j+2) * k);
+                            if (fill_val < 0) fill_val = 0;
+                            if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
+                            border_point[enter_row - j][0] = (uint8)fill_val;
+                            j++;
+                        }
+                        break;
                     }
-                    break;
                 }
+                state = 0;
             }
         }
         Image.cross = 0;
     }
 
     // 右边
-    enter = 0;
-    for (i = 1; i <Border.right_data_num; i++)
+    state = 0;
+    for (i = 2; i <Border.right_data_num; i++) // 跳过靠近种子的若干点（种子无有效生长方向）
     {
-        dir_prev = Border.dir_right[i - 1];
-        dir_now  = Border.dir_right[i];
-
-        enter_prev = (dir_prev == 1 || dir_prev == 2 || dir_prev == 3); // 起点
-        enter_now  = (dir_now  == 3 || dir_now  == 4 || dir_now  == 5);
-        out_prew = (dir_prev  == 3 || dir_prev  == 4 || dir_prev  == 5); // 终点
-        out_now = (dir_now  == 5 || dir_now  == 6 || dir_now  == 7);
-        if(enter_prev && enter_now)
+        if (Border.corner_right[i] == 1)
         {
-            enter = 1;
-            enter_row = Border.point_right[i][1];
-        } 
-        if (enter && out_prew && out_now)
-        {
-            out_row = Border.point_right[i][1];
-            if (out_row >= 2 && enter_row < IMAGE_H - 7)
+            if (state == 0)
             {
-                // 终点前3行（行号+）
-                if (row_lost_right[out_row] && row_lost_right[out_row + 1] && row_lost_right[out_row + 2])
+                // 第一个外拐 = 十字起点行
+                enter_row = Border.point_right[i][1];
+                state = 1;
+            }
+        }
+        else if (Border.corner_right[i] == 2)
+        {
+            if (state == 1)
+            {
+                // 第一个内拐（搜到丢线行）
+                state = 2;
+            }
+            else if (state == 2)
+            {
+                // 第二个内拐 = 十字终点行
+                out_row = Border.point_right[i][1];
+                if (out_row >= 2 && enter_row < IMAGE_H - 7)
                 {
-                    Image.cross = Image.cross | 0x02;
-
-                    k = (float)(border_point[enter_row+2][1] - border_point[enter_row+7][1]) / (float)(7-2);
-                    if(k>0) k=0.0; // 右k必须小于0
-                    j = 1;
-                    while (enter_row-j>out_row)
+                    // 终点前3行（行号+）
+                    if (row_lost_right[out_row] && row_lost_right[out_row + 1] && row_lost_right[out_row + 2])
                     {
-                        fill_val = (int16)((float)border_point[enter_row+2][1] + (float)(j+2) * k);
-                        if (fill_val < 0) fill_val = 0;
-                        if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
-                        border_point[enter_row-j][1] = (uint8)fill_val;
-                        j++;
+                        Image.cross = Image.cross | 0x02;
+
+                        k = (float)(border_point[enter_row+2][1] - border_point[enter_row+7][1]) / (float)(7-2);
+                        if(k>0) k=0.0; // 右k必须小于0
+                        j = 1;
+                        while (enter_row-j>out_row)
+                        {
+                            fill_val = (int16)((float)border_point[enter_row+2][1] + (float)(j+2) * k);
+                            if (fill_val < 0) fill_val = 0;
+                            if (fill_val > (int16)(IMAGE_W - 1)) fill_val = (int16)(IMAGE_W - 1);
+                            border_point[enter_row-j][1] = (uint8)fill_val;
+                            j++;
+                        }
+                        break;
                     }
-                    break;
                 }
+                state = 0;
             }
         }
         Image.cross = 0;
@@ -790,6 +856,11 @@ static void image_find_ring(void)
 
 #define CENTER_POINTS 7 // 计算中心加权行数（改动需要改动态前瞻相关表）
 
+/* 单边偏移半宽中心计算相关参数 */
+#define IMAGE_HALFWIDTH_ROW_LO  (8)   // 帧级选边采样区下边界（闭区间）
+#define IMAGE_HALFWIDTH_ROW_HI  (58)  // 帧级选边采样区上边界（闭区间）
+#define LOST_TO_LEFT_THRESH     (25)  // 采样区内右丢线行数 ≥ 该值则整帧切左
+
 typedef struct
 {
     uint8 base_row;    // 基础行
@@ -806,6 +877,17 @@ static tow_row_config TowRowTable[CENTER_POINTS] = {
     {13, 5, 38},
     {8, 5, 33}};
 static const uint8 row_weight[CENTER_POINTS] = {1, 1, 1, 2, 3, 5, 7}; // 建议修改，先平均
+
+/* 直道赛道半宽查找表：按行号查询每行的半宽，远端 6px、近端 30px */
+static const uint8 Half_Road_Wide[IMAGE_H] =
+{
+    6, 7, 7, 8, 8, 9, 9, 9, 11, 11,
+    12, 12, 12, 12, 12, 13, 13, 15, 15, 16, // 20
+    17, 17, 17, 18, 18, 19, 19, 19, 20, 20, 
+    19, 20, 20, 21, 21, 22, 22, 22, 24, 24, // 40
+    25, 26, 26, 27, 27, 27, 28, 28, 29, 29,
+    30, 30, 30, 30, 31, 31, 31, 34, 34, 35
+};
 static uint8 sample_center_point[CENTER_POINTS];                      // 中心采样点
 static uint8 center_row[CENTER_POINTS];
 
@@ -825,6 +907,24 @@ static void image_calculate_confidence(void)
     image_confidence = (uint8)(confidence_sum / 10U);
 }
 
+/* 帧级选边：在采样区 [LO, HI] 内统计右丢线行数，超阈值则整帧切左 */
+static void image_select_center_side(void)
+{
+    uint8 row;
+    uint8 lost_right;
+
+    lost_right = 0;
+    for (row = IMAGE_HALFWIDTH_ROW_LO; row <= IMAGE_HALFWIDTH_ROW_HI; row++)
+    {
+        if (row_lost_right[row])
+        {
+            lost_right++;
+        }
+    }
+
+    Image.center_use_side = (lost_right >= LOST_TO_LEFT_THRESH) ? 1 : 0;
+}
+
 static void image_calculate_center(void)
 {
     // 使用动态参数计算多行加权的中心
@@ -832,14 +932,41 @@ static void image_calculate_center(void)
     uint8 row; // 前瞻行
     uint16 sum_center;
     uint16 sum_weight; // 权重分母
+    uint8 hw;          // 当前行半宽
+    uint8 lost;        // 当前行选定侧是否丢线
+    uint8 c;           // 当前行算出来的 Center
     uint8 center;
+
+    image_select_center_side(); // 帧级选边，更新 Image.center_use_side
+
     sum_center = 0;
     sum_weight = 0; // 循环求和，占用时间不多，就不写只算一次的判断了
     for (i = 0; i < CENTER_POINTS; i++)
     {
         row = TowRowTable[i].base_row + TowRowTable[i].offset_step * (100 - image_confidence) / 20; // 最大行无需判断，步长最大乘5
         center_row[i] = row;                                                                        // 存储，方便画点
-        sample_center_point[i] = (uint8)(((uint16)border_point[row][0] + (uint16)border_point[row][1]) >> 1);
+
+        hw = Half_Road_Wide[row];
+        if (Image.center_use_side)
+        {
+            // 左模式：右侧不可信，用左边界向内偏半宽
+            lost = row_lost_left[row];
+            c = border_point[row][0] + hw;
+        }
+        else
+        {
+            // 默认右模式：用右边界向内偏半宽
+            lost = row_lost_right[row];
+            c = border_point[row][1] - hw;
+        }
+
+        if (lost)
+        {
+            // 选定侧丢线：首行兜底 IMAGE_MID，其它沿用近一行
+            c = (i == 0) ? (uint8)IMAGE_MID : sample_center_point[i - 1];
+        }
+
+        sample_center_point[i] = c;
         sum_weight += row_weight[i];
     }
     for (i = 0; i < CENTER_POINTS; i++)
@@ -883,17 +1010,18 @@ static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
 
 static void image_process(void)
 {
-    gpio_set_level(LED_DEBUG, 1);
+    gpio_set_level(LED_DEBUG, 0);
     image_compress();             // 压缩
     image_binarize(image_otsu()); // 二值化
     // 需要使用丢失阈值判断是否出界
     image_get_start(IMAGE_H - 1); // 底部起点
     image_search_line(100);       // 八邻域爬线
     image_get_border();           // 获取点边界
+    image_find_corners();         // 拐点检测（依赖 dir_left/dir_right）
     image_calculate_confidence(); // 计算可信度
     image_find_corss();           // 补线
     image_calculate_center();     // 求中点和偏移
-    gpio_set_level(LED_DEBUG, 0);
+    gpio_set_level(LED_DEBUG, 1);
 }
 
 /* 更新和状态 */
@@ -954,18 +1082,39 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
         return;
     }
     // 搜线
+    // for (i = 0; i < Border.left_data_num; i++)
+    // {
+    //     draw_x = image_debug_x(x, w, Border.point_left[i][0]);
+    //     draw_y = image_debug_y(y, h, Border.point_left[i][1]);
+    //     ips200_draw_point(draw_x, draw_y, RGB565_GREEN);
+    // }
+
+    // for (i = 0; i < Border.right_data_num; i++)
+    // {
+    //     draw_x = image_debug_x(x, w, Border.point_right[i][0]);
+    //     draw_y = image_debug_y(y, h, Border.point_right[i][1]);
+    //     ips200_draw_point(draw_x, draw_y, RGB565_CYAN);
+    // }
+    // 拐点
     for (i = 0; i < Border.left_data_num; i++)
     {
-        draw_x = image_debug_x(x, w, Border.point_left[i][0]);
-        draw_y = image_debug_y(y, h, Border.point_left[i][1]);
-        ips200_draw_point(draw_x, draw_y, RGB565_GREEN);
+        if (Border.corner_left[i] != 0)
+        {
+            draw_x = image_debug_x(x, w, Border.point_left[i][0]);
+            draw_y = image_debug_y(y, h, Border.point_left[i][1]);
+            ips200_draw_point(draw_x, draw_y,
+                (Border.corner_left[i] == 1) ? RGB565_PINK : RGB565_YELLOW);
+        }
     }
-
     for (i = 0; i < Border.right_data_num; i++)
     {
-        draw_x = image_debug_x(x, w, Border.point_right[i][0]);
-        draw_y = image_debug_y(y, h, Border.point_right[i][1]);
-        ips200_draw_point(draw_x, draw_y, RGB565_CYAN);
+        if (Border.corner_right[i] != 0)
+        {
+            draw_x = image_debug_x(x, w, Border.point_right[i][0]);
+            draw_y = image_debug_y(y, h, Border.point_right[i][1]);
+            ips200_draw_point(draw_x, draw_y,
+                (Border.corner_right[i] == 1) ? RGB565_PINK : RGB565_YELLOW);
+        }
     }
     // 行边界
     for (i = 0; i < IMAGE_H; i++)

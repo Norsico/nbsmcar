@@ -27,6 +27,7 @@ typedef struct
     uint8 zebra;              /* 当前帧是否检测到斑马线 */
     uint8 zebra_count;        /* 累计确认的斑马线检测次数 */
     uint8 cross;              /* 判断十字标志 */
+    uint8 center_use_side;    /* 中心计算所用边：0=右（默认），1=左 */
 } image_data; // 图像整体数据
 
 extern image_data Image;
@@ -41,6 +42,8 @@ typedef struct
     uint16 right_data_num;
     uint8 dir_left[POINT_NUM]; // 左边界生长方向
     uint8 dir_right[POINT_NUM];// 右边界生长方向
+    uint8 corner_left[POINT_NUM]; // 左边界拐点标记 0非拐点 1外拐 2内拐
+    uint8 corner_right[POINT_NUM]; // 右边界拐点标记 同上
 }border_line; // 八邻域搜线结构体
 
 void image_init(void);
