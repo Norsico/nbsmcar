@@ -39,7 +39,6 @@ typedef struct
 typedef enum
 {
     ROAD_NORMAL = 0,
-    ROAD_STRAIGHT,
     ROAD_LEFT_RING,
     ROAD_RIGHT_RING
 } RoadType_e;
@@ -60,8 +59,6 @@ typedef struct
     int16 WhiteLine_L;
     int16 WhiteLine_R;
     int16 OFFLineBoundary;
-    int straight_acc;
-    int variance_acc;
 } ImageStatustypedef;
 
 typedef struct
