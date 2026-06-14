@@ -2003,7 +2003,11 @@ static void image_handle_right_ring(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
+            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
+            }
         }
     }
     if((ImageFlag.image_element_rings_flag == 5) ||
@@ -2090,13 +2094,13 @@ static void image_handle_right_ring(void)
     }
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        Repair_Point_Xsite = 20;
+        Repair_Point_Xsite = 52;
         Repair_Point_Ysite = 0;
-        for(Ysite = 40; Ysite > 8; Ysite--)
+        for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][28] == 1) && (Pixle[Ysite - 1][28] == 0))
+            if((Pixle[Ysite][52] == 1) && (Pixle[Ysite - 1][52] == 0))
             {
-                Repair_Point_Xsite = 28;
+                Repair_Point_Xsite = 52;
                 Repair_Point_Ysite = Ysite - 1;
                 ImageStatus.OFFLine = Ysite + 1;
                 break;
@@ -2109,7 +2113,11 @@ static void image_handle_right_ring(void)
                 ImageDeal[Ysite].LeftBorder =
                     (ImageDeal[58].LeftBorder - Repair_Point_Xsite) * (Ysite - 58) /
                     (58 - Repair_Point_Ysite) + ImageDeal[58].LeftBorder;
-                ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
+                if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
+                {
+                    ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
+                }
             }
         }
     }
@@ -2117,7 +2125,11 @@ static void image_handle_right_ring(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
+            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
+            {
+                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
+            }
         }
     }
 }
