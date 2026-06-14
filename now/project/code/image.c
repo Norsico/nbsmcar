@@ -443,25 +443,24 @@ static void image_compress(void)
     mt9v03x_finish_flag = 0;
 }
 
-/* Otsu threshold on ImageGray. */
+/* Otsu threshold on ImageGray.
+ * Early-exit assumes the between-class variance is unimodal enough for road images.
+ */
 static uint8 image_otsu(void)
 {
     int16 row;
     int16 col;
     int16 i;
-    uint32 gray_sum;
-    float pixel_sum;
-    float gray_average;
-    float w0;
-    float w1;
-    float u0tmp;
-    float u1tmp;
-    float u0;
-    float u1;
-    float delta_tmp;
-    float delta_max;
-    float diff0;
-    float diff1;
+    uint16 total;
+    uint16 weight_back;
+    uint16 weight_front;
+    uint32 sum_all;
+    uint32 sum_back;
+    float mean_back;
+    float mean_front;
+    float diff;
+    float score;
+    float best_score;
     uint8 threshold;
 
     for(i = 0; i < 256; i++)
@@ -469,57 +468,60 @@ static uint8 image_otsu(void)
         ImageHist[i] = 0;
     }
 
-    pixel_sum = (float)(IMAGE_W * IMAGE_H);
-    gray_sum = 0;
+    total = IMAGE_W * IMAGE_H;
+    sum_all = 0;
     for(row = 0; row < IMAGE_H; row++)
     {
         for(col = 0; col < IMAGE_W; col++)
         {
             ImageHist[ImageGray[row][col]]++;
-            gray_sum += ImageGray[row][col];
+            sum_all += ImageGray[row][col];
         }
     }
 
-    gray_average = (float)gray_sum / pixel_sum;
-    w0 = 0.0f;
-    u0tmp = 0.0f;
-    delta_tmp = 0.0f;
-    delta_max = 0.0f;
+    weight_back = 0;
+    sum_back = 0;
+    best_score = 0.0f;
     threshold = 0;
 
-    for(i = 0; i < ImageStatus.Threshold_detach; i++)
+    for(i = 0; i < IMAGE_THRESHOLD_DETACH; i++)
     {
-        w0 += (float)ImageHist[i] / pixel_sum;
-        u0tmp += (float)i * (float)ImageHist[i] / pixel_sum;
-        if(w0 <= 0.0f)
+        weight_back += ImageHist[i];
+        if(weight_back == 0)
         {
             continue;
         }
 
-        w1 = 1.0f - w0;
-        if(w1 <= 0.0f)
+        weight_front = total - weight_back;
+        if(weight_front == 0)
         {
             break;
         }
 
-        u1tmp = gray_average - u0tmp;
-        u0 = u0tmp / w0;
-        u1 = u1tmp / w1;
-        diff0 = u0 - gray_average;
-        diff1 = u1 - gray_average;
-        delta_tmp = (w0 * diff0 * diff0) + (w1 * diff1 * diff1);
+        sum_back += (uint32)i * ImageHist[i];
+        mean_back = (float)sum_back / weight_back;
+        mean_front = (float)(sum_all - sum_back) / weight_front;
+        diff = mean_back - mean_front;
+        score = (float)weight_back * weight_front * diff * diff;
 
-        if(delta_tmp > delta_max)
+        if(score > best_score)
         {
-            delta_max = delta_tmp;
+            best_score = score;
             threshold = (uint8)i;
         }
 
-        /* Same threshold peak rule as the 19th reference code. */
-        if(delta_tmp < delta_max)
+        if(score < best_score)
         {
             break;
         }
+    }
+
+    Image.threshold = threshold;
+    ImageRawThreshold = threshold;
+    Image.lost = 0;
+    if(threshold < IMAGE_STOP_RAW_THRESHOLD)
+    {
+        Image.lost = 1;
     }
 
     return threshold;
