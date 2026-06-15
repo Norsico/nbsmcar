@@ -81,6 +81,8 @@ typedef struct
     int16 error;              /* center - IMAGE_MID */
     uint8 valid_count;        /* valid rows from OFFLine to bottom */
     uint8 lost;               /* no reliable track */
+    int16 left_ring_right_deviation_x10; /* right-side max line deviation x10 */
+    int16 right_ring_left_deviation_x10; /* left-side max line deviation x10 */
     uint8 ring;               /* 0 none, 1 left ring, 2 right ring */
     uint8 ring_step;          /* ring process stage */
     uint8 zebra;              /* zebra line hit in current frame */

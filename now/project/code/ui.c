@@ -387,6 +387,14 @@ static void ui_show_camera_image(void)
     ips200_show_string(176, 172, "tow");
     ips200_show_string(208, 172, "  ");
     ips200_show_uint8(208, 172, Image.tow_row);
+
+
+    ips200_show_string(0, 188, "LRD10");
+    ips200_show_string(48, 188, "     ");
+    ips200_show_int16(48, 188, Image.left_ring_right_deviation_x10);
+    ips200_show_string(96, 188, "RLD10");
+    ips200_show_string(144, 188, "     ");
+    ips200_show_int16(144, 188, Image.right_ring_left_deviation_x10);
 }
 
 static void ui_show(void)

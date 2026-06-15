@@ -134,8 +134,10 @@ static float DetL = 0.0f;
 static uint8 Ring_Help_Flag = 0;
 static int16 Left_RingsFlag_Point1_Ysite = 0;
 static int16 Left_RingsFlag_Point2_Ysite = 0;
+static int16 Left_Ring_Right_Deviation_X10 = 0;
 static int16 Right_RingsFlag_Point1_Ysite = 0;
 static int16 Right_RingsFlag_Point2_Ysite = 0;
+static int16 Right_Ring_Left_Deviation_X10 = 0;
 static int16 Point_Xsite = 0;
 static int16 Point_Ysite = 0;
 static int16 Repair_Point_Xsite = 0;
@@ -164,11 +166,11 @@ static uint8 image_tow_point(void)
     if((ImageFlag.image_element_rings_flag == 1) ||
        (ImageFlag.image_element_rings_flag == 2))
     {
-        tow_point = 30;
+        tow_point = 24;
     }
     else if(ImageFlag.image_element_rings != 0)
     {
-        tow_point = 28;
+        tow_point = 22;
     }
     else
     {
@@ -231,6 +233,8 @@ static void image_export_result(void)
     Image.error = (int16)(Image.center - IMAGE_MID);
     Image.valid_count = (uint8)((ImageStatus.OFFLine < IMAGE_H) ? (IMAGE_H - ImageStatus.OFFLine) : 0);
     Image.lost = 0;
+    Image.left_ring_right_deviation_x10 = Left_Ring_Right_Deviation_X10;
+    Image.right_ring_left_deviation_x10 = Right_Ring_Left_Deviation_X10;
 
     if(ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD)
     {
@@ -1494,6 +1498,72 @@ static float Straight_Judge(uint8 dir, uint8 start, uint8 end)
 
     return S;
 }
+
+static float Right_Border_Max_Deviation(uint8 start, uint8 end)
+{
+    uint8 row;
+    float k;
+    float expect;
+    float err;
+    float max_err = 0.0f;
+
+    if(end <= start)
+    {
+        return 0.0f;
+    }
+
+    k = (float)(ImageDeal[end].RightBorder - ImageDeal[start].RightBorder) /
+        (float)(end - start);
+
+    for(row = start; row <= end; row++)
+    {
+        expect = (float)ImageDeal[start].RightBorder + k * (float)(row - start);
+        err = expect - (float)ImageDeal[row].RightBorder;
+        if(err < 0.0f)
+        {
+            err = -err;
+        }
+        if(err > max_err)
+        {
+            max_err = err;
+        }
+    }
+
+    return max_err;
+}
+
+static float Left_Border_Max_Deviation(uint8 start, uint8 end)
+{
+    uint8 row;
+    float k;
+    float expect;
+    float err;
+    float max_err = 0.0f;
+
+    if(end <= start)
+    {
+        return 0.0f;
+    }
+
+    k = (float)(ImageDeal[end].LeftBorder - ImageDeal[start].LeftBorder) /
+        (float)(end - start);
+
+    for(row = start; row <= end; row++)
+    {
+        expect = (float)ImageDeal[start].LeftBorder + k * (float)(row - start);
+        err = expect - (float)ImageDeal[row].LeftBorder;
+        if(err < 0.0f)
+        {
+            err = -err;
+        }
+        if(err > max_err)
+        {
+            max_err = err;
+        }
+    }
+
+    return max_err;
+}
 //--------------------------------------------------------------
 //  @name           Element_Judgment_Left_Rings()
 //  @brief          整个图像判断的子函数，用来判断左圆环类型.
@@ -1506,10 +1576,12 @@ static void image_judge_left_ring(void)
 {
     Left_RingsFlag_Point1_Ysite = 0;
     Left_RingsFlag_Point2_Ysite = 0;
+    Left_Ring_Right_Deviation_X10 =
+        (int16)(Right_Border_Max_Deviation(20, 55) * 10.0f);
     if((ImageStatus.Right_Line > 7) ||
        (ImageStatus.Left_Line < 13) ||
        (ImageStatus.OFFLine > 10) ||
-       (Straight_Judge(2, 25, 45) > 50.0f) ||
+       (Left_Ring_Right_Deviation_X10 >= 15) ||
        (ImageStatus.WhiteLine > 15) ||
        (ImageDeal[52].IsLeftFind == 'W') ||
        (ImageDeal[53].IsLeftFind == 'W') ||
@@ -1587,10 +1659,13 @@ static void image_judge_right_ring(void)
 {
     Right_RingsFlag_Point1_Ysite = 0;
     Right_RingsFlag_Point2_Ysite = 0;
+    Right_Ring_Left_Deviation_X10 =
+        (int16)(Left_Border_Max_Deviation(20, 55) * 10.0f);
     if((ImageStatus.Left_Line > 7) ||
        (ImageStatus.Right_Line < 13) ||
        (ImageStatus.OFFLine > 10) ||
        (Straight_Judge(1, 25, 45) > 50.0f) ||
+       (Right_Ring_Left_Deviation_X10 >= 15) ||
        (ImageStatus.WhiteLine > 15) ||
        (ImageDeal[52].IsRightFind == 'W') ||
        (ImageDeal[53].IsRightFind == 'W') ||
@@ -1633,7 +1708,30 @@ static void image_judge_right_ring(void)
         }
     }
 
-    if((Right_RingsFlag_Point2_Ysite > (Right_RingsFlag_Point1_Ysite + 3)) &&
+    /*
+     * 右环第二确认路径 / Right ring extra confirm path.
+     *
+     * Right_RingsFlag_Point1_Ysite:
+     *   由 RightBoundary_First 找到的右侧上方拐点。
+     * Right_RingsFlag_Point2_Ysite:
+     *   由 RightBoundary 找到的右侧下方拐点。
+     *
+     * Right_Ring_Left_Deviation_X10:
+     *   右环入口要求左侧边界整体接近直线。
+     *   屏幕显示值 RLD10 必须小于 15，才允许继续判断右环。
+     *
+     * Point2 >= Point1 + 2:
+     *   两个右侧拐点至少相差 2 行，说明右环入口形状已经出现。
+     *
+     * Ring_Help_Flag == 0:
+     *   前面的 RightBorder 形态扫描没有确认右环入口，
+     *   所以这里再用 Right_Line 做一次确认。
+     *
+     * ImageStatus.Right_Line:
+     *   右侧丢边行数。右环入口出现时，右侧开口变大，
+     *   这个值通常会变大。当前第二确认阈值是 > 7。
+     */
+    if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 2)) &&
        (Ring_Help_Flag == 0))
     {
         if(ImageStatus.Right_Line > 7)
@@ -1642,7 +1740,16 @@ static void image_judge_right_ring(void)
         }
     }
 
-    if((Right_RingsFlag_Point2_Ysite > (Right_RingsFlag_Point1_Ysite + 3)) &&
+    /*
+     * 右环状态成立条件 / Final right ring start condition:
+     *   1. RLD10 小于 15，左侧边界整体偏离不大。
+     *   2. Point2 至少比 Point1 低 2 行。
+     *   3. Ring_Help_Flag 已经为 1，来源可能是：
+     *      - 前面的 RightBorder 形态扫描；
+     *      - 上面这段 Right_Line > 7 的第二确认路径。
+     *   4. image_element_rings_flag 仍然为 0，表示环岛流程尚未开始。
+     */
+    if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 2)) &&
        (Ring_Help_Flag == 1) &&
        (ImageFlag.image_element_rings_flag == 0))
     {
@@ -1864,9 +1971,9 @@ static void image_handle_left_ring(void)
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][28] == 1) && (Pixle[Ysite - 1][28] == 0))
+            if((Pixle[Ysite][20] == 1) && (Pixle[Ysite - 1][20] == 0))
             {
-                Repair_Point_Xsite = 28;
+                Repair_Point_Xsite = 20;
                 Repair_Point_Ysite = Ysite - 1;
                 ImageStatus.OFFLine = Ysite + 1;
                 break;
@@ -2003,11 +2110,7 @@ static void image_handle_right_ring(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
-            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
-            }
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
         }
     }
     if((ImageFlag.image_element_rings_flag == 5) ||
@@ -2094,13 +2197,13 @@ static void image_handle_right_ring(void)
     }
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        Repair_Point_Xsite = 52;
+        Repair_Point_Xsite = 60;
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][52] == 1) && (Pixle[Ysite - 1][52] == 0))
+            if((Pixle[Ysite][60] == 1) && (Pixle[Ysite - 1][60] == 0))
             {
-                Repair_Point_Xsite = 52;
+                Repair_Point_Xsite = 60;
                 Repair_Point_Ysite = Ysite - 1;
                 ImageStatus.OFFLine = Ysite + 1;
                 break;
@@ -2113,11 +2216,7 @@ static void image_handle_right_ring(void)
                 ImageDeal[Ysite].LeftBorder =
                     (ImageDeal[58].LeftBorder - Repair_Point_Xsite) * (Ysite - 58) /
                     (58 - Repair_Point_Ysite) + ImageDeal[58].LeftBorder;
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
-                if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
-                {
-                    ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
-                }
+                ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
             }
         }
     }
@@ -2125,11 +2224,7 @@ static void image_handle_right_ring(void)
     {
         for(Ysite = 59; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite] + 3;
-            if(ImageDeal[Ysite].Center >= ImageDeal[Ysite].RightBorder)
-            {
-                ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - 1;
-            }
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].LeftBorder + Half_Road_Wide[Ysite];
         }
     }
 }
