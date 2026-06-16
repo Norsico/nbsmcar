@@ -97,6 +97,8 @@ static void motor_timer(void)
 
 void motor_update_fan(void)
 {
+    static int16 last_fan_target = -1;  /* 记录上次的风扇档位 */
+    static uint8 change_delay = 0;      /* 档位切换延迟计数器 */
     int16 fan_target;
 
     if(CarMode != CAR_MODE_RUN)
@@ -114,8 +116,21 @@ void motor_update_fan(void)
         fan_target = SmartCar.motor.fan_duty;  /* 弯道/环岛：正常下压力 */
     }
 
-    /* 写入风扇PWM */
-    fan_write_percent(fan_target);
+    /* 档位改变时，延迟3帧再切换（防止抖动） */
+    if(fan_target != last_fan_target)
+    {
+        change_delay++;
+        if(change_delay >= 3)  /* 连续3帧确认档位改变 */
+        {
+            fan_write_percent(fan_target);
+            last_fan_target = fan_target;
+            change_delay = 0;
+        }
+    }
+    else
+    {
+        change_delay = 0;  /* 档位相同，清零计数 */
+    }
 }
 
 void motor_init(void)
