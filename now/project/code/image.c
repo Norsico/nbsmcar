@@ -1,121 +1,164 @@
 #include "headfile.h"
 
+/* =============================================================================
+ * 全局图像数据
+ * =============================================================================
+ * 图像处理流程：
+ *   摄像头原始图 -> ImageGray (80x60灰度图) -> ImageBin (二值图)
+ *                -> ImageDeal (边线提取) -> Image (最终结果)
+ *
+ * 本模块功能：
+ *   - 基础巡线和边线检测
+ *   - 十字线填补和路径滤波
+ *   - 环岛识别和处理
+ *   - 斑马线检测
+ *
+ * 不包含：
+ *   - 坡道检测（单独处理）
+ *   - 目标环岛激光逻辑
+ * ============================================================================= */
+
 image_data Image;
 uint8 ImageGray[IMAGE_H][IMAGE_W];
 uint8 ImageBin[IMAGE_H][IMAGE_W];
 
-/* Frame flow:
- * mt9v03x_image -> ImageGray -> ImageBin -> ImageDeal -> Image.
- * This file keeps base tracking, cross line fill, ring and zebra handling.
- * Ramp and target-ring laser logic are not included here.
- */
-#define IMAGE_COMPRESS_CUT_COL         (1)
-#define IMAGE_COMPRESS_CUT_ROW_TOP     (0)
-#define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (1)
+/* 图像压缩设置 */
+#define IMAGE_COMPRESS_CUT_COL         (1)     /* 左右各裁剪1列 */
+#define IMAGE_COMPRESS_CUT_ROW_TOP     (0)     /* 上方裁剪行数 */
+#define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (1)     /* 下方裁剪1行 */
 #define IMAGE_COMPRESS_SRC_H           (MT9V03X_H - IMAGE_COMPRESS_CUT_ROW_TOP - IMAGE_COMPRESS_CUT_ROW_BOTTOM)
 #define IMAGE_COMPRESS_SRC_W           (MT9V03X_W - (IMAGE_COMPRESS_CUT_COL * 2))
 
-#define IMAGE_THRESHOLD_DETACH         (150)//二值化大阈值
-#define IMAGE_THRESHOLD_STATIC         (40)	//二值化小阈值
-#define IMAGE_STOP_RAW_THRESHOLD       (25)
-#define IMAGE_OFFLINE_INIT             (2)
-#define IMAGE_SCAN_INTERVAL            (3)
-#define IMAGE_ZEBRA_MISS_COUNT         (3)
-#define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)
-#define IMAGE_ZEBRA_EDGE_MIN           (4)
-#define IMAGE_ZEBRA_STOP_COUNT         (2)
-#define IMAGE_LOST_STOP_COUNT          (4)
-#define IMAGE_RUN_START_IGNORE_FRAMES  (3)
+/* 阈值和检测参数 */
+#define IMAGE_THRESHOLD_DETACH         (150)   /* 大津法扫描上限（防止过亮区域干扰） */
+#define IMAGE_THRESHOLD_STATIC         (40)    /* 二值化阈值下限（保证最小对比度） */
+#define IMAGE_STOP_RAW_THRESHOLD       (25)    /* 原始阈值低于此值判定为丢线 */
+#define IMAGE_OFFLINE_INIT             (2)     /* 初始有效行起始位置 */
+#define IMAGE_SCAN_INTERVAL            (3)     /* 边线搜索时上下行的搜索范围 */
 
+/* 斑马线检测参数 */
+#define IMAGE_ZEBRA_MISS_COUNT         (3)     /* 斑马线消失多少帧后解锁 */
+#define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)    /* 两次斑马线检测之间的冷却帧数 */
+#define IMAGE_ZEBRA_EDGE_MIN           (4)     /* 确认斑马线需要的最少黑白跳变次数 */
+#define IMAGE_ZEBRA_STOP_COUNT         (2)     /* 检测到几次斑马线后停车 */
+
+/* 运行时安全参数 */
+#define IMAGE_LOST_STOP_COUNT          (4)     /* 连续丢线多少帧后停车 */
+#define IMAGE_RUN_START_IGNORE_FRAMES  (3)     /* 启动后忽略丢线的帧数（避免误判） */
+
+/* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
 #define LimitH(H)                      (H = ((H > 78) ? 78 : H))
 #define IMAGE_ABS(V)                   (((V) < 0) ? (-(V)) : (V))
 
+/* =============================================================================
+ * 内部数据结构
+ * ============================================================================= */
 
+/* 边线搜索时的跳变点 */
 typedef struct
 {
-    int16 point;
-    uint8 type;          /* T: edge found, W: white/no edge, H: hidden */
+    int16 point;      /* 跳变点的列位置 */
+    uint8 type;       /* 'T': 找到边线, 'W': 白色/无边线, 'H': 隐藏边线 */
 } image_jump;
 
+/* 每一行的边线处理结果 */
 typedef struct
 {
-    uint8 IsRightFind;   /* right edge flag */
-    uint8 IsLeftFind;    /* left edge flag */
-    int16 Wide;          /* RightBorder - LeftBorder */
-    int16 LeftBorder;    /* left edge column */
-    int16 RightBorder;   /* right edge column */
-    int16 close_LeftBorder;
-    int16 close_RightBorder;
-    int16 Center;        /* row center column */
-    int16 RightTemp;
-    int16 LeftTemp;
-    int16 LeftBoundary_First;
-    int16 RightBoundary_First;
-    int16 LeftBoundary;
-    int16 RightBoundary;
+    uint8 IsLeftFind;              /* 左边线状态: 'T'/'W'/'H'/'F' */
+    uint8 IsRightFind;             /* 右边线状态: 'T'/'W'/'H'/'F' */
+    int16 LeftBorder;              /* 左边线列坐标 */
+    int16 RightBorder;             /* 右边线列坐标 */
+    int16 Center;                  /* 中心线列坐标 = (左+右)/2 */
+    int16 Wide;                    /* 赛道宽度 = 右-左 */
+    int16 LeftTemp;                /* 左边线临时备份 */
+    int16 RightTemp;               /* 右边线临时备份 */
+    int16 close_LeftBorder;        /* 近距离左边线 */
+    int16 close_RightBorder;       /* 近距离右边线 */
+    int16 LeftBoundary_First;      /* 边界追踪首次检测到的左边界 */
+    int16 RightBoundary_First;     /* 边界追踪首次检测到的右边界 */
+    int16 LeftBoundary;            /* 边界追踪最终左边界 */
+    int16 RightBoundary;           /* 边界追踪最终右边界 */
 } image_deal;
 
+/* 图像处理全局状态 */
 typedef struct
 {
-    uint8 TowPoint;          /* configured tow point */
-    int16 TowPoint_True;     /* tow point after visible-range limit */
-    int16 Det_True;          /* weighted center column */
-    uint8 Threshold;         /* final threshold after lower limit */
-    uint16 Threshold_static; /* threshold lower limit */
-    uint8 Threshold_detach;  /* otsu scan upper limit */
-    uint8 Left_Line;         /* left side white/no-edge rows */
-    uint8 Right_Line;        /* right side white/no-edge rows */
-    uint8 OFFLine;           /* first reliable row from top */
-    uint8 WhiteLine;         /* both sides white/no-edge rows */
-    RoadType_e Road_type;
-    int16 WhiteLine_L;
-    int16 WhiteLine_R;
-    int16 OFFLineBoundary;
+    uint8 TowPoint;                /* 配置的瞄点行（目标行） */
+    int16 TowPoint_True;           /* 实际使用的瞄点（受可见范围约束） */
+    int16 Det_True;                /* 加权中心列坐标（用于转向控制） */
+    uint8 Threshold;               /* 最终二值化阈值（应用下限后） */
+    uint16 Threshold_static;       /* 阈值下限（最小允许值） */
+    uint8 Threshold_detach;        /* 大津法上限（扫描上限） */
+    uint8 Left_Line;               /* 左侧白色/无边线的行数 */
+    uint8 Right_Line;              /* 右侧白色/无边线的行数 */
+    uint8 WhiteLine;               /* 两侧都是白色的行数 */
+    uint8 OFFLine;                 /* 从上往下第一个可靠的行（地平线） */
+    int16 WhiteLine_L;             /* 左侧白线指示 */
+    int16 WhiteLine_R;             /* 右侧白线指示 */
+    int16 OFFLineBoundary;         /* 边界追踪停止行 */
+    RoadType_e Road_type;          /* 当前道路类型分类 */
 } image_status;
 
+/* 环岛识别状态机 */
 typedef struct
 {
-    int16 image_element_rings;       /* 0:none, 1:left ring, 2:right ring */
-    int16 ring_big_small;
-    int16 image_element_rings_flag;  /* 1/2: mouth found, 5/6: enter fill, 7/8: inside/exit, 9: finish */
-    int16 straight_long;
+    int16 image_element_rings;       /* 0:无环岛, 1:左环岛, 2:右环岛 */
+    int16 ring_big_small;            /* 环岛大小标志 */
+    int16 image_element_rings_flag;  /* 状态: 1/2=入口, 5/6=内部, 7/8=出口, 9=完成 */
+    int16 straight_long;             /* 直道段长度计数 */
 } image_flag;
 
+/* =============================================================================
+ * 静态变量
+ * ============================================================================= */
+
+/* 每一行的边线跟踪结果 */
 static image_deal ImageDeal[IMAGE_H];
+
+/* 全局图像处理状态 */
 static image_status ImageStatus =
 {
-    SERVO_POINT,
-    SERVO_POINT,
-    IMAGE_MID,
-    0,
-    IMAGE_THRESHOLD_STATIC,
-    IMAGE_THRESHOLD_DETACH,
-    0,
-    0,
-    IMAGE_OFFLINE_INIT,
-    0,
-    ROAD_NORMAL,
-    0,
-    0,
-    5
+    .TowPoint           = SERVO_POINT,
+    .TowPoint_True      = SERVO_POINT,
+    .Det_True           = IMAGE_MID,
+    .Threshold          = 0,
+    .Threshold_static   = IMAGE_THRESHOLD_STATIC,
+    .Threshold_detach   = IMAGE_THRESHOLD_DETACH,
+    .Left_Line          = 0,
+    .Right_Line         = 0,
+    .WhiteLine          = 0,
+    .OFFLine            = IMAGE_OFFLINE_INIT,
+    .WhiteLine_L        = 0,
+    .WhiteLine_R        = 0,
+    .OFFLineBoundary    = 5,
+    .Road_type          = ROAD_NORMAL
 };
 
+/* 环岛检测状态机 */
 static image_flag ImageFlag = {0};
 
+/* 图像压缩查找表 */
 static uint8 ImageRowMap[IMAGE_H];
 static uint8 ImageColMap[IMAGE_W];
 static uint8 ImageMapReady = 0;
+
+/* 大津法阈值计算 */
 static uint16 ImageHist[256];
 static uint8 ImageRawThreshold = 0;
+
+/* 斑马线检测 */
 static uint8 ZebraHit = 0;
 static uint8 ZebraDetectCount = 0;
 static uint8 ZebraFrameLatch = 0;
 static uint8 ZebraMissFrames = 0;
 static uint8 ZebraCooldownFrames = 0;
+
+/* 丢线检测和运行状态 */
 static uint8 ImageLostCount = 0;
 static uint8 ImageRunFrameCount = 0;
 
+/* 图像处理工作变量 */
 static int16 Ysite = 0;
 static int16 Xsite = 0;
 static uint8 *PicTemp = 0;
@@ -131,6 +174,8 @@ static int16 TFSite = 0;
 static int16 FTSite = 0;
 static float DetR = 0.0f;
 static float DetL = 0.0f;
+
+/* 环岛检测工作变量 */
 static uint8 Ring_Help_Flag = 0;
 static int16 Left_RingsFlag_Point1_Ysite = 0;
 static int16 Left_RingsFlag_Point2_Ysite = 0;
@@ -142,44 +187,74 @@ static int16 Point_Xsite = 0;
 static int16 Point_Ysite = 0;
 static int16 Repair_Point_Xsite = 0;
 static int16 Repair_Point_Ysite = 0;
+/* =============================================================================
+ * 查找表
+ * ============================================================================= */
 
+/**
+ * Half_Road_Wide[row]: 每一行赛道的预期半宽
+ * 用途：环岛单边巡线时，根据半宽补全另一侧边线
+ * 数值：根据摄像头透视关系经验调试得出
+ */
 static const uint8 Half_Road_Wide[IMAGE_H] =
 {
-    6, 7, 7, 8, 8, 9, 9, 9, 11, 11,
-    12, 12, 12, 12, 12, 13, 13, 15, 15, 16, // 20
-    17, 17, 17, 18, 18, 19, 19, 19, 20, 20, 
-    19, 20, 20, 21, 21, 22, 22, 22, 24, 24, // 40
-    25, 26, 26, 27, 27, 27, 28, 28, 29, 29,
-    30, 30, 30, 30, 31, 31, 31, 34, 34, 35
+    6, 7, 7, 8, 8, 9, 9, 9, 11, 11,                       /* 第0-9行 */
+    12, 12, 12, 12, 12, 13, 13, 15, 15, 16,               /* 第10-19行 */
+    17, 17, 17, 18, 18, 19, 19, 19, 20, 20,               /* 第20-29行 */
+    19, 20, 20, 21, 21, 22, 22, 22, 24, 24,               /* 第30-39行 */
+    25, 26, 26, 27, 27, 27, 28, 28, 29, 29,               /* 第40-49行 */
+    30, 30, 30, 30, 31, 31, 31, 34, 34, 35                /* 第50-59行 */
 };
 
+/**
+ * Weighting[i]: 加权平均中心计算的权重系数
+ * 用途：计算转向控制中心时，离瞄点越近的行权重越大
+ * 作用：让转向控制更平滑，不会因为单行抖动而跳变
+ */
 static const float Weighting[10] =
 {
     0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
     0.71f, 0.65f, 0.59f, 0.53f, 0.47f
 };
 
+/* =============================================================================
+ * 内部辅助函数
+ * ============================================================================= */
+
+/**
+ * @brief  确定实际的瞄点行（用于转向控制的目标行）
+ * @return 调整后的瞄点，受可见范围和环岛状态约束
+ * @note   环岛入口时固定瞄点，保证控制稳定
+ */
+
 static uint8 image_tow_point(void)
 {
     int16 tow_point;
 
+    /* 环岛入口阶段固定瞄点 */
     if((ImageFlag.image_element_rings_flag == 1) ||
        (ImageFlag.image_element_rings_flag == 2))
     {
         tow_point = 24;
     }
+    /* 环岛其他阶段使用固定瞄点 */
     else if(ImageFlag.image_element_rings != 0)
     {
         tow_point = 22;
     }
+    /* 正常巡线使用配置的瞄点 */
     else
     {
         tow_point = SmartCar.servo.tow_point;
     }
+
+    /* 瞄点不能超过有效行 */
     if(tow_point < ImageStatus.OFFLine)
     {
         tow_point = ImageStatus.OFFLine + 1;
     }
+
+    /* 限制瞄点范围 */
     if(tow_point >= 49)
     {
         tow_point = 49;
@@ -192,7 +267,9 @@ static uint8 image_tow_point(void)
     return (uint8)tow_point;
 }
 
-/* Clear per-row tracking result before processing a new frame. */
+/**
+ * @brief  清空每行的跟踪结果，准备处理新的一帧
+ */
 static void image_clear_deal(void)
 {
     ImageStatus.OFFLine = IMAGE_OFFLINE_INIT;
@@ -224,7 +301,9 @@ static void image_clear_deal(void)
     }
 }
 
-/* Copy internal result to the public Image structure used by UI/servo. */
+/**
+ * @brief  导出处理结果到公共Image结构体（UI和舵机使用）
+ */
 static void image_export_result(void)
 {
     Image.threshold = ImageStatus.Threshold;
@@ -236,10 +315,12 @@ static void image_export_result(void)
     Image.left_ring_right_deviation_x10 = Left_Ring_Right_Deviation_X10;
     Image.right_ring_left_deviation_x10 = Right_Ring_Left_Deviation_X10;
 
+    /* 判断丢线：阈值过低 */
     if(ImageRawThreshold < IMAGE_STOP_RAW_THRESHOLD)
     {
         Image.lost = 1;
     }
+    /* 判断丢线：有效行过少 */
     if(ImageStatus.OFFLine > 50)
     {
         Image.lost = 1;
@@ -252,7 +333,9 @@ static void image_export_result(void)
     Image.zebra_count = ZebraDetectCount;
 }
 
-/* Map 80-column image coordinate to the preview area. */
+/**
+ * @brief  将80列图像坐标映射到预览区域的X坐标
+ */
 static uint16 image_debug_x(uint16 x, uint16 w, int16 col)
 {
     if(col < 0)
@@ -267,7 +350,9 @@ static uint16 image_debug_x(uint16 x, uint16 w, int16 col)
     return (uint16)(x + (((uint16)col * w) + (IMAGE_W / 2)) / IMAGE_W);
 }
 
-/* Map 60-row image coordinate to the preview area. */
+/**
+ * @brief  将60行图像坐标映射到预览区域的Y坐标
+ */
 static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
 {
     if(row < 0)
@@ -282,7 +367,11 @@ static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
     return (uint16)(y + (((uint16)row * h) + (IMAGE_H / 2)) / IMAGE_H);
 }
 
-/* Draw green borders, red center line and yellow tow row on UI preview. */
+/**
+ * @brief  在UI预览图上绘制调试信息
+ * @param  x, y, w, h  预览区域的位置和大小
+ * @note   绿色：边线，红色：中线，黄色：瞄点行
+ */
 void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
 {
     uint8 row;
@@ -409,7 +498,10 @@ void image_init(void)
     mt9v03x_finish_flag = 0;
 }
 
-/* Compress MT9V03X raw frame to 80x60 grayscale buffer. */
+/**
+ * @brief  压缩原始图像到80x60灰度图
+ * @note   使用预计算的查找表加速，只在第一次调用时初始化
+ */
 static void image_compress(void)
 {
     int16 row;
@@ -418,6 +510,7 @@ static void image_compress(void)
     uint8 *dst;
     uint8 *src;
 
+    /* 第一次调用时初始化行列映射表 */
     if(ImageMapReady == 0)
     {
         for(row = 0; row < IMAGE_H; row++)
@@ -433,6 +526,7 @@ static void image_compress(void)
         ImageMapReady = 1;
     }
 
+    /* 使用查找表快速压缩图像 */
     for(row = 0; row < IMAGE_H; row++)
     {
         src_row = ImageRowMap[row];
@@ -447,8 +541,10 @@ static void image_compress(void)
     mt9v03x_finish_flag = 0;
 }
 
-/* Otsu threshold on ImageGray.
- * Early-exit assumes the between-class variance is unimodal enough for road images.
+/**
+ * @brief  大津法自动阈值计算
+ * @return 计算出的最佳阈值
+ * @note   提前退出优化：假设类间方差是单峰的（对于赛道图像通常成立）
  */
 static uint8 image_otsu(void)
 {
@@ -467,11 +563,13 @@ static uint8 image_otsu(void)
     float best_score;
     uint8 threshold;
 
+    /* 清空直方图 */
     for(i = 0; i < 256; i++)
     {
         ImageHist[i] = 0;
     }
 
+    /* 统计灰度直方图 */
     total = IMAGE_W * IMAGE_H;
     sum_all = 0;
     for(row = 0; row < IMAGE_H; row++)
@@ -483,6 +581,7 @@ static uint8 image_otsu(void)
         }
     }
 
+    /* 大津法：遍历阈值，找到类间方差最大的 */
     weight_back = 0;
     sum_back = 0;
     best_score = 0.0f;
@@ -514,6 +613,7 @@ static uint8 image_otsu(void)
             threshold = (uint8)i;
         }
 
+        /* 提前退出：类间方差开始下降 */
         if(score < best_score)
         {
             break;
@@ -531,7 +631,11 @@ static uint8 image_otsu(void)
     return threshold;
 }
 
-/* Convert ImageGray to 0/1 ImageBin. */
+/**
+ * @brief  二值化处理：将灰度图转换为黑白图
+ * @param  threshold  大津法计算出的阈值
+ * @note   边缘区域降低阈值，增强边线检测
+ */
 static void image_binarize(uint8 threshold)
 {
     uint8 row;
@@ -539,6 +643,7 @@ static void image_binarize(uint8 threshold)
     uint8 thre;
     uint16 threshold_value;
 
+    /* 应用阈值偏移 */
     threshold_value = (uint16)threshold + SmartCar.camera.threshold_offset;
     if(threshold_value > 255)
     {
@@ -547,6 +652,8 @@ static void image_binarize(uint8 threshold)
 
     threshold = (uint8)threshold_value;
     ImageRawThreshold = threshold;
+
+    /* 应用阈值下限 */
     if(threshold < ImageStatus.Threshold_static)
     {
         threshold = (uint8)ImageStatus.Threshold_static;
@@ -555,10 +662,12 @@ static void image_binarize(uint8 threshold)
     ImageStatus.Threshold = threshold;
     Image.white_count = 0;
 
+    /* 二值化：边缘区域用更低的阈值 */
     for(row = 0; row < IMAGE_H; row++)
     {
         for(col = 0; col < IMAGE_W; col++)
         {
+            /* 左右边缘区域阈值降低10，增强边线检测 */
             if((col <= 15) || ((col > 70) && (col <= 75)) || (col >= 65))
             {
                 thre = (uint8)(threshold - 10);
@@ -581,7 +690,10 @@ static void image_binarize(uint8 threshold)
     }
 }
 
-/* Find the first five bottom rows as the seed for edge tracking. */
+/**
+ * @brief  初始化底部5行的边线作为跟踪起点
+ * @note   从最底行开始，向上搜索5行，建立初始边界
+ */
 static void image_draw_bottom(void)
 {
     PicTemp = ImageBin[59];
@@ -963,11 +1075,19 @@ static void image_search_border(uint8 bottom_row)
     }
 }
 
-/* Search one row around previous edge and classify the jump point. */
+/**
+ * @brief  在单行中搜索边线跳变点
+ * @param  line      当前行的指针
+ * @param  type      搜索类型：'L'=左边线, 'R'=右边线
+ * @param  low/high  搜索范围
+ * @param  jump      输出的跳变点结果
+ * @note   跳变点类型：'T'=找到边线, 'W'=全白无边线, 'H'=全黑隐藏
+ */
 static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image_jump *jump)
 {
     int16 i;
 
+    /* 限制搜索范围 */
     LimitL(low);
     LimitH(low);
     LimitL(high);
@@ -982,6 +1102,7 @@ static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image
 
     if(type == 'L')
     {
+        /* 从右向左搜索左边线（白到黑的跳变） */
         for(i = high; i >= low; i--)
         {
             if((*(line + i) == 1) && (*(line + i - 1) != 1))
@@ -995,12 +1116,12 @@ static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image
                 if(*(line + (low + high) / 2) != 0)
                 {
                     jump->point = (low + high) / 2;
-                    jump->type = 'W';
+                    jump->type = 'W';  /* 全白 */
                 }
                 else
                 {
                     jump->point = high;
-                    jump->type = 'H';
+                    jump->type = 'H';  /* 全黑 */
                 }
                 break;
             }
@@ -1008,6 +1129,7 @@ static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image
     }
     else
     {
+        /* 从左向右搜索右边线（白到黑的跳变） */
         for(i = low; i <= high; i++)
         {
             if((*(line + i) == 1) && (*(line + i + 1) != 1))
@@ -1021,12 +1143,12 @@ static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image
                 if(*(line + (low + high) / 2) != 0)
                 {
                     jump->point = (low + high) / 2;
-                    jump->type = 'W';
+                    jump->type = 'W';  /* 全白 */
                 }
                 else
                 {
                     jump->point = low;
-                    jump->type = 'H';
+                    jump->type = 'H';  /* 全黑 */
                 }
                 break;
             }
@@ -1034,7 +1156,10 @@ static void image_get_jump(uint8 *line, uint8 type, int16 low, int16 high, image
     }
 }
 
-/* Track left/right borders from bottom to top. */
+/**
+ * @brief  从底部向上逐行跟踪左右边线
+ * @note   核心巡线算法：在上一行边线附近搜索当前行边线
+ */
 static void image_draw_lines(void)
 {
     uint8 L_Found_T;
@@ -1280,6 +1405,10 @@ static void image_draw_lines(void)
     }
 }
 
+/**
+ * @brief  判断是否可以进行延长线补线
+ * @return 1=允许补线, 0=不允许（环岛期间禁止补线）
+ */
 static uint8 image_can_draw_extension_line(void)
 {
     if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
@@ -1297,7 +1426,10 @@ static uint8 image_can_draw_extension_line(void)
     return 1;
 }
 
-/* Fill missing edges and refresh center line. */
+/**
+ * @brief  补全丢失的边线（延长线法）
+ * @note   当边线中断时，用线性延长填补断点
+ */
 static void image_draw_extension_line(void)
 {
     if(image_can_draw_extension_line())
@@ -1418,7 +1550,10 @@ static void image_draw_extension_line(void)
     }
 }
 
-/* Match RouteFilter from the 19th reference code. */
+/**
+ * @brief  路径滤波：平滑中线，减少抖动
+ * @note   对应参考代码的 RouteFilter 函数
+ */
 static void image_route_filter(void)
 {
     int16 center_temp;
@@ -1426,8 +1561,10 @@ static void image_route_filter(void)
 
     center_temp = 0;
     line_temp = 0;
+
     for(Ysite = 58; Ysite >= (ImageStatus.OFFLine + 5); Ysite--)
     {
+        /* 连续两行都是全白时，插值填补中线 */
         if((ImageDeal[Ysite].IsLeftFind == 'W') &&
            (ImageDeal[Ysite].IsRightFind == 'W') &&
            (Ysite <= 45) &&
@@ -1441,6 +1578,7 @@ static void image_route_filter(void)
                 if((ImageDeal[ytemp].IsLeftFind == 'T') &&
                    (ImageDeal[ytemp].IsRightFind == 'T'))
                 {
+                    /* 线性插值填补 */
                     DetR = ((float)(ImageDeal[ytemp - 1].Center - ImageDeal[Ysite + 2].Center)) /
                            ((float)(ytemp - 1 - Ysite - 2));
                     center_temp = ImageDeal[Ysite + 2].Center;
@@ -1455,11 +1593,19 @@ static void image_route_filter(void)
                 }
             }
         }
+
+        /* 简单滤波：当前行中线 = (上一行 + 当前行*2) / 3 */
         ImageDeal[Ysite].Center = (ImageDeal[Ysite - 1].Center + 2 * ImageDeal[Ysite].Center) / 3;
     }
 }
 
-/* Straight line judge, same role as the open-source reference. */
+/**
+ * @brief  直线度判断（计算边线的线性拟合误差）
+ * @param  dir    1=判断左边线, 2=判断右边线
+ * @param  start  起始行
+ * @param  end    结束行
+ * @return 均方误差（越小越直）
+ */
 static float Straight_Judge(uint8 dir, uint8 start, uint8 end)
 {
     int i;
@@ -1470,7 +1616,7 @@ static float Straight_Judge(uint8 dir, uint8 start, uint8 end)
 
     switch(dir)
     {
-        case 1:
+        case 1:  /* 左边线 */
             k = (float)(ImageDeal[start].LeftBorder - ImageDeal[end].LeftBorder) / (start - end);
             for(i = 0; i < (end - start); i++)
             {
@@ -1481,7 +1627,7 @@ static float Straight_Judge(uint8 dir, uint8 start, uint8 end)
             S = Sum / (end - start);
             break;
 
-        case 2:
+        case 2:  /* 右边线 */
             k = (float)(ImageDeal[start].RightBorder - ImageDeal[end].RightBorder) / (start - end);
             for(i = 0; i < (end - start); i++)
             {
@@ -1499,6 +1645,12 @@ static float Straight_Judge(uint8 dir, uint8 start, uint8 end)
     return S;
 }
 
+/**
+ * @brief  计算右边线的最大偏离度
+ * @param  start  起始行
+ * @param  end    结束行
+ * @return 最大偏离值（绝对值）
+ */
 static float Right_Border_Max_Deviation(uint8 start, uint8 end)
 {
     uint8 row;
@@ -1512,9 +1664,11 @@ static float Right_Border_Max_Deviation(uint8 start, uint8 end)
         return 0.0f;
     }
 
+    /* 计算直线斜率 */
     k = (float)(ImageDeal[end].RightBorder - ImageDeal[start].RightBorder) /
         (float)(end - start);
 
+    /* 计算每一行的偏离度 */
     for(row = start; row <= end; row++)
     {
         expect = (float)ImageDeal[start].RightBorder + k * (float)(row - start);
@@ -1532,6 +1686,12 @@ static float Right_Border_Max_Deviation(uint8 start, uint8 end)
     return max_err;
 }
 
+/**
+ * @brief  计算左边线的最大偏离度
+ * @param  start  起始行
+ * @param  end    结束行
+ * @return 最大偏离值（绝对值）
+ */
 static float Left_Border_Max_Deviation(uint8 start, uint8 end)
 {
     uint8 row;
@@ -1564,26 +1724,31 @@ static float Left_Border_Max_Deviation(uint8 start, uint8 end)
 
     return max_err;
 }
-//--------------------------------------------------------------
-//  @name           Element_Judgment_Left_Rings()
-//  @brief          整个图像判断的子函数，用来判断左圆环类型.
-//  @parameter      void
-//  @time
-//  @Author         MRCHEN
-//  Sample usage:   Element_Judgment_Left_Rings();
-//--------------------------------------------------------------
+
+/* =============================================================================
+ * 环岛识别和处理
+ * ============================================================================= */
+
+/**
+ * @brief  左环岛判断
+ * @note   通过边界拐点和边线特征识别左环岛入口
+ */
 static void image_judge_left_ring(void)
 {
     Left_RingsFlag_Point1_Ysite = 0;
     Left_RingsFlag_Point2_Ysite = 0;
+
+    /* 计算右边线偏离度（左环岛时右边线应该比较直） */
     Left_Ring_Right_Deviation_X10 =
         (int16)(Right_Border_Max_Deviation(20, 55) * 10.0f);
-    if((ImageStatus.Right_Line > 7) ||
-       (ImageStatus.Left_Line < 13) ||
-       (ImageStatus.OFFLine > 10) ||
-       (Left_Ring_Right_Deviation_X10 >= 15) ||
-       (ImageStatus.WhiteLine > 15) ||
-       (ImageDeal[52].IsLeftFind == 'W') ||
+
+    /* 左环岛前置条件检查（任一条件不满足则直接返回） */
+    if((ImageStatus.Right_Line > 7) ||           /* 右侧丢线过多 */
+       (ImageStatus.Left_Line < 13) ||           /* 左侧丢线太少 */
+       (ImageStatus.OFFLine > 10) ||             /* 有效行太少 */
+       (Left_Ring_Right_Deviation_X10 >= 15) ||  /* 右边线不够直 */
+       (ImageStatus.WhiteLine > 15) ||           /* 全白行过多 */
+       (ImageDeal[52].IsLeftFind == 'W') ||      /* 底部左边线不能丢失 */
        (ImageDeal[53].IsLeftFind == 'W') ||
        (ImageDeal[54].IsLeftFind == 'W') ||
        (ImageDeal[55].IsLeftFind == 'W') ||
@@ -1594,6 +1759,7 @@ static void image_judge_left_ring(void)
         return;
     }
 
+    /* 找左边界第一个拐点（LeftBoundary_First突然增大） */
     for(Ysite = 58; Ysite > 25; Ysite--)
     {
         if((ImageDeal[Ysite].LeftBoundary_First - ImageDeal[Ysite - 1].LeftBoundary_First) > 4)
@@ -1603,6 +1769,7 @@ static void image_judge_left_ring(void)
         }
     }
 
+    /* 找左边界第二个拐点（LeftBoundary突然增大） */
     for(Ysite = 58; Ysite > 25; Ysite--)
     {
         if((ImageDeal[Ysite + 1].LeftBoundary - ImageDeal[Ysite].LeftBoundary) > 4)
@@ -1612,6 +1779,7 @@ static void image_judge_left_ring(void)
         }
     }
 
+    /* 寻找左边线的凸起特征（环岛特有的弧形） */
     for(Ysite = Left_RingsFlag_Point1_Ysite; Ysite > ImageStatus.OFFLine; Ysite--)
     {
         if((ImageDeal[Ysite + 6].LeftBorder < ImageDeal[Ysite + 3].LeftBorder) &&
@@ -1624,6 +1792,7 @@ static void image_judge_left_ring(void)
         }
     }
 
+    /* 第二确认路径：两个拐点间隔足够大 */
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
        (Ring_Help_Flag == 0))
     {
@@ -1633,6 +1802,7 @@ static void image_judge_left_ring(void)
         }
     }
 
+    /* 确认左环岛：满足所有条件 */
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
        (Ring_Help_Flag == 1) &&
        (ImageFlag.image_element_rings_flag == 0))
@@ -1647,27 +1817,27 @@ static void image_judge_left_ring(void)
     Ring_Help_Flag = 0;
 }
 
-//--------------------------------------------------------------
-//  @name           Element_Judgment_Right_Rings()
-//  @brief          整个图像判断的子函数，用来判断右圆环类型.
-//  @parameter      void
-//  @time
-//  @Author         MRCHEN
-//  Sample usage:   Element_Judgment_Right_Rings();
-//--------------------------------------------------------------
+/**
+ * @brief  右环岛判断
+ * @note   通过边界拐点和边线特征识别右环岛入口
+ */
 static void image_judge_right_ring(void)
 {
     Right_RingsFlag_Point1_Ysite = 0;
     Right_RingsFlag_Point2_Ysite = 0;
+
+    /* 计算左边线偏离度（右环岛时左边线应该比较直） */
     Right_Ring_Left_Deviation_X10 =
         (int16)(Left_Border_Max_Deviation(20, 55) * 10.0f);
-    if((ImageStatus.Left_Line > 7) ||
-       (ImageStatus.Right_Line < 13) ||
-       (ImageStatus.OFFLine > 10) ||
-       (Straight_Judge(1, 25, 45) > 50.0f) ||
-       (Right_Ring_Left_Deviation_X10 >= 15) ||
-       (ImageStatus.WhiteLine > 15) ||
-       (ImageDeal[52].IsRightFind == 'W') ||
+
+    /* 右环岛前置条件检查 */
+    if((ImageStatus.Left_Line > 7) ||            /* 左侧丢线过多 */
+       (ImageStatus.Right_Line < 13) ||          /* 右侧丢线太少 */
+       (ImageStatus.OFFLine > 10) ||             /* 有效行太少 */
+       (Straight_Judge(1, 25, 45) > 50.0f) ||    /* 左边线不够直 */
+       (Right_Ring_Left_Deviation_X10 >= 15) ||  /* 左边线偏离太大 */
+       (ImageStatus.WhiteLine > 15) ||           /* 全白行过多 */
+       (ImageDeal[52].IsRightFind == 'W') ||     /* 底部右边线不能丢失 */
        (ImageDeal[53].IsRightFind == 'W') ||
        (ImageDeal[54].IsRightFind == 'W') ||
        (ImageDeal[55].IsRightFind == 'W') ||
@@ -1678,6 +1848,7 @@ static void image_judge_right_ring(void)
         return;
     }
 
+    /* 找右边界第一个拐点（RightBoundary_First突然减小） */
     for(Ysite = 58; Ysite > 25; Ysite--)
     {
         if((ImageDeal[Ysite - 1].RightBoundary_First - ImageDeal[Ysite].RightBoundary_First) > 4)
@@ -1687,6 +1858,7 @@ static void image_judge_right_ring(void)
         }
     }
 
+    /* 找右边界第二个拐点（RightBoundary突然减小） */
     for(Ysite = 58; Ysite > 25; Ysite--)
     {
         if((ImageDeal[Ysite].RightBoundary - ImageDeal[Ysite + 1].RightBoundary) > 4)
@@ -1696,6 +1868,7 @@ static void image_judge_right_ring(void)
         }
     }
 
+    /* 寻找右边线的凹陷特征（环岛特有的弧形） */
     for(Ysite = Right_RingsFlag_Point1_Ysite; Ysite > 10; Ysite--)
     {
         if((ImageDeal[Ysite + 6].RightBorder > ImageDeal[Ysite + 3].RightBorder) &&
@@ -1709,29 +1882,29 @@ static void image_judge_right_ring(void)
     }
 
     /*
-     * 右环第二确认路径 / Right ring extra confirm path.
+     * 右环第二确认路径：
      *
      * Right_RingsFlag_Point1_Ysite:
-     *   由 RightBoundary_First 找到的右侧上方拐点。
+     *   由 RightBoundary_First 找到的右侧上方拐点
      * Right_RingsFlag_Point2_Ysite:
-     *   由 RightBoundary 找到的右侧下方拐点。
+     *   由 RightBoundary 找到的右侧下方拐点
      *
      * Right_Ring_Left_Deviation_X10:
-     *   右环入口要求左侧边界整体接近直线。
-     *   屏幕显示值 RLD10 必须小于 15，才允许继续判断右环。
+     *   右环入口要求左侧边界整体接近直线
+     *   显示值 RLD10 必须小于 15 才允许继续判断右环
      *
-     * Point2 >= Point1 + 2:
-     *   两个右侧拐点至少相差 2 行，说明右环入口形状已经出现。
+     * Point2 >= Point1 + 1:
+     *   两个右侧拐点至少相差 1 行，说明右环入口形状已经出现
      *
      * Ring_Help_Flag == 0:
-     *   前面的 RightBorder 形态扫描没有确认右环入口，
-     *   所以这里再用 Right_Line 做一次确认。
+     *   前面的 RightBorder 形态扫描没有确认右环入口
+     *   所以这里再用 Right_Line 做一次确认
      *
      * ImageStatus.Right_Line:
-     *   右侧丢边行数。右环入口出现时，右侧开口变大，
-     *   这个值通常会变大。当前第二确认阈值是 > 7。
+     *   右侧丢边行数。右环入口出现时右侧开口变大
+     *   这个值通常会变大。当前第二确认阈值是 > 7
      */
-    if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 2)) &&
+    if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 1)) &&
        (Ring_Help_Flag == 0))
     {
         if(ImageStatus.Right_Line > 7)
@@ -1741,15 +1914,15 @@ static void image_judge_right_ring(void)
     }
 
     /*
-     * 右环状态成立条件 / Final right ring start condition:
-     *   1. RLD10 小于 15，左侧边界整体偏离不大。
-     *   2. Point2 至少比 Point1 低 2 行。
+     * 右环状态成立条件：
+     *   1. RLD10 小于 15，左侧边界整体偏离不大
+     *   2. Point2 至少比 Point1 低 1 行
      *   3. Ring_Help_Flag 已经为 1，来源可能是：
-     *      - 前面的 RightBorder 形态扫描；
-     *      - 上面这段 Right_Line > 7 的第二确认路径。
-     *   4. image_element_rings_flag 仍然为 0，表示环岛流程尚未开始。
+     *      - 前面的 RightBorder 形态扫描
+     *      - 上面这段 Right_Line > 7 的第二确认路径
+     *   4. image_element_rings_flag 仍然为 0，表示环岛流程尚未开始
      */
-    if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 2)) &&
+    if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 1)) &&
        (Ring_Help_Flag == 1) &&
        (ImageFlag.image_element_rings_flag == 0))
     {
@@ -1763,6 +1936,10 @@ static void image_judge_right_ring(void)
     Ring_Help_Flag = 0;
 }
 
+/**
+ * @brief  元素识别入口
+ * @note   目前只识别左右环岛
+ */
 static void image_element_test(void)
 {
     if((ImageStatus.Road_type != ROAD_LEFT_RING) &&
@@ -1779,7 +1956,10 @@ static void image_element_test(void)
     }
 }
 
-//左圆环判断
+/**
+ * @brief  左环岛处理（补线和状态机推进）
+ * @note   状态机：1/2=入口 -> 5/6=内部 -> 7/8=出口 -> 9=完成
+ */
 static void image_handle_left_ring(void)
 {
     int16 num;
@@ -1891,7 +2071,7 @@ static void image_handle_left_ring(void)
         {
             for(Xsite = ImageDeal[Ysite].LeftBorder + 1; Xsite < (ImageDeal[Ysite].RightBorder - 1); Xsite++)
             {
-                if((Pixle[Ysite][Xsite] == 1) && (Pixle[Ysite][Xsite + 1] == 0))
+                if((ImageBin[Ysite][Xsite] == 1) && (ImageBin[Ysite][Xsite + 1] == 0))
                 {
                     flag_y = Ysite;
                     flag_x = Xsite;
@@ -1939,7 +2119,7 @@ static void image_handle_left_ring(void)
             {
                 for(Xsite = ImageDeal[Ysite + 1].RightBorder - 10; Xsite < (ImageDeal[Ysite + 1].RightBorder + 2); Xsite++)
                 {
-                    if((Pixle[Ysite][Xsite] == 1) && (Pixle[Ysite][Xsite + 1] == 0))
+                    if((ImageBin[Ysite][Xsite] == 1) && (ImageBin[Ysite][Xsite + 1] == 0))
                     {
                         ImageDeal[Ysite].RightBorder = Xsite;
                         ImageDeal[Ysite].Center = (ImageDeal[Ysite].RightBorder + ImageDeal[Ysite].LeftBorder) / 2;
@@ -1971,7 +2151,7 @@ static void image_handle_left_ring(void)
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][20] == 1) && (Pixle[Ysite - 1][20] == 0))
+            if((ImageBin[Ysite][20] == 1) && (ImageBin[Ysite - 1][20] == 0))
             {
                 Repair_Point_Xsite = 20;
                 Repair_Point_Ysite = Ysite - 1;
@@ -2001,14 +2181,10 @@ static void image_handle_left_ring(void)
     }
 }
 
-//--------------------------------------------------------------
-//  @name           Element_Handle_Right_Rings()
-//  @brief          整个图像处理的子函数，用来处理右圆环类型.
-//  @parameter      void
-//  @time
-//  @Author         MRCHEN
-//  Sample usage:   Element_Handle_Right_Rings();
-//-------------------------------------------------------------
+/**
+ * @brief  右环岛处理（补线和状态机推进）
+ * @note   状态机：1/2=入口 -> 5/6=内部 -> 7/8=出口 -> 9=完成
+ */
 static void image_handle_right_ring(void)
 {
     int16 num;
@@ -2120,7 +2296,7 @@ static void image_handle_right_ring(void)
         {
             for(Xsite = ImageDeal[Ysite].LeftBorder + 1; Xsite < (ImageDeal[Ysite].RightBorder - 1); Xsite++)
             {
-                if((Pixle[Ysite][Xsite] == 1) && (Pixle[Ysite][Xsite + 1] == 0))
+                if((ImageBin[Ysite][Xsite] == 1) && (ImageBin[Ysite][Xsite + 1] == 0))
                 {
                     flag_y = Ysite;
                     flag_x = Xsite;
@@ -2166,7 +2342,7 @@ static void image_handle_right_ring(void)
             {
                 for(Xsite = ImageDeal[Ysite + 1].LeftBorder + 8; Xsite > (ImageDeal[Ysite + 1].LeftBorder - 4); Xsite--)
                 {
-                    if((Pixle[Ysite][Xsite] == 1) && (Pixle[Ysite][Xsite - 1] == 0))
+                    if((ImageBin[Ysite][Xsite] == 1) && (ImageBin[Ysite][Xsite - 1] == 0))
                     {
                         ImageDeal[Ysite].LeftBorder = Xsite;
                         ImageDeal[Ysite].Wide = ImageDeal[Ysite].RightBorder - ImageDeal[Ysite].LeftBorder;
@@ -2201,7 +2377,7 @@ static void image_handle_right_ring(void)
         Repair_Point_Ysite = 0;
         for(Ysite = 40; Ysite > 5; Ysite--)
         {
-            if((Pixle[Ysite][60] == 1) && (Pixle[Ysite - 1][60] == 0))
+            if((ImageBin[Ysite][60] == 1) && (ImageBin[Ysite - 1][60] == 0))
             {
                 Repair_Point_Xsite = 60;
                 Repair_Point_Ysite = Ysite - 1;
@@ -2229,6 +2405,9 @@ static void image_handle_right_ring(void)
     }
 }
 
+/**
+ * @brief  元素处理分发
+ */
 static void image_element_handle(void)
 {
     if(ImageFlag.image_element_rings == 1)
@@ -2241,7 +2420,10 @@ static void image_element_handle(void)
     }
 }
 
-/* Scan zebra line by counting repeated black-to-white edges. */
+/**
+ * @brief  扫描斑马线（通过统计黑白跳变次数）
+ * @return 1=检测到斑马线, 0=未检测到
+ */
 static uint8 image_zebra_scan(void)
 {
     int16 row;
@@ -2250,18 +2432,21 @@ static uint8 image_zebra_scan(void)
     int16 right_limit;
     uint8 edge_count;
 
+    /* 环岛期间不检测斑马线 */
     if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
        (ImageStatus.Road_type == ROAD_RIGHT_RING))
     {
         return 0;
     }
 
+    /* 在45-55行范围内扫描 */
     for(row = 45; row < 55; row++)
     {
         edge_count = 0;
         left_limit = ImageDeal[row].LeftBoundary - 5;
         right_limit = ImageDeal[row].RightBoundary + 5;
 
+        /* 限制扫描范围 */
         if(left_limit < 0)
         {
             left_limit = 0;
@@ -2283,6 +2468,7 @@ static uint8 image_zebra_scan(void)
             continue;
         }
 
+        /* 统计黑到白的跳变次数 */
         for(col = left_limit; col < right_limit; col++)
         {
             if((ImageBin[row][col] == IMAGE_BLACK) &&
@@ -2300,6 +2486,10 @@ static uint8 image_zebra_scan(void)
     return 0;
 }
 
+/**
+ * @brief  斑马线检测和停车控制
+ * @note   带锁存和冷却机制，防止误触发
+ */
 static void image_check_zebra(void)
 {
     ZebraHit = image_zebra_scan();
@@ -2309,6 +2499,7 @@ static void image_check_zebra(void)
         return;
     }
 
+    /* 冷却倒计时 */
     if(ZebraCooldownFrames > 0)
     {
         ZebraCooldownFrames--;
@@ -2350,7 +2541,11 @@ static void image_check_zebra(void)
     }
 }
 
-/* Get weighted center at the current tow point. */
+/**
+ * @brief  计算加权中心（用于转向控制）
+ * @param  tow_point  瞄点行
+ * @note   在瞄点附近多行加权平均，增加稳定性
+ */
 static void image_get_det(uint8 tow_point)
 {
     float det_temp;
@@ -2359,6 +2554,7 @@ static void image_get_det(uint8 tow_point)
     det_temp = 0.0f;
     unit_all = 0.0f;
 
+    /* 瞄点上下各5行都可见 */
     if((tow_point - 5) >= ImageStatus.OFFLine)
     {
         for(Ysite = (int16)(tow_point - 5); Ysite < tow_point; Ysite++)
@@ -2373,6 +2569,7 @@ static void image_get_det(uint8 tow_point)
         }
         det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
     }
+    /* 瞄点上方被遮挡，只用下方 */
     else if(tow_point > ImageStatus.OFFLine)
     {
         for(Ysite = ImageStatus.OFFLine; Ysite < tow_point; Ysite++)
@@ -2387,6 +2584,7 @@ static void image_get_det(uint8 tow_point)
         }
         det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
     }
+    /* 有效行太少，用有效行附近 */
     else if(ImageStatus.OFFLine < 49)
     {
         for(Ysite = (int16)(ImageStatus.OFFLine + 3); Ysite > ImageStatus.OFFLine; Ysite--)
@@ -2396,6 +2594,7 @@ static void image_get_det(uint8 tow_point)
         }
         det_temp = ((float)ImageDeal[ImageStatus.OFFLine].Center + det_temp) / (unit_all + 1.0f);
     }
+    /* 严重丢线，保持上次值 */
     else
     {
         det_temp = (float)ImageStatus.Det_True;
@@ -2405,28 +2604,42 @@ static void image_get_det(uint8 tow_point)
     ImageStatus.TowPoint_True = tow_point;
 }
 
-/* One complete frame processing pass. */
+/* =============================================================================
+ * 完整帧处理流程
+ * ============================================================================= */
+
+/**
+ * @brief  完整的图像处理流程
+ * @note   从压缩到最终结果的完整流程
+ */
 static void image_process(void)
 {
     gpio_set_level(LED_DEBUG, GPIO_LOW);
 
-    image_compress();
-    image_clear_deal();
-    image_binarize(image_otsu());
-    image_draw_bottom();
-    image_draw_lines();
-    image_search_border(IMAGE_H - 2);
-    image_element_test();
-    image_draw_extension_line();
-    image_route_filter();
-    image_element_handle();
-    image_check_zebra();
-    image_get_det(image_tow_point());
-    image_export_result();
+    image_compress();              /* 1. 压缩原始图像到80x60 */
+    image_clear_deal();            /* 2. 清空上一帧结果 */
+    image_binarize(image_otsu());  /* 3. 大津法阈值+二值化 */
+    image_draw_bottom();           /* 4. 初始化底部5行 */
+    image_draw_lines();            /* 5. 从下往上跟踪边线 */
+    image_search_border(IMAGE_H - 2); /* 6. 边界追踪（用于环岛识别） */
+    image_element_test();          /* 7. 元素识别（环岛） */
+    image_draw_extension_line();   /* 8. 延长线补线 */
+    image_route_filter();          /* 9. 路径滤波 */
+    image_element_handle();        /* 10. 元素处理（环岛补线） */
+    image_check_zebra();           /* 11. 斑马线检测 */
+    image_get_det(image_tow_point()); /* 12. 计算加权中心 */
+    image_export_result();         /* 13. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }
 
+/* =============================================================================
+ * 公共接口函数
+ * ============================================================================= */
+
+/**
+ * @brief  图像处理更新（主循环调用）
+ */
 void image_update(void)
 {
     if(Image.ready == 0)
@@ -2442,6 +2655,7 @@ void image_update(void)
     image_process();
     Image.sequence++;
 
+    /* 非运行模式不检测丢线停车 */
     if(CarMode != CAR_MODE_RUN)
     {
         ImageLostCount = 0;
@@ -2449,6 +2663,7 @@ void image_update(void)
         return;
     }
 
+    /* 启动后前几帧忽略丢线 */
     if(ImageRunFrameCount < IMAGE_RUN_START_IGNORE_FRAMES)
     {
         ImageRunFrameCount++;
@@ -2456,6 +2671,7 @@ void image_update(void)
         return;
     }
 
+    /* 连续丢线停车保护 */
     if(Image.lost)
     {
         if(ImageLostCount < IMAGE_LOST_STOP_COUNT)
@@ -2472,4 +2688,3 @@ void image_update(void)
         ImageLostCount = 0;
     }
 }
-

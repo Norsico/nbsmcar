@@ -1,5 +1,7 @@
 #include "headfile.h"
 
+#define RING_TARGET_SPEED          (200)
+
 static int16 ServoAngle = SERVO_ANGLE_CENTER;//�����ǰ��
 static int16 ServoLastError = 0;						 //��һʱ�����
 static uint16 ServoLastSequence = 0;
@@ -29,6 +31,10 @@ static void servo_update_motor_target(void)
     int32 diff_scale;
 
     speed = SmartCar.motor.target_speed;
+    if(Image.ring != 0)
+    {
+        speed = RING_TARGET_SPEED;
+    }
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
     tan_value = (int16)(((int32)steer_angle * 175) / 1000);
