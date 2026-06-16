@@ -2542,6 +2542,36 @@ static void image_check_zebra(void)
 }
 
 /**
+ * @brief  直道检测
+ * @note   使用左右边线拟合误差判断，连续3帧确认
+ */
+static void image_check_straight(void)
+{
+    static uint8 straight_count = 0;
+    float left_error;
+    float right_error;
+
+    /* 计算左右边线的直线度（均方误差） */
+    left_error = Straight_Judge(1, 25, 45);
+    right_error = Straight_Judge(2, 25, 45);
+
+    /* 左右边线均为直线（误差 < 4.0），连续3帧确认 */
+    if((left_error < 4.0f) && (right_error < 4.0f))
+    {
+        straight_count++;
+        if(straight_count >= 3)
+        {
+            Image.is_straight = 1;
+        }
+    }
+    else
+    {
+        straight_count = 0;
+        Image.is_straight = 0;
+    }
+}
+
+/**
  * @brief  计算加权中心（用于转向控制）
  * @param  tow_point  瞄点行
  * @note   在瞄点附近多行加权平均，增加稳定性
@@ -2627,8 +2657,9 @@ static void image_process(void)
     image_route_filter();          /* 9. 路径滤波 */
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
-    image_get_det(image_tow_point()); /* 12. 计算加权中心 */
-    image_export_result();         /* 13. 导出结果 */
+    image_check_straight();        /* 12. 直道检测 */
+    image_get_det(image_tow_point()); /* 13. 计算加权中心 */
+    image_export_result();         /* 14. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }

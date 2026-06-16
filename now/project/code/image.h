@@ -71,22 +71,23 @@ typedef struct
 
 typedef struct
 {
-    uint8 ready;              /* camera init ok */
-    uint8 result_ready;       /* this frame can be used by servo */
-    uint16 sequence;          /* processed frame counter */
-    uint8 threshold;          /* final binary threshold */
-    uint16 white_count;       /* white pixel count in ImageBin */
-    uint8 tow_row;            /* actual row used as tow point */
-    int16 center;             /* weighted center column */
+    uint8 ready;              /* 摄像头初始化完成 */
+    uint8 result_ready;       /* 本帧结果可供舵机使用 */
+    uint16 sequence;          /* 已处理帧计数器 */
+    uint8 threshold;          /* 最终二值化阈值 */
+    uint16 white_count;       /* 二值图中白点数量 */
+    uint8 tow_row;            /* 实际使用的前瞻点行号 */
+    int16 center;             /* 加权中心列坐标 */
     int16 error;              /* center - IMAGE_MID */
-    uint8 valid_count;        /* valid rows from OFFLine to bottom */
-    uint8 lost;               /* no reliable track */
-    int16 left_ring_right_deviation_x10; /* right-side max line deviation x10 */
-    int16 right_ring_left_deviation_x10; /* left-side max line deviation x10 */
-    uint8 ring;               /* 0 none, 1 left ring, 2 right ring */
-    uint8 ring_step;          /* ring process stage */
-    uint8 zebra;              /* zebra line hit in current frame */
-    uint8 zebra_count;        /* confirmed zebra hit count */
+    uint8 valid_count;        /* 从截止行到底部的有效行数 */
+    uint8 lost;               /* 丢线标志 */
+    int16 left_ring_right_deviation_x10; /* 左环岛右边线最大偏差 x10 */
+    int16 right_ring_left_deviation_x10; /* 右环岛左边线最大偏差 x10 */
+    uint8 ring;               /* 0=无环岛, 1=左环岛, 2=右环岛 */
+    uint8 ring_step;          /* 环岛处理阶段 */
+    uint8 zebra;              /* 本帧检测到斑马线 */
+    uint8 zebra_count;        /* 确认检测到的斑马线次数 */
+    uint8 is_straight;        /* 直道检测标志（连续3帧确认）*/
 } image_data;
 
 extern image_data Image;

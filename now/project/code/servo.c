@@ -28,10 +28,18 @@ static void servo_update_motor_target(void)
     int16 speed_delta;
     int32 diff_scale;
 
-    speed = SmartCar.motor.target_speed;
-    if(Image.ring != 0)
+    /* 速度选择：直道加速 > 环岛减速 > 正常速度 */
+    if(Image.is_straight && (Image.ring == 0))
+    {
+        speed = SmartCar.motor.straight_speed;
+    }
+    else if(Image.ring != 0)
     {
         speed = SmartCar.motor.ring_speed;
+    }
+    else
+    {
+        speed = SmartCar.motor.target_speed;
     }
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
