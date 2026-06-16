@@ -328,30 +328,6 @@ static void ui_show_debug(void)
     }
 }
 
-static const char *ui_ring_name(void)
-{
-    if(Image.ring == 1) {
-        return "left ";
-    }
-    if(Image.ring == 2) {
-        return "right";
-    }
-    return "none ";
-}
-
-static const char *ui_ring_status(void)
-{
-    switch(Image.ring_step) {
-        case 1:  return "find mouth";
-        case 2:  return "near ring ";
-        case 5:  return "enter fill";
-        case 6:  return "enter arc ";
-        case 7:  return "inside    ";
-        case 8:  return "exit find ";
-        case 9:  return "exit line ";
-        default: return "normal    ";
-    }
-}
 //图像内容
 static void ui_show_camera_image(void)
 {
@@ -364,55 +340,39 @@ static void ui_show_camera_image(void)
     }
     image_show_debug_overlay(0,0,160,120);
     ips200_set_color(RGB565_WHITE, RGB565_BLACK);
-    ips200_show_string(0, 124, "threshold");
-    ips200_show_string(80, 124, "   ");
-    ips200_show_uint8(80, 124, Image.threshold);
-    ips200_show_string(112, 124, "err");
-    ips200_show_string(144, 124, "      ");
-    ips200_show_int16(144, 124, Image.error);
-    if(Image.lost) {
-        ips200_show_string(0, 140, "track lost");
-    } else {
-        ips200_show_string(0, 140, "track ok  ");
-    }
-    ips200_show_string(112, 140, "ring");
-    ips200_show_string(160, 140, ui_ring_name());
 
-    ips200_show_string(0, 156, "ring state");
-    ips200_show_string(88, 156, ui_ring_status());
+    /* 第1行：二值化阈值 */
+    ips200_show_string(0, 124, "Threshold");
+    ips200_show_string(88, 124, "   ");
+    ips200_show_uint8(88, 124, Image.threshold);
 
-    ips200_show_string(0, 172, "zebra");
-    ips200_show_string(48, 172, Image.zebra ? "hit" : "no ");
-    ips200_show_string(88, 172, "count");
-    ips200_show_string(136, 172, "   ");
-    ips200_show_uint8(136, 172, Image.zebra_count);
-    ips200_show_string(176, 172, "tow");
-    ips200_show_string(208, 172, "  ");
-    ips200_show_uint8(208, 172, Image.tow_row);
+    /* 第2行：左边线拟合误差 */
+    ips200_show_string(0, 140, "L err x10");
+    ips200_show_string(88, 140, "      ");
+    ips200_show_int16(88, 140, Image.straight_left_error_x10);
 
+    /* 第3行：右边线拟合误差 */
+    ips200_show_string(0, 156, "R err x10");
+    ips200_show_string(88, 156, "      ");
+    ips200_show_int16(88, 156, Image.straight_right_error_x10);
 
-    ips200_show_string(0, 188, "LRD10");
-    ips200_show_string(48, 188, "     ");
-    ips200_show_int16(48, 188, Image.left_ring_right_deviation_x10);
-    ips200_show_string(96, 188, "RLD10");
-    ips200_show_string(144, 188, "     ");
-    ips200_show_int16(144, 188, Image.right_ring_left_deviation_x10);
+    /* 第4行：坡道检测 */
+    ips200_show_string(0, 172, "Ramp");
+    ips200_show_string(88, 172, Image.is_ramp ? "YES" : "NO ");
+    ips200_show_string(144, 172, "Cnt");
+    ips200_show_string(184, 172, "  ");
+    ips200_show_uint8(184, 172, Image.ramp_count);
 
-    ips200_show_string(0, 204, "L err");
-    ips200_show_string(48, 204, "     ");
-    ips200_show_int16(48, 204, Image.straight_left_error_x10);
-    ips200_show_string(96, 204, "R err");
-    ips200_show_string(144, 204, "     ");
-    ips200_show_int16(144, 204, Image.straight_right_error_x10);
-    ips200_show_string(192, 204, "st");
-    ips200_show_string(216, 204, Image.is_straight ? "Y" : "N");
-
-    /* 第13行：长直道加速信息 */
-    ips200_show_string(0, 216, "Var");
-    ips200_show_string(32, 216, "     ");
-    ips200_show_int16(32, 216, Image.straight_variance_x10);
-    ips200_show_string(120, 216, "LongST");
-    ips200_show_string(176, 216, Image.is_long_straight ? "Y" : "N");
+    /* 第5行：宽度差（底部-顶部）*/
+    ips200_show_string(0, 188, "WB");
+    ips200_show_string(32, 188, "   ");
+    ips200_show_uint8(32, 188, ImageDeal[55].Wide);
+    ips200_show_string(72, 188, "WT");
+    ips200_show_string(104, 188, "   ");
+    ips200_show_uint8(104, 188, ImageDeal[10].Wide);
+    ips200_show_string(144, 188, "Diff");
+    ips200_show_string(184, 188, "   ");
+    ips200_show_int16(184, 188, ImageDeal[55].Wide - ImageDeal[10].Wide);
 }
 
 static void ui_show(void)

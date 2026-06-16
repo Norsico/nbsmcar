@@ -28,8 +28,12 @@ static void servo_update_motor_target(void)
     int16 speed_delta;
     int32 diff_scale;
 
-    /* 速度选择：长直道加速 > 环岛减速 > 正常速度 */
-    if(Image.is_long_straight && (Image.ring == 0))
+    /* 速度选择：坡道降速 > 长直道加速 > 环岛减速 > 正常速度 */
+    if(Image.is_ramp)
+    {
+        speed = 150;  /* 坡道固定速度150（防止飞起来）*/
+    }
+    else if(Image.is_long_straight && (Image.ring == 0))
     {
         speed = SmartCar.motor.straight_speed;
     }

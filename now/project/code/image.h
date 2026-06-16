@@ -40,7 +40,8 @@ typedef enum
 {
     ROAD_NORMAL = 0,
     ROAD_LEFT_RING,
-    ROAD_RIGHT_RING
+    ROAD_RIGHT_RING,
+    ROAD_RAMP              /* 坡道 */
 } RoadType_e;
 
 typedef struct
@@ -92,9 +93,13 @@ typedef struct
     int16 straight_right_error_x10; /* 右边线拟合误差 x10 */
     uint8 is_long_straight;   /* 长直道加速标志（方差+距离判断）*/
     int16 straight_variance_x10;    /* 中线方差 x10（用于长直道判断）*/
+    uint8 is_ramp;            /* 坡道检测标志 */
+    uint8 ramp_count;         /* 检测到的坡道次数 */
 } image_data;
 
 extern image_data Image;
+extern ImageStatustypedef ImageStatus;
+extern ImageDealDatatypedef ImageDeal[IMAGE_H];
 extern uint8 ImageGray[IMAGE_H][IMAGE_W];
 extern uint8 ImageBin[IMAGE_H][IMAGE_W];
 

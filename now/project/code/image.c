@@ -114,10 +114,10 @@ typedef struct
  * ============================================================================= */
 
 /* 每一行的边线跟踪结果 */
-static image_deal ImageDeal[IMAGE_H];
+ImageDealDatatypedef ImageDeal[IMAGE_H];
 
 /* 全局图像处理状态 */
-static image_status ImageStatus =
+ImageStatustypedef ImageStatus =
 {
     SERVO_POINT,              /* TowPoint */
     SERVO_POINT,              /* TowPoint_True */
@@ -476,6 +476,8 @@ void image_init(void)
     Image.straight_right_error_x10 = 0;
     Image.is_long_straight = 0;
     Image.straight_variance_x10 = 0;
+    Image.is_ramp = 0;
+    Image.ramp_count = 0;
     ImageRawThreshold = 0;
     ZebraHit = 0;
     ZebraDetectCount = 0;
@@ -2638,6 +2640,103 @@ static void image_check_long_straight(void)
 }
 
 /**
+ * @brief  坡道检测（参考时光-贺兰一号算法）
+ * @note   坡道特征：可视距离很近（OFFLine=2）+ 赛道很宽且居中
+ *         检测到坡道后将 Road_type 设为 ROAD_RAMP，触发降速
+ */
+static void image_check_ramp(void)
+{
+    static uint8 ramp_detected_flag = 0;    /* 已检测到坡道标志 */
+    static uint8 ramp_exit_stable = 0;      /* 退出稳定计数（连续N帧Diff>35才退出）*/
+    int valid_count;
+    int16 width_bottom;   /* 底部宽度 */
+    int16 width_top;      /* 顶部宽度 */
+    int16 width_diff;     /* 宽度差 */
+
+    /* 环岛期间不检测坡道 */
+    if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
+       (ImageStatus.Road_type == ROAD_RIGHT_RING))
+    {
+        return;
+    }
+
+    /* 计算宽度差（用于判断和UI显示）*/
+    width_bottom = ImageDeal[55].Wide;
+    width_top = ImageDeal[10].Wide;
+    width_diff = width_bottom - width_top;
+
+    /* 坡道检测：三角形变钝 + 左右居中 + 边线直度 + 对称性 */
+    if(ramp_detected_flag == 0)
+    {
+        /* 判断条件（超严格）：
+         * 1. 底部宽度 > 58（赛道很宽）
+         * 2. 宽度差在 24~29 之间（收窄范围，更精确）
+         * 3. 左右边线拟合误差都很小（< 3，即 < 0.3）
+         * 4. 左右边线误差接近（差值 < 2），高度对称
+         * 5. 中线偏差很小（|Image.error| < 2），几乎居中
+         * 6. 底部居中更严格（LeftBorder < 38 && RightBorder > 42）
+         */
+        if((width_bottom > 58)
+           && (width_diff >= 24) && (width_diff <= 29)
+           && (Image.straight_left_error_x10 < 3)
+           && (Image.straight_right_error_x10 < 3)
+           && (abs(Image.straight_left_error_x10 - Image.straight_right_error_x10) < 2)  /* 左右高度对称 */
+           && (abs(Image.error) < 2))  /* 几乎居中 */
+        {
+            valid_count = 0;
+
+            /* 检查第10-55行，至少35行满足：找到边线 + 严格居中 */
+            for(Ysite = 10; Ysite < 56; Ysite++)
+            {
+                if(  (ImageDeal[Ysite].IsLeftFind == 'T')
+                  && (ImageDeal[Ysite].IsRightFind == 'T')
+                  && (ImageDeal[Ysite].LeftBorder < 38)    /* 更严格的居中判断 */
+                  && (ImageDeal[Ysite].RightBorder > 42)
+                  )
+                {
+                    valid_count++;
+                }
+            }
+
+            /* 至少35行满足条件，判定为坡道 */
+            if(valid_count >= 35)
+            {
+                ImageStatus.Road_type = ROAD_RAMP;
+                Image.is_ramp = 1;
+                Image.ramp_count++;
+                ramp_detected_flag = 1;
+                ramp_exit_stable = 0;  /* 重置退出计数 */
+                buzzer_short();
+            }
+        }
+    }
+
+    /* 退出条件：宽度差恢复正常（> 35），且连续稳定10帧 */
+    if(ramp_detected_flag == 1)
+    {
+        /* 宽度差大于35，说明可能离开坡道了 */
+        if(width_diff > 35)
+        {
+            ramp_exit_stable++;
+
+            /* 连续10帧都满足，确认退出 */
+            if(ramp_exit_stable >= 10)
+            {
+                ImageStatus.Road_type = ROAD_NORMAL;
+                Image.is_ramp = 0;
+                ramp_detected_flag = 0;
+                ramp_exit_stable = 0;
+            }
+        }
+        else
+        {
+            /* 如果宽度差又变小了，重置退出计数（还在坡道上）*/
+            ramp_exit_stable = 0;
+        }
+    }
+}
+
+/**
  * @brief  计算加权中心（用于转向控制）
  * @param  tow_point  瞄点行
  * @note   在瞄点附近多行加权平均，增加稳定性
@@ -2723,10 +2822,11 @@ static void image_process(void)
     image_route_filter();          /* 9. 路径滤波 */
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
-    image_check_straight();        /* 12. 直道检测（环岛用） */
-    image_check_long_straight();   /* 13. 长直道加速检测 */
-    image_get_det(image_tow_point()); /* 14. 计算加权中心 */
-    image_export_result();         /* 15. 导出结果 */
+    image_check_ramp();            /* 12. 坡道检测 */
+    image_check_straight();        /* 13. 直道检测（环岛用） */
+    image_check_long_straight();   /* 14. 长直道加速检测 */
+    image_get_det(image_tow_point()); /* 15. 计算加权中心 */
+    image_export_result();         /* 16. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }
