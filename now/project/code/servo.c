@@ -1,12 +1,10 @@
 #include "headfile.h"
 
-#define RING_TARGET_SPEED          (200)
-
-static int16 ServoAngle = SERVO_ANGLE_CENTER;//�����ǰ��
-static int16 ServoLastError = 0;						 //��һʱ�����
+static int16 ServoAngle = SERVO_ANGLE_CENTER;  // 舵机当前角度
+static int16 ServoLastError = 0;               // 上一时刻误差
 static uint16 ServoLastSequence = 0;
 
-//�޷�
+// 限幅
 static int16 servo_limit(int16 angle)
 {
     if(angle < SERVO_ANGLE_MIN)
@@ -21,7 +19,7 @@ static int16 servo_limit(int16 angle)
 }
 
 
-//������
+// 差速控制
 static void servo_update_motor_target(void)
 {
     int16 speed;
@@ -33,7 +31,7 @@ static void servo_update_motor_target(void)
     speed = SmartCar.motor.target_speed;
     if(Image.ring != 0)
     {
-        speed = RING_TARGET_SPEED;
+        speed = SmartCar.motor.ring_speed;
     }
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
@@ -44,12 +42,12 @@ static void servo_update_motor_target(void)
     if(speed_delta <= 0)
     {
         Motor.target_left = speed + speed_delta;
-				Motor.target_right = speed;
+		Motor.target_right = speed;
     }
     else if(speed_delta > 0)
     {
         Motor.target_right = speed- speed_delta ;
-				Motor.target_left = speed;
+		Motor.target_left = speed;
     }
 }
 
@@ -60,12 +58,12 @@ void servo_init(void)
     ServoLastSequence = 0;
 
     pwm_init(SERVO_PWM, SERVO_PWM_FREQ, SERVO_ANGLE_CENTER/3+1500);
-		while(1){
-			if(imu660ra_init())
-				printf("\r\nIMU660RA init error.");      // IMU660RA ��ʼ��ʧ��
+	while(1){
+		if(imu660ra_init())
+			printf("\r\nIMU660RA init error.");      // IMU660RA 初始化失败
       else
         break;
-		}
+	}
 }
 
 void servo_update(void)
@@ -84,24 +82,24 @@ void servo_update(void)
     }
     ServoLastSequence = Image.sequence;
 
-    error = Image.error;//�޸�
+    error = Image.error;
     error_d = error - ServoLastError;
-		imu660ra_get_gyro();
+	imu660ra_get_gyro();
     if(error >= 0)
     {
         control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-									+(int32)SmartCar.servo.err2_k * error * error / 100
-									-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
+							+(int32)SmartCar.servo.err2_k * error * error / 100
+							-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
     }
     else
     {
         control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-									-(int32)SmartCar.servo.err2_k * error * error / 100
-									-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
+							-(int32)SmartCar.servo.err2_k * error * error / 100
+							-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
     }
     ServoLastError = error;
-		
-		ServoAngle = servo_limit(SERVO_ANGLE_CENTER - control);
+
+	ServoAngle = servo_limit(SERVO_ANGLE_CENTER - control);
     pwm_set_duty(SERVO_PWM, ServoAngle/3+1500);
 
     servo_update_motor_target();

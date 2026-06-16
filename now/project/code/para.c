@@ -13,6 +13,7 @@ void para_init(void)
 
     SmartCar.motor.target_speed = MOTOR_TARGET_SPEED;
     SmartCar.motor.straight_speed = MOTOR_STRAIGHT_SPEED;
+    SmartCar.motor.ring_speed = MOTOR_RING_SPEED;
     SmartCar.motor.left_kp = MOTOR_LEFT_KP;
     SmartCar.motor.left_ki = MOTOR_LEFT_KI;
     SmartCar.motor.right_kp = MOTOR_RIGHT_KP;

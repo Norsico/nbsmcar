@@ -13,6 +13,7 @@
 
 #define MOTOR_TARGET_SPEED         (180)
 #define MOTOR_STRAIGHT_SPEED       (200)
+#define MOTOR_RING_SPEED           (200)
 #define MOTOR_LEFT_KP              (58)
 #define MOTOR_LEFT_KI              (5)
 #define MOTOR_RIGHT_KP             (50)
@@ -133,6 +134,7 @@ typedef struct
 {
     int16 target_speed;
     int16 straight_speed;
+    int16 ring_speed;
     int16 left_kp;
     int16 left_ki;
     int16 right_kp;

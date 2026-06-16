@@ -72,7 +72,8 @@ static const ui_param_t motor_params[] = {
     {"right kp", &SmartCar.motor.right_kp,       VAL_TYPE_INT16, 1},
     {"right ki", &SmartCar.motor.right_ki,       VAL_TYPE_INT16, 1},
     {"target",   &SmartCar.motor.target_speed,   VAL_TYPE_INT16, 10},
-    {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 10}, 
+    {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 10},
+    {"ring",     &SmartCar.motor.ring_speed,     VAL_TYPE_INT16, 10},
     {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 5},
 
 };
