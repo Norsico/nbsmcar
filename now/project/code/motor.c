@@ -55,9 +55,6 @@ static void fan_start_ramp(int16 target_duty)
     {
         fan_write_percent(duty);
         system_delay_ms(30);
-
-        /* 风扇爬坡期间喂狗（防止看门狗复位） */
-        WDT_CONTR |= 0x10;
     }
 }
 
@@ -96,6 +93,29 @@ static void motor_timer(void)
     last_error_right = error_right;
 
     motor_output(motor_limit(output_left), motor_limit(output_right));
+}
+
+void motor_update_fan(void)
+{
+    int16 fan_target;
+
+    if(CarMode != CAR_MODE_RUN)
+    {
+        return;
+    }
+
+    /* 根据直道检测选择风扇档位 */
+    if(Image.is_straight && (Image.ring == 0))
+    {
+        fan_target = SmartCar.motor.fan_straight_duty;  /* 直道：降低下压力 */
+    }
+    else
+    {
+        fan_target = SmartCar.motor.fan_duty;  /* 弯道/环岛：正常下压力 */
+    }
+
+    /* 写入风扇PWM */
+    fan_write_percent(fan_target);
 }
 
 void motor_init(void)

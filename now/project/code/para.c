@@ -18,8 +18,9 @@ void para_init(void)
     SmartCar.motor.left_ki = MOTOR_LEFT_KI;
     SmartCar.motor.right_kp = MOTOR_RIGHT_KP;
     SmartCar.motor.right_ki = MOTOR_RIGHT_KI;
-	
+
     SmartCar.motor.fan_duty = FAN_DUTY;
+    SmartCar.motor.fan_straight_duty = FAN_STRAIGHT_DUTY;
 
     SmartCar.camera.exposure = CAMERA_EXPOSURE;
     SmartCar.camera.gain = CAMERA_GAIN;

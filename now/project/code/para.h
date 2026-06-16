@@ -4,21 +4,22 @@
 #include "headfile.h"
 
 /*软件参数，修改设置*/
-#define SERVO_KP                   (90)
-#define SERVO_KD                   (14)
-#define SERVO_ERR2_K               (3)
-#define SERVO_IMU_D                (12)
-#define SERVO_ACKERMAN             (1390)
-#define SERVO_POINT                (22)
+#define SERVO_KP                   (104)
+#define SERVO_KD                   (12)
+#define SERVO_ERR2_K               (11)
+#define SERVO_IMU_D                (16)
+#define SERVO_ACKERMAN             (1350)
+#define SERVO_POINT                (20)
 
-#define MOTOR_TARGET_SPEED         (180)
-#define MOTOR_STRAIGHT_SPEED       (200)
+#define MOTOR_TARGET_SPEED         (230)
+#define MOTOR_STRAIGHT_SPEED       (230)
 #define MOTOR_RING_SPEED           (200)
-#define MOTOR_LEFT_KP              (58)
+#define MOTOR_LEFT_KP              (50)
 #define MOTOR_LEFT_KI              (5)
 #define MOTOR_RIGHT_KP             (50)
 #define MOTOR_RIGHT_KI             (5)
-#define FAN_DUTY                   (0) 
+#define FAN_DUTY                   (0)
+#define FAN_STRAIGHT_DUTY          (0)  /* 直道风扇档位（降低下压力） */
 
 #define CAMERA_LASER_ROW           (50)
 #define CAMERA_THRESHOLD_OFFSET    (0)
@@ -38,8 +39,8 @@
 #define FAN_ESC_DUTY_MAX           (6000)
 #define FAN_ESC_DUTY_STEP          (30)
 
-#define CAMERA_EXPOSURE            (120)
-#define CAMERA_GAIN                (20)
+#define CAMERA_EXPOSURE            (130)
+#define CAMERA_GAIN                (31)
 #define CAMERA_INIT_RETRY          (5)
 #define CAMERA_INIT_DELAY_MS       (100)
 
@@ -140,6 +141,7 @@ typedef struct
     int16 right_kp;
     int16 right_ki;
     int16 fan_duty;
+    int16 fan_straight_duty;
 } motor_para;
 
 typedef struct

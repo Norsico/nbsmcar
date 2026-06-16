@@ -119,20 +119,20 @@ static image_deal ImageDeal[IMAGE_H];
 /* 全局图像处理状态 */
 static image_status ImageStatus =
 {
-    .TowPoint           = SERVO_POINT,
-    .TowPoint_True      = SERVO_POINT,
-    .Det_True           = IMAGE_MID,
-    .Threshold          = 0,
-    .Threshold_static   = IMAGE_THRESHOLD_STATIC,
-    .Threshold_detach   = IMAGE_THRESHOLD_DETACH,
-    .Left_Line          = 0,
-    .Right_Line         = 0,
-    .WhiteLine          = 0,
-    .OFFLine            = IMAGE_OFFLINE_INIT,
-    .WhiteLine_L        = 0,
-    .WhiteLine_R        = 0,
-    .OFFLineBoundary    = 5,
-    .Road_type          = ROAD_NORMAL
+    SERVO_POINT,              /* TowPoint */
+    SERVO_POINT,              /* TowPoint_True */
+    IMAGE_MID,                /* Det_True */
+    0,                        /* Threshold */
+    IMAGE_THRESHOLD_STATIC,   /* Threshold_static */
+    IMAGE_THRESHOLD_DETACH,   /* Threshold_detach */
+    0,                        /* Left_Line */
+    0,                        /* Right_Line */
+    0,                        /* WhiteLine */
+    IMAGE_OFFLINE_INIT,       /* OFFLine */
+    0,                        /* WhiteLine_L */
+    0,                        /* WhiteLine_R */
+    5,                        /* OFFLineBoundary */
+    ROAD_NORMAL               /* Road_type */
 };
 
 /* 环岛检测状态机 */
@@ -2431,7 +2431,6 @@ static uint8 image_zebra_scan(void)
     int16 left_limit;
     int16 right_limit;
     uint8 edge_count;
-    uint8 valid_row_count = 0;
 
     /* 环岛期间不检测斑马线 */
     if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
@@ -2440,8 +2439,8 @@ static uint8 image_zebra_scan(void)
         return 0;
     }
 
-    /* 在45-58行范围内扫描（扩大范围） */
-    for(row = 45; row < 58; row++)
+    /* 在45-55行范围内扫描 */
+    for(row = 45; row < 55; row++)
     {
         edge_count = 0;
         left_limit = ImageDeal[row].LeftBoundary - 5;
@@ -2469,34 +2468,19 @@ static uint8 image_zebra_scan(void)
             continue;
         }
 
-        /* 统计黑白跳变次数（双向） */
+        /* 统计黑到白的跳变次数 */
         for(col = left_limit; col < right_limit; col++)
         {
-            /* 黑→白 跳变 */
             if((ImageBin[row][col] == IMAGE_BLACK) &&
                (ImageBin[row][col + 1] == IMAGE_WHITE))
             {
                 edge_count++;
-            }
-            /* 白→黑 跳变 */
-            else if((ImageBin[row][col] == IMAGE_WHITE) &&
-                    (ImageBin[row][col + 1] == IMAGE_BLACK))
-            {
-                edge_count++;
+                if(edge_count > IMAGE_ZEBRA_EDGE_MIN)
+                {
+                    return 1;
+                }
             }
         }
-
-        /* 单行跳变次数达到阈值，计入有效行 */
-        if(edge_count > IMAGE_ZEBRA_EDGE_MIN)
-        {
-            valid_row_count++;
-        }
-    }
-
-    /* 至少 3 行满足条件才判定为斑马线 */
-    if(valid_row_count >= 3)
-    {
-        return 1;
     }
 
     return 0;
@@ -2571,8 +2555,12 @@ static void image_check_straight(void)
     left_error = Straight_Judge(1, 25, 45);
     right_error = Straight_Judge(2, 25, 45);
 
-    /* 左右边线均为直线（误差 < 4.0），连续3帧确认 */
-    if((left_error < 4.0f) && (right_error < 4.0f))
+    /* 导出误差值到Image结构体（x10用于整数显示） */
+    Image.straight_left_error_x10 = (int16)(left_error * 10.0f);
+    Image.straight_right_error_x10 = (int16)(right_error * 10.0f);
+
+    /* 左右边线均为直线，连续3帧确认 */
+    if((left_error < 1.0f) && (right_error < 1.0f))
     {
         straight_count++;
         if(straight_count >= 3)

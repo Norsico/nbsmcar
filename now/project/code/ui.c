@@ -75,6 +75,7 @@ static const ui_param_t motor_params[] = {
     {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 10},
     {"ring",     &SmartCar.motor.ring_speed,     VAL_TYPE_INT16, 10},
     {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 5},
+    {"fan st",   &SmartCar.motor.fan_straight_duty, VAL_TYPE_INT16, 5},
 
 };
 
@@ -396,6 +397,15 @@ static void ui_show_camera_image(void)
     ips200_show_string(96, 188, "RLD10");
     ips200_show_string(144, 188, "     ");
     ips200_show_int16(144, 188, Image.right_ring_left_deviation_x10);
+
+    ips200_show_string(0, 204, "L err");
+    ips200_show_string(48, 204, "     ");
+    ips200_show_int16(48, 204, Image.straight_left_error_x10);
+    ips200_show_string(96, 204, "R err");
+    ips200_show_string(144, 204, "     ");
+    ips200_show_int16(144, 204, Image.straight_right_error_x10);
+    ips200_show_string(192, 204, "st");
+    ips200_show_string(216, 204, Image.is_straight ? "Y" : "N");
 }
 
 static void ui_show(void)
