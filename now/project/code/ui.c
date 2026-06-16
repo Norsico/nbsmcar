@@ -1,7 +1,7 @@
 #include "headfile.h"
 
 // ==========================================
-// 1. Ã¶¾ÙÓë³£Á¿¶¨Òå
+// 1. æšä¸¾ä¸å¸¸é‡å®šä¹‰
 // ==========================================
 typedef enum
 {
@@ -22,40 +22,40 @@ typedef enum
 } ui_key_event;
 
 /* IPS200_PORTAIT: x 0-239, y 0-319 */
-#define UI_ROW_H                     (16)  //¿ØÖÆÃ¿ĞĞ y ¼ä¾à
-#define UI_NAME_X                    (16)  //¿ØÖÆÃû×Ö x Î»ÖÃ
-#define UI_VALUE_X                   (144) //¿ØÖÆÊı¾İ x Î»ÖÃ
+#define UI_ROW_H                     (16)  //æ§åˆ¶æ¯è¡Œ y é—´è·
+#define UI_NAME_X                    (16)  //æ§åˆ¶åå­— x ä½ç½®
+#define UI_VALUE_X                   (144) //æ§åˆ¶æ•°æ® x ä½ç½®
 
 // ==========================================
-// 2. Êı¾İÇı¶¯ UI ºËĞÄ½á¹¹Ìå¶¨Òå 
+// 2. æ•°æ®é©±åŠ¨ UI æ ¸å¿ƒç»“æ„ä½“å®šä¹‰ 
 // ==========================================
-// Ö§³ÖµÄ±äÁ¿ÀàĞÍ
+// æ”¯æŒçš„å˜é‡ç±»å‹
 typedef enum {
     VAL_TYPE_INT16,
     VAL_TYPE_UINT16,
     VAL_TYPE_UINT8
 } var_type_e;
 
-// µ¥¸ö²ÎÊı²Ëµ¥ÏîÃèÊö
+// å•ä¸ªå‚æ•°èœå•é¡¹æè¿°
 typedef struct {
-    const char *name;     // UI ÉÏÏÔÊ¾µÄÃû×Ö
-    void *val_ptr;        // Ö¸ÏòÕæÊµ±äÁ¿µÄÄÚ´æµØÖ·
-    var_type_e type;      // ±äÁ¿Êµ¼ÊÊı¾İÀàĞÍ
-    int16 step;           // Ã¿´Î°´¼ü¼Ó/¼õµÄ²½³¤
+    const char *name;     // UI ä¸Šæ˜¾ç¤ºçš„åå­—
+    void *val_ptr;        // æŒ‡å‘çœŸå®å˜é‡çš„å†…å­˜åœ°å€
+    var_type_e type;      // å˜é‡å®é™…æ•°æ®ç±»å‹
+    int16 step;           // æ¯æ¬¡æŒ‰é”®åŠ /å‡çš„æ­¥é•¿
 } ui_param_t;
 
-// ×ÓÒ³ÃæÃèÊö
+// å­é¡µé¢æè¿°
 typedef struct {
-    const char *title;        // Ò³Ãæ±êÌâ
-    const ui_param_t *params; // ²ÎÊıÊı×éÖ¸Õë
-    uint8 param_count;        // ²ÎÊı¸öÊı
+    const char *title;        // é¡µé¢æ ‡é¢˜
+    const ui_param_t *params; // å‚æ•°æ•°ç»„æŒ‡é’ˆ
+    uint8 param_count;        // å‚æ•°ä¸ªæ•°
 } ui_menu_t;
 
 // ==========================================
-// 3. ²Ëµ¥Êı¾İÅäÖÃ±í (ĞŞ¸Ä²ÎÊıÖ»¸ÄÕâÀï)
+// 3. èœå•æ•°æ®é…ç½®è¡¨ (ä¿®æ”¹å‚æ•°åªæ”¹è¿™é‡Œ)
 // ==========================================
 
-// Servo ²Ëµ¥ÅäÖÃ
+// Servo èœå•é…ç½®
 static const ui_param_t servo_params[] = {
     {"kp",       &SmartCar.servo.kp,        VAL_TYPE_INT16, 2},
     {"kd",       &SmartCar.servo.kd,        VAL_TYPE_INT16, 2},
@@ -65,7 +65,7 @@ static const ui_param_t servo_params[] = {
     {"point",    &SmartCar.servo.tow_point, VAL_TYPE_INT16, 1},
 };
 
-// Motor ²Ëµ¥ÅäÖÃ
+// Motor èœå•é…ç½®
 static const ui_param_t motor_params[] = {
 	  {"left kp",  &SmartCar.motor.left_kp,        VAL_TYPE_INT16, 1},
     {"left ki",  &SmartCar.motor.left_ki,        VAL_TYPE_INT16, 1},
@@ -77,7 +77,7 @@ static const ui_param_t motor_params[] = {
 
 };
 
-// Camera ²Ëµ¥ÅäÖÃ
+// Camera èœå•é…ç½®
 static const ui_param_t camera_params[] = {
     {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
@@ -85,25 +85,25 @@ static const ui_param_t camera_params[] = {
     {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
 };
 
-// Ò³ÃæÂ·ÓÉ»ã×Ü±í
+// é¡µé¢è·¯ç”±æ±‡æ€»è¡¨
 static const ui_menu_t menu_pages[] = {
     {"Servo",  servo_params,  (uint8)(sizeof(servo_params) / sizeof(servo_params[0]))},
     {"Motor",  motor_params,  (uint8)(sizeof(motor_params) / sizeof(motor_params[0]))},
     {"Camera", camera_params, (uint8)(sizeof(camera_params) / sizeof(camera_params[0]))},
 };
 
-// Ö÷Ò³²Ëµ¥Ãû×ÖÅäÖÃ
+// ä¸»é¡µèœå•åå­—é…ç½®
 static const char* main_menu_names[] = {"Servo", "Motor", "Camera", "Debug"};
 #define MAIN_MENU_COUNT 4
 
 // ==========================================
-// 4. È«¾Ö×´Ì¬±äÁ¿
+// 4. å…¨å±€çŠ¶æ€å˜é‡
 // ==========================================
 static ui_page UiPage = UI_PAGE_MAIN;
-static uint8 UiSelect = 0;//²ÎÊıÑ¡Ôñ×´Ì¬
-static uint8 UiEdit = 0;//±à¼­×´Ì¬
-static uint8 UiDebugGray = 0;//ÏÔÊ¾¶şÖµ»¯»¹ÊÇ»Ò¶È
-static uint8 UiPowerPercent;//µç³Ø°Ù·Ö±È
+static uint8 UiSelect = 0;//å‚æ•°é€‰æ‹©çŠ¶æ€
+static uint8 UiEdit = 0;//ç¼–è¾‘çŠ¶æ€
+static uint8 UiDebugGray = 0;//æ˜¾ç¤ºäºŒå€¼åŒ–è¿˜æ˜¯ç°åº¦
+static uint8 UiPowerPercent;//ç”µæ± ç™¾åˆ†æ¯”
 static uint8 KeyLast[4] = {1, 1, 1, 1};
 
 uint8 ui_is_debug(void)
@@ -112,7 +112,7 @@ uint8 ui_is_debug(void)
 }
 
 // ==========================================
-// 5. µ×²ã»ù´¡¹¦ÄÜº¯Êı
+// 5. åº•å±‚åŸºç¡€åŠŸèƒ½å‡½æ•°
 // ==========================================
 static void ui_read_power(void)
 {
@@ -186,7 +186,7 @@ static ui_key_event ui_key_scan(void)
 }
 
 // ==========================================
-// 6. UI Êı¾İ²Ù×÷³éÏó²ã
+// 6. UI æ•°æ®æ“ä½œæŠ½è±¡å±‚
 // ==========================================
 static uint8 get_current_page_item_count(void)
 {
@@ -211,7 +211,7 @@ static void ui_change_current_value(int8 dir)
     p = &menu_pages[UiPage - UI_PAGE_SERVO].params[UiSelect];
     change = (int16)(p->step * dir);
 
-    // ¸ù¾İÊı¾İÀàĞÍ£¬ÕıÈ·×ª»»Ö¸Õë²¢¼ÓÉÏÆ«ÒÆÁ¿
+    // æ ¹æ®æ•°æ®ç±»å‹ï¼Œæ­£ç¡®è½¬æ¢æŒ‡é’ˆå¹¶åŠ ä¸Šåç§»é‡
     switch(p->type) {
         case VAL_TYPE_INT16:  *(int16*)p->val_ptr  = (int16)(*(int16*)p->val_ptr + change); break;
         case VAL_TYPE_UINT16: *(uint16*)p->val_ptr = (uint16)((int16)*(uint16*)p->val_ptr + change); break;
@@ -224,7 +224,7 @@ static void ui_show_current_value(const ui_param_t *p, uint16 y)
 {
     int32 val_to_show = 0;
     
-    // È¡³öÊıÖµ²¢Í³Ò»ÓÃ int16 ÏÔÊ¾
+    // å–å‡ºæ•°å€¼å¹¶ç»Ÿä¸€ç”¨ int16 æ˜¾ç¤º
     switch (p->type) {
         case VAL_TYPE_INT16:  val_to_show = *(int16*)p->val_ptr; break;
         case VAL_TYPE_UINT16: val_to_show = *(uint16*)p->val_ptr; break;
@@ -244,9 +244,9 @@ static void ui_move(int8 dir)
 }
 
 // ==========================================
-// 7. Ò³ÃæäÖÈ¾Âß¼­
+// 7. é¡µé¢æ¸²æŸ“é€»è¾‘
 // ==========================================
-//Ò³Ãæ±êÌâ
+//é¡µé¢æ ‡é¢˜
 static void ui_show_title(const char *title)
 {
     ips200_set_color(RGB565_BLACK, RGB565_WHITE);
@@ -255,7 +255,7 @@ static void ui_show_title(const char *title)
         ips200_show_string(176, 0, "EDIT");
     }
 }
-//»­µç³Ø
+//ç”»ç”µæ± 
 static void ui_show_power(void)
 {
     ui_draw_battery(160, 2, UiPowerPercent);
@@ -268,7 +268,7 @@ static void ui_show_power(void)
         ips200_show_string(224, 0, "%");
     }
 }
-// Ö÷Ò³ÃæäÖÈ¾º¯Êı
+// ä¸»é¡µé¢æ¸²æŸ“å‡½æ•°
 static void ui_show_main(void)
 {
     uint8 i;
@@ -286,7 +286,7 @@ static void ui_show_main(void)
     }
 }
 
-// Í¨ÓÃµÄ²ÎÊıÒ³ÃæäÖÈ¾º¯Êı 
+// é€šç”¨çš„å‚æ•°é¡µé¢æ¸²æŸ“å‡½æ•° 
 static void ui_show_generic_page(ui_page page)
 {
     const ui_menu_t *menu;
@@ -310,7 +310,7 @@ static void ui_show_generic_page(ui_page page)
     }
 }
 
-//ÉãÏñÍ·½çÃæ¹Ì¶¨ÄÚÈİ
+//æ‘„åƒå¤´ç•Œé¢å›ºå®šå†…å®¹
 static void ui_show_debug(void)
 {
     ips200_clear(RGB565_BLACK);
@@ -350,7 +350,7 @@ static const char *ui_ring_status(void)
         default: return "normal    ";
     }
 }
-//Í¼ÏñÄÚÈİ
+//å›¾åƒå†…å®¹
 static void ui_show_camera_image(void)
 {
     if(Image.ready == 0) return;
@@ -414,13 +414,13 @@ static void ui_show(void)
 }
 
 // ==========================================
-// 8. ÊÂ¼ş´¦ÀíÂß¼­
+// 8. äº‹ä»¶å¤„ç†é€»è¾‘
 // ==========================================
 static void ui_handle_key(ui_key_event event)
 {
     if(event == UI_KEY_NONE) return;
 
-    // --- ·µ»Ø¼ü´¦Àí ---
+    // --- è¿”å›é”®å¤„ç† ---
     if(event == UI_KEY_BACK_EVENT) {
         if(UiEdit) {
             UiEdit = 0;
@@ -433,7 +433,7 @@ static void ui_handle_key(ui_key_event event)
         return;
     }
 
-    // --- µ÷ÊÔÒ³ÃæÌØÊâ°´¼ü´¦Àí ---
+    // --- è°ƒè¯•é¡µé¢ç‰¹æ®ŠæŒ‰é”®å¤„ç† ---
     if(UiPage == UI_PAGE_DEBUG) {
         if(event == UI_KEY_UP_EVENT || event == UI_KEY_DOWN_EVENT) {
             UiDebugGray = UiDebugGray ? 0 : 1;
@@ -441,10 +441,10 @@ static void ui_handle_key(ui_key_event event)
         return;
     }
 
-    // --- »Ø³µÈ·ÈÏ¼ü´¦Àí ---
+    // --- å›è½¦ç¡®è®¤é”®å¤„ç† ---
     if(event == UI_KEY_ENTER_EVENT) {
         if(UiPage == UI_PAGE_MAIN) {
-            // Í¨¹ıÖ÷²Ëµ¥µÄÑ¡ÔñË÷ÒıÖ±½ÓÓ³Éäµ½×ÓÒ³ÃæÃ¶¾Ù
+            // é€šè¿‡ä¸»èœå•çš„é€‰æ‹©ç´¢å¼•ç›´æ¥æ˜ å°„åˆ°å­é¡µé¢æšä¸¾
             UiPage = (ui_page)(UiSelect + 1); 
             UiSelect = 0;
         } else {
@@ -458,20 +458,20 @@ static void ui_handle_key(ui_key_event event)
         }
         return;
     }
-    // --- ÉÏÏÂ¼ü´¦Àí ---
+    // --- ä¸Šä¸‹é”®å¤„ç† ---
     if((event == UI_KEY_UP_EVENT) || (event == UI_KEY_DOWN_EVENT)) {
         if(UiEdit) {
-            // Èç¹û´¦ÓÚ±à¼­×´Ì¬£¬Ö±½Óµ÷ÓÃÍ¨ÓÃµÄÊıÖµĞŞ¸ÄÂß¼­
+            // å¦‚æœå¤„äºç¼–è¾‘çŠ¶æ€ï¼Œç›´æ¥è°ƒç”¨é€šç”¨çš„æ•°å€¼ä¿®æ”¹é€»è¾‘
             ui_change_current_value((event == UI_KEY_UP_EVENT) ? 1 : -1);
         } else {
-            // Èç¹û´¦ÓÚÑ¡Ôñ×´Ì¬£¬ÒÆ¶¯¹â±ê 
+            // å¦‚æœå¤„äºé€‰æ‹©çŠ¶æ€ï¼Œç§»åŠ¨å…‰æ ‡ 
             ui_move((event == UI_KEY_UP_EVENT) ? -1 : 1);
         }
     }
 }
 
 // ==========================================
-// 9. Íâ²¿µ÷ÓÃ½Ó¿Ú
+// 9. å¤–éƒ¨è°ƒç”¨æ¥å£
 // ==========================================
 void ui_init(void)
 {

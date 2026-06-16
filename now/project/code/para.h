@@ -3,7 +3,7 @@
 
 #include "headfile.h"
 
-/*Èí¼ş²ÎÊı£¬ĞŞ¸ÄÉèÖÃ*/
+/*è½¯ä»¶å‚æ•°ï¼Œä¿®æ”¹è®¾ç½®*/
 #define SERVO_KP                   (90)
 #define SERVO_KD                   (14)
 #define SERVO_ERR2_K               (3)
@@ -22,7 +22,7 @@
 #define CAMERA_LASER_ROW           (50)
 #define CAMERA_THRESHOLD_OFFSET    (0)
 
-/*Ó²¼şÅäÖÃ£¬ĞŞ¸ÄÉèÖÃ*/
+/*ç¡¬ä»¶é…ç½®ï¼Œä¿®æ”¹è®¾ç½®*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
 #define MOTOR_PWM_FREQ             (17000)
 #define MOTOR_DUTY_LIMIT           (9000)
@@ -51,45 +51,45 @@
 #define IRQ_PRIORITY_MOTOR         (2)
 #define IRQ_PRIORITY_NORMAL        (0)
 
-/*Ó²¼ş£¬Òı½Å¶¨Òå£¬²»ÓÃ¶¯*/
-#define LED_DEBUG                  (IO_P52)                 // ºËĞÄ°åLED
+/*ç¡¬ä»¶ï¼Œå¼•è„šå®šä¹‰ï¼Œä¸ç”¨åŠ¨*/
+#define LED_DEBUG                  (IO_P52)                 // æ ¸å¿ƒæ¿LED
 
-#define BUZZER                     (IO_P96)                 // ·äÃùÆ÷
+#define BUZZER                     (IO_P96)                 // èœ‚é¸£å™¨
 
-#define BATTERY_ADC                (ADC1_CH0_P10)           // µç³ØµçÑ¹²ÉÑù
+#define BATTERY_ADC                (ADC1_CH0_P10)           // ç”µæ± ç”µå‹é‡‡æ ·
 
-#define LASER_LEFT_2               (IO_P95)                 // 5¸ö¼¤¹â
+#define LASER_LEFT_2               (IO_P95)                 // 5ä¸ªæ¿€å…‰
 #define LASER_LEFT_1               (IO_P94)
 #define LASER_CENTER               (IO_P92)
 #define LASER_RIGHT_1              (IO_P93)
 #define LASER_RIGHT_2              (IO_P91)
 
-#define SWITCH_MODE1               (IO_PB0)                 // ²¦Âë¿ª¹Ø
+#define SWITCH_MODE1               (IO_PB0)                 // æ‹¨ç å¼€å…³
 #define SWITCH_MODE2               (IO_PB1)
 
-#define KEY_BACK                   (IO_PB2)                 // 4¸ö°´Å¥
+#define KEY_BACK                   (IO_PB2)                 // 4ä¸ªæŒ‰é’®
 #define KEY_UP                     (IO_PB3)
 #define KEY_DOWN                   (IO_PB4)
 #define KEY_ENTER                  (IO_P32)
 
-#define SERVO_PWM                  (PWME_CH3P_PA4)          // ¶æ»ú
+#define SERVO_PWM                  (PWME_CH3P_PA4)          // èˆµæœº
 
-#define FAN_LEFT_PWM               (PWMF_CH1_PA1)           // ¸ºÑ¹·çÉÈ
+#define FAN_LEFT_PWM               (PWMF_CH1_PA1)           // è´Ÿå‹é£æ‰‡
 #define FAN_RIGHT_PWM              (PWMF_CH2_PA3)
 
-#define MOTOR_RIGHT_DIR            (IO_P75)                 // ×óÓÒµç»ú
+#define MOTOR_RIGHT_DIR            (IO_P75)                 // å·¦å³ç”µæœº
 #define MOTOR_RIGHT_PWM            (PWMB_CH1_P74)
 #define MOTOR_LEFT_DIR             (IO_P77)
 #define MOTOR_LEFT_PWM             (PWMB_CH3_P76)
 
-#define ENCODER_LEFT               (PWMC_ENCODER)           // ±àÂëÆ÷
+#define ENCODER_LEFT               (PWMC_ENCODER)           // ç¼–ç å™¨
 #define ENCODER_LEFT_CHA           (PWMC_ENCODER_CH1P_P40)
 #define ENCODER_LEFT_CHB           (PWMC_ENCODER_CH2P_P42)
 #define ENCODER_RIGHT              (PWMA_ENCODER)
 #define ENCODER_RIGHT_CHA          (PWMA_ENCODER_CH1P_P60)
 #define ENCODER_RIGHT_CHB          (PWMA_ENCODER_CH2P_P62)
 
-#define IPS_SPI                    (IPS200_SPI)             // ÆÁÄ»
+#define IPS_SPI                    (IPS200_SPI)             // å±å¹•
 #define IPS_SCL                    (IPS200_SCL_PIN)
 #define IPS_SDA                    (IPS200_SDA_PIN)
 #define IPS_RST                    (IPS200_RST_PIN)
@@ -97,12 +97,12 @@
 #define IPS_CS                     (IPS200_CS_PIN)
 #define IPS_BLK                    (IPS200_BLK_PIN)
 
-#define IMU_SPC                    (IMU660RA_SPC_PIN)				// ÍÓÂİÒÇ
+#define IMU_SPC                    (IMU660RA_SPC_PIN)				// é™€èºä»ª
 #define IMU_SDI                    (IMU660RA_SDI_PIN)
 #define IMU_SDO                    (IMU660RA_SDO_PIN)
 #define IMU_CS                     (IMU660RA_CS_PIN)
 
-#define CAMERA_SCL                 (MT9V03X_COF_IIC_SCL)   // ÉãÏñÍ·
+#define CAMERA_SCL                 (MT9V03X_COF_IIC_SCL)   // æ‘„åƒå¤´
 #define CAMERA_SDA                 (MT9V03X_COF_IIC_SDA)
 #define CAMERA_D0                  (MT9V03X_D0_PIN)
 #define CAMERA_D1                  (MT9V03X_D1_PIN)
