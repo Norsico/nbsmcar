@@ -38,20 +38,34 @@
 void main(void)
 {
     clock_init(SYSTEM_CLOCK_96M); 				// 时钟配置及系统初始化<务必保留>
+
+    /* 启用看门狗（死机保护：约1秒溢出） */
+    WDT_CONTR = 0x37;  // EN_WDT=1, 预分频=256, 溢出时间≈1s
+
     debug_init();
     para_init();
     flash_init();
-		servo_init();
-		state_init();
+		servo_init();      // IMU初始化（SPI通信）
+		WDT_CONTR |= 0x10; // 喂狗
+		state_init();      // 检测看门狗复位标志
 		buzzer_init();
-    motor_init();
-    image_init();
+    motor_init();      // 仅初始化GPIO、PWM、编码器（不启动中断）
+		WDT_CONTR |= 0x10; // 喂狗
+    image_init();      // 摄像头初始化（DMA + 中断）
+
+    system_delay_ms(100);  // 等待所有外设稳定
+		WDT_CONTR |= 0x10;     // 喂狗
+
+    motor_start_control(); // 最后启动电机中断 + 风扇爬坡
+
     if(CarMode == CAR_MODE_UI)
     {
         ui_init();
     }
     while(1)
     {
+        WDT_CONTR |= 0x10;  // 喂狗（清看门狗计数器）
+
         switch(CarMode)
         {
             case CAR_MODE_UI:

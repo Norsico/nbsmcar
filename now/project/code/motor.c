@@ -55,6 +55,9 @@ static void fan_start_ramp(int16 target_duty)
     {
         fan_write_percent(duty);
         system_delay_ms(30);
+
+        /* 风扇爬坡期间喂狗（防止看门狗复位） */
+        WDT_CONTR |= 0x10;
     }
 }
 
@@ -111,6 +114,15 @@ void motor_init(void)
     gpio_init(MOTOR_LEFT_DIR, GPO, GPIO_LOW, GPO_PUSH_PULL);
     pwm_init(MOTOR_LEFT_PWM, MOTOR_PWM_FREQ, 0);
 
+    encoder_dir_init(ENCODER_LEFT, ENCODER_LEFT_CHA, ENCODER_LEFT_CHB);
+    encoder_dir_init(ENCODER_RIGHT, ENCODER_RIGHT_CHA, ENCODER_RIGHT_CHB);
+
+    /* 风扇和定时器中断延后启动（motor_start_control()中） */
+}
+
+void motor_start_control(void)
+{
+    /* 风扇初始化 + 爬坡 */
     pwm_init(FAN_LEFT_PWM, FAN_PWM_FREQ, 3000);
     pwm_init(FAN_RIGHT_PWM, FAN_PWM_FREQ, 3000);
     if(CarMode == CAR_MODE_RUN)
@@ -118,9 +130,7 @@ void motor_init(void)
         fan_start_ramp(SmartCar.motor.fan_duty);
     }
 
-    encoder_dir_init(ENCODER_LEFT, ENCODER_LEFT_CHA, ENCODER_LEFT_CHB);
-    encoder_dir_init(ENCODER_RIGHT, ENCODER_RIGHT_CHA, ENCODER_RIGHT_CHB);
-
+    /* 启动电机控制中断（所有外设初始化完成后才启动） */
     pit_ms_init(TIM1_PIT, MOTOR_CTRL_PERIOD_MS, motor_timer);
     interrupt_set_priority(TIMER1_IRQn, IRQ_PRIORITY_MOTOR);
 }
