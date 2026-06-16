@@ -471,6 +471,11 @@ void image_init(void)
     Image.ring_step = 0;
     Image.zebra = 0;
     Image.zebra_count = 0;
+    Image.is_straight = 0;
+    Image.straight_left_error_x10 = 0;
+    Image.straight_right_error_x10 = 0;
+    Image.is_long_straight = 0;
+    Image.straight_variance_x10 = 0;
     ImageRawThreshold = 0;
     ZebraHit = 0;
     ZebraDetectCount = 0;
@@ -2542,7 +2547,7 @@ static void image_check_zebra(void)
 }
 
 /**
- * @brief  直道检测
+ * @brief  直道检测（环岛用）
  * @note   使用左右边线拟合误差判断，连续3帧确认
  */
 static void image_check_straight(void)
@@ -2572,6 +2577,63 @@ static void image_check_straight(void)
     {
         straight_count = 0;
         Image.is_straight = 0;
+    }
+}
+
+/**
+ * @brief  长直道加速检测（改进版：覆盖中、大等级直道）
+ * @note   使用中线方差 + 可视距离 + 丢线判断，区分长短直道
+ *         - 中线方差：衡量中线的平直程度，比边线拟合更稳定
+ *         - OFFLine <= 12：可视距离较远（覆盖中、大等级直道）
+ *         - Left_Line/Right_Line < 3：允许少量丢线（放宽条件）
+ */
+static void image_check_long_straight(void)
+{
+    static uint8 long_straight_count = 0;
+    static float variance_acc_threshold = 80.0f;  /* 方差阈值（放宽到80） */
+    float variance_acc;
+    int32 sum;
+    int16 valid_rows;
+
+    sum = 0;
+
+    /* 计算中线方差（衡量中线偏离中心的程度） */
+    for(Ysite = 55; Ysite > (ImageStatus.OFFLine + 1); Ysite--)
+    {
+        sum += (ImageDeal[Ysite].Center - IMAGE_MID) *
+               (ImageDeal[Ysite].Center - IMAGE_MID);
+    }
+
+    valid_rows = 54 - ImageStatus.OFFLine;
+    if(valid_rows > 0)
+    {
+        variance_acc = (float)sum / (float)valid_rows;
+    }
+    else
+    {
+        variance_acc = 9999.0f;  /* 无效值 */
+    }
+
+    /* 导出方差值供UI显示 */
+    Image.straight_variance_x10 = (int16)(variance_acc * 10.0f);
+
+    /* 中长直道判断：方差较小 + 可视距离较远 + 少量丢线允许 */
+    if(  variance_acc < variance_acc_threshold      /* 中线够直（放宽到80）*/
+      && ImageStatus.OFFLine <= 12                  /* 可视距离较远（覆盖中、大直道）*/
+      && ImageStatus.Left_Line < 3                  /* 左侧少量丢线允许 */
+      && ImageStatus.Right_Line < 3                 /* 右侧少量丢线允许 */
+      )
+    {
+        long_straight_count++;
+        if(long_straight_count >= 3)  /* 连续3帧确认 */
+        {
+            Image.is_long_straight = 1;
+        }
+    }
+    else
+    {
+        long_straight_count = 0;
+        Image.is_long_straight = 0;
     }
 }
 
@@ -2661,9 +2723,10 @@ static void image_process(void)
     image_route_filter();          /* 9. 路径滤波 */
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
-    image_check_straight();        /* 12. 直道检测 */
-    image_get_det(image_tow_point()); /* 13. 计算加权中心 */
-    image_export_result();         /* 14. 导出结果 */
+    image_check_straight();        /* 12. 直道检测（环岛用） */
+    image_check_long_straight();   /* 13. 长直道加速检测 */
+    image_get_det(image_tow_point()); /* 14. 计算加权中心 */
+    image_export_result();         /* 15. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }

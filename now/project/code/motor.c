@@ -106,14 +106,14 @@ void motor_update_fan(void)
         return;
     }
 
-    /* 根据直道检测选择风扇档位 */
-    if(Image.is_straight && (Image.ring == 0))
+    /* 根据长直道检测选择风扇档位 */
+    if(Image.is_long_straight && (Image.ring == 0))
     {
-        fan_target = SmartCar.motor.fan_straight_duty;  /* 直道：降低下压力 */
+        fan_target = SmartCar.motor.fan_straight_duty;  /* 长直道：降低下压力 */
     }
     else
     {
-        fan_target = SmartCar.motor.fan_duty;  /* 弯道/环岛：正常下压力 */
+        fan_target = SmartCar.motor.fan_duty;  /* 弯道/环岛/短直道：正常下压力 */
     }
 
     /* 档位改变时，延迟3帧再切换（防止抖动） */

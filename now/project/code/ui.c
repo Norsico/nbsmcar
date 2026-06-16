@@ -406,6 +406,13 @@ static void ui_show_camera_image(void)
     ips200_show_int16(144, 204, Image.straight_right_error_x10);
     ips200_show_string(192, 204, "st");
     ips200_show_string(216, 204, Image.is_straight ? "Y" : "N");
+
+    /* 第13行：长直道加速信息 */
+    ips200_show_string(0, 216, "Var");
+    ips200_show_string(32, 216, "     ");
+    ips200_show_int16(32, 216, Image.straight_variance_x10);
+    ips200_show_string(120, 216, "LongST");
+    ips200_show_string(176, 216, Image.is_long_straight ? "Y" : "N");
 }
 
 static void ui_show(void)
