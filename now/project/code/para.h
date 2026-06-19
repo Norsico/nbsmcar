@@ -4,18 +4,18 @@
 #include "headfile.h"
 
 /*软件参数，修改设置*/
-#define SERVO_KP                   (104)
-#define SERVO_KD                   (12)
-#define SERVO_ERR2_K               (11)
-#define SERVO_IMU_D                (16)
-#define SERVO_ACKERMAN             (1350)
-#define SERVO_POINT                (20)
-#define SERVO_IN_RING_POINT        (24)
-#define SERVO_OUT_RING_POINT       (22)
+#define SERVO_KP                   (106)
+#define SERVO_KD                   (60)
+#define SERVO_ERR2_K               (16)
+#define SERVO_IMU_D                (14)
+#define SERVO_ACKERMAN             (1400)
+#define SERVO_POINT                (19)
+#define SERVO_IN_RING_POINT        (20)
+#define SERVO_OUT_RING_POINT       (20)
 
 #define MOTOR_TARGET_SPEED         (230)
 #define MOTOR_STRAIGHT_SPEED       (230)
-#define MOTOR_RING_SPEED           (200)
+#define MOTOR_RING_SPEED           (210)
 #define MOTOR_LEFT_KP              (50)
 #define MOTOR_LEFT_KI              (5)
 #define MOTOR_RIGHT_KP             (50)
