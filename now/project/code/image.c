@@ -2652,6 +2652,7 @@ static void image_check_ramp(void)
     int16 width_bottom;   /* 底部宽度 */
     int16 width_top;      /* 顶部宽度 */
     int16 width_diff;     /* 宽度差 */
+    ImageDealDatatypedef xdata *p;   /* xdata 指针（2字节，比 generic 3字节省 1 字节加载） */
 
     /* 环岛期间不检测坡道 */
     if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
@@ -2680,18 +2681,20 @@ static void image_check_ramp(void)
            && (width_diff >= 24) && (width_diff <= 29)
            && (Image.straight_left_error_x10 < 3)
            && (Image.straight_right_error_x10 < 3)
-           && (abs(Image.straight_left_error_x10 - Image.straight_right_error_x10) < 2)  /* 左右高度对称 */
-           && (abs(Image.error) < 2))  /* 几乎居中 */
+           && (IMAGE_ABS(Image.straight_left_error_x10 - Image.straight_right_error_x10) < 2)  /* 左右高度对称 */
+           && (IMAGE_ABS(Image.error) < 2))  /* 几乎居中 */
         {
             valid_count = 0;
 
-            /* 检查第10-55行，至少35行满足：找到边线 + 严格居中 */
-            for(Ysite = 10; Ysite < 56; Ysite++)
+            /* 检查第10-55行，至少35行满足：找到边线 + 严格居中
+             * 优化：p++ 一次加 sizeof(struct)=58 字节（编译器常量），比 Ysite*58+offset 省
+             */
+            for(p = &ImageDeal[10]; p <= &ImageDeal[55]; p++)
             {
-                if(  (ImageDeal[Ysite].IsLeftFind == 'T')
-                  && (ImageDeal[Ysite].IsRightFind == 'T')
-                  && (ImageDeal[Ysite].LeftBorder < 38)    /* 更严格的居中判断 */
-                  && (ImageDeal[Ysite].RightBorder > 42)
+                if(  (p->IsLeftFind == 'T')
+                  && (p->IsRightFind == 'T')
+                  && (p->LeftBorder < 38)    /* 更严格的居中判断 */
+                  && (p->RightBorder > 42)
                   )
                 {
                     valid_count++;
