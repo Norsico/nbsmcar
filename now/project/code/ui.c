@@ -57,12 +57,14 @@ typedef struct {
 
 // Servo 菜单配置
 static const ui_param_t servo_params[] = {
-    {"kp",       &SmartCar.servo.kp,        VAL_TYPE_INT16, 2},
-    {"kd",       &SmartCar.servo.kd,        VAL_TYPE_INT16, 2},
-    {"err2",     &SmartCar.servo.err2_k,    VAL_TYPE_INT16, 1},
-    {"imu d",    &SmartCar.servo.imu_d,     VAL_TYPE_INT16, 1},
-    {"ackerman", &SmartCar.servo.ackerman,  VAL_TYPE_INT16, 10},
-    {"point",    &SmartCar.servo.tow_point, VAL_TYPE_INT16, 1},
+    {"kp",       &SmartCar.servo.kp,            VAL_TYPE_INT16, 2},
+    {"kd",       &SmartCar.servo.kd,            VAL_TYPE_INT16, 2},
+    {"err2",     &SmartCar.servo.err2_k,        VAL_TYPE_INT16, 1},
+    {"imu d",    &SmartCar.servo.imu_d,         VAL_TYPE_INT16, 1},
+    {"ackerman", &SmartCar.servo.ackerman,      VAL_TYPE_INT16, 10},
+    {"point",    &SmartCar.servo.tow_point,     VAL_TYPE_INT16, 1},
+    {"in r pt",  &SmartCar.servo.in_ring_point,  VAL_TYPE_INT16, 1},
+    {"out r pt", &SmartCar.servo.out_ring_point, VAL_TYPE_INT16, 1},
 };
 
 // Motor 菜单配置

@@ -235,12 +235,12 @@ static uint8 image_tow_point(void)
     if((ImageFlag.image_element_rings_flag == 1) ||
        (ImageFlag.image_element_rings_flag == 2))
     {
-        tow_point = 24;
+        tow_point = SmartCar.servo.in_ring_point;
     }
     /* 环岛其他阶段使用固定瞄点 */
     else if(ImageFlag.image_element_rings != 0)
     {
-        tow_point = 22;
+        tow_point = SmartCar.servo.out_ring_point;
     }
     /* 正常巡线使用配置的瞄点 */
     else

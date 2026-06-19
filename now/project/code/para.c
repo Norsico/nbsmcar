@@ -10,6 +10,8 @@ void para_init(void)
     SmartCar.servo.imu_d = SERVO_IMU_D;
     SmartCar.servo.ackerman = SERVO_ACKERMAN;
     SmartCar.servo.tow_point = SERVO_POINT;
+    SmartCar.servo.in_ring_point = SERVO_IN_RING_POINT;
+    SmartCar.servo.out_ring_point = SERVO_OUT_RING_POINT;
 
     SmartCar.motor.target_speed = MOTOR_TARGET_SPEED;
     SmartCar.motor.straight_speed = MOTOR_STRAIGHT_SPEED;

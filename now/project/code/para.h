@@ -10,6 +10,8 @@
 #define SERVO_IMU_D                (16)
 #define SERVO_ACKERMAN             (1350)
 #define SERVO_POINT                (20)
+#define SERVO_IN_RING_POINT        (24)
+#define SERVO_OUT_RING_POINT       (22)
 
 #define MOTOR_TARGET_SPEED         (230)
 #define MOTOR_STRAIGHT_SPEED       (230)
@@ -129,6 +131,8 @@ typedef struct
     int16 imu_d;
 	  int16 ackerman;
     int16 tow_point;
+    int16 in_ring_point;
+    int16 out_ring_point;
 } servo_para;
 
 typedef struct
