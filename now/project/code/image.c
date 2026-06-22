@@ -46,6 +46,19 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_LOST_STOP_COUNT          (4)     /* 连续丢线多少帧后停车 */
 #define IMAGE_RUN_START_IGNORE_FRAMES  (3)     /* 启动后忽略丢线的帧数（避免误判） */
 
+/* 打靶检测参数 */
+#define IMAGE_TARGET_LASER_PIT         (TIM0_PIT)
+#define IMAGE_TARGET_LASER_IRQ         (TIMER0_IRQn)
+#define IMAGE_TARGET_LASER_PRIORITY    (0)
+#define IMAGE_TARGET_LASER_PERIOD_US   (500)
+#define IMAGE_TARGET_LASER_FIRE_US     (3000)
+#define IMAGE_TARGET_FIRE_INTERVAL     (10)
+#define IMAGE_TARGET_SCAN_ROWS         (3)
+#define IMAGE_LASER_95_MAX_COL         (24)
+#define IMAGE_LASER_94_MAX_COL         (34)
+#define IMAGE_LASER_92_MAX_COL         (44)
+#define IMAGE_LASER_93_MAX_COL         (54)
+
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
 #define LimitH(H)                      (H = ((H > 78) ? 78 : H))
@@ -158,6 +171,22 @@ static uint8 ZebraCooldownFrames = 0;
 static uint8 ImageLostCount = 0;
 static uint8 ImageRunFrameCount = 0;
 
+/* 打靶检测和激光控制 */
+static uint8 TargetFound = 0;
+static uint8 TargetFrameGap = IMAGE_TARGET_FIRE_INTERVAL;
+static uint8 TargetCenterX = IMAGE_MID;
+static uint8 TargetCenterY = 0;
+static uint8 TargetLeftX = 0;
+static uint8 TargetRightX = 0;
+static uint8 TargetTopY = 0;
+static uint8 TargetBottomY = 0;
+static uint8 LaserBusy = 0;
+static uint8 LaserTestLast = 0;
+static uint8 LaserPitInit = 0;
+static uint8 LaserTickLeft = 0;
+
+static void image_target_laser_pit_handler(void);
+
 /* 图像处理工作变量 */
 static int16 Ysite = 0;
 static int16 Xsite = 0;
@@ -187,6 +216,332 @@ static int16 Point_Xsite = 0;
 static int16 Point_Ysite = 0;
 static int16 Repair_Point_Xsite = 0;
 static int16 Repair_Point_Ysite = 0;
+
+static void image_laser_all_off(void)
+{
+    gpio_set_level(LASER_LEFT_2, GPIO_LOW);
+    gpio_set_level(LASER_LEFT_1, GPIO_LOW);
+    gpio_set_level(LASER_CENTER, GPIO_LOW);
+    gpio_set_level(LASER_RIGHT_1, GPIO_LOW);
+    gpio_set_level(LASER_RIGHT_2, GPIO_LOW);
+}
+
+static void image_laser_all_on(void)
+{
+    gpio_set_level(LASER_LEFT_2, GPIO_HIGH);
+    gpio_set_level(LASER_LEFT_1, GPIO_HIGH);
+    gpio_set_level(LASER_CENTER, GPIO_HIGH);
+    gpio_set_level(LASER_RIGHT_1, GPIO_HIGH);
+    gpio_set_level(LASER_RIGHT_2, GPIO_HIGH);
+}
+
+static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
+{
+    if(center_x <= IMAGE_LASER_95_MAX_COL)
+    {
+        return LASER_LEFT_2;
+    }
+    if(center_x <= IMAGE_LASER_94_MAX_COL)
+    {
+        return LASER_LEFT_1;
+    }
+    if(center_x <= IMAGE_LASER_92_MAX_COL)
+    {
+        return LASER_CENTER;
+    }
+    if(center_x <= IMAGE_LASER_93_MAX_COL)
+    {
+        return LASER_RIGHT_1;
+    }
+
+    return LASER_RIGHT_2;
+}
+
+static uint8 image_target_normalize_row(int16 row)
+{
+    if(row < 1)
+    {
+        return 1;
+    }
+    if(row > (IMAGE_H - 2))
+    {
+        return (IMAGE_H - 2);
+    }
+
+    return (uint8)row;
+}
+
+static uint8 image_target_normalize_gap(int16 gap)
+{
+    if(gap < 1)
+    {
+        return 1;
+    }
+    if(gap > 8)
+    {
+        return 8;
+    }
+
+    return (uint8)gap;
+}
+
+static void image_target_reset_result(void)
+{
+    TargetFound = 0;
+    TargetCenterX = IMAGE_MID;
+    TargetCenterY = 0;
+    TargetLeftX = 0;
+    TargetRightX = IMAGE_W - 1;
+    TargetTopY = 0;
+    TargetBottomY = 0;
+}
+
+static void image_target_laser_pit_stop(void)
+{
+    TR0 = 0;
+    ET0 = 0;
+    TIM0_CLEAR_FLAG;
+}
+
+static void image_target_laser_pit_start(void)
+{
+    if(LaserPitInit == 0)
+    {
+        /* 定时器默认关闭，只在首次打靶时初始化一次。 */
+        pit_us_init(IMAGE_TARGET_LASER_PIT, IMAGE_TARGET_LASER_PERIOD_US, image_target_laser_pit_handler);
+        interrupt_set_priority(IMAGE_TARGET_LASER_IRQ, IMAGE_TARGET_LASER_PRIORITY);
+        LaserPitInit = 1;
+    }
+
+    TIM0_CLEAR_FLAG;
+    ET0 = 1;
+    TR0 = 1;
+}
+
+static void image_target_laser_pit_handler(void)
+{
+    TIM0_CLEAR_FLAG;
+
+    if(LaserBusy == 0)
+    {
+        image_target_laser_pit_stop();
+        return;
+    }
+
+    if(LaserTickLeft > 0)
+    {
+        LaserTickLeft--;
+    }
+
+    if(LaserTickLeft == 0)
+    {
+        image_laser_all_off();
+        LaserBusy = 0;
+        image_target_laser_pit_stop();
+    }
+}
+
+static void image_target_laser_start(uint8 center_x)
+{
+    gpio_pin_enum laser_pin;
+
+    laser_pin = image_laser_pick_pin(center_x);
+
+    interrupt_global_disable();
+    image_laser_all_off();
+    gpio_set_level(laser_pin, GPIO_HIGH);
+    /* 3ms 开火时长换算成 0.5ms 的定时器节拍数。 */
+    LaserTickLeft = (uint8)((IMAGE_TARGET_LASER_FIRE_US + IMAGE_TARGET_LASER_PERIOD_US - 1) /
+                            IMAGE_TARGET_LASER_PERIOD_US);
+    LaserBusy = 1;
+    image_target_laser_pit_start();
+    interrupt_global_enable();
+}
+
+static void image_target_update_laser_mode(void)
+{
+    uint8 laser_test;
+
+    laser_test = (SmartCar.camera.laser_test != 0) ? 1 : 0;
+    if(laser_test != LaserTestLast)
+    {
+        LaserTestLast = laser_test;
+        LaserBusy = 0;
+        LaserTickLeft = 0;
+        image_target_laser_pit_stop();
+        image_laser_all_off();
+    }
+
+    if(laser_test)
+    {
+        image_laser_all_on();
+    }
+}
+
+static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x)
+{
+    uint8 col;
+    uint8 prev_pixel;
+    uint8 transition_count;
+
+    if((left_x >= right_x) || ((right_x - left_x) < 6))
+    {
+        return 0;
+    }
+
+    prev_pixel = ImageBin[row][left_x];
+    transition_count = 0;
+
+    for(col = (uint8)(left_x + 1); col <= right_x; col++)
+    {
+        if(ImageBin[row][col] != prev_pixel)
+        {
+            transition_count++;
+            prev_pixel = ImageBin[row][col];
+
+            if(transition_count >= 4)
+            {
+                if((ImageBin[row][left_x] == IMAGE_WHITE) && (ImageBin[row][right_x] == IMAGE_WHITE))
+                {
+                    return 1;
+                }
+                return 0;
+            }
+        }
+    }
+
+    return 0;
+}
+
+static void image_target_check(void)
+{
+    uint8 base_row;
+    uint8 gap;
+    uint8 row;
+    uint8 hit_count;
+    uint8 first_hit_row;
+    uint8 last_hit_row;
+    int16 scan_row;
+    int16 left_x;
+    int16 right_x;
+    int16 center_x;
+
+    image_target_reset_result();
+
+    if(CarMode != CAR_MODE_RUN)
+    {
+        return;
+    }
+
+    if(ZebraHit)
+    {
+        return;
+    }
+
+    gap = image_target_normalize_gap(SmartCar.camera.target_gap);
+    SmartCar.camera.target_gap = gap;
+    base_row = image_target_normalize_row(SmartCar.camera.laser_row);
+    SmartCar.camera.laser_row = base_row;
+
+    hit_count = 0;
+    first_hit_row = base_row;
+    last_hit_row = base_row;
+    left_x = ImageDeal[base_row].LeftBoundary;
+    right_x = ImageDeal[base_row].RightBoundary;
+
+    /* 在基准行及其上方两行内做判定，行距由 UI 的 target gap 控制。 */
+    for(row = 0; row < IMAGE_TARGET_SCAN_ROWS; row++)
+    {
+        scan_row = (int16)base_row - (int16)row * (int16)gap;
+        if(scan_row < 1)
+        {
+            break;
+        }
+
+        if(ImageDeal[scan_row].LeftBoundary >= ImageDeal[scan_row].RightBoundary)
+        {
+            continue;
+        }
+
+        if(image_target_match_row((uint8)scan_row,
+                                  (uint8)ImageDeal[scan_row].LeftBoundary,
+                                  (uint8)ImageDeal[scan_row].RightBoundary))
+        {
+            if(hit_count == 0)
+            {
+                first_hit_row = (uint8)scan_row;
+                left_x = ImageDeal[scan_row].LeftBoundary;
+                right_x = ImageDeal[scan_row].RightBoundary;
+            }
+            else
+            {
+                if(ImageDeal[scan_row].LeftBoundary > left_x)
+                {
+                    left_x = ImageDeal[scan_row].LeftBoundary;
+                }
+                if(ImageDeal[scan_row].RightBoundary < right_x)
+                {
+                    right_x = ImageDeal[scan_row].RightBoundary;
+                }
+            }
+            last_hit_row = (uint8)scan_row;
+            hit_count++;
+        }
+    }
+
+    /* 三行里命中两行，就认为靶子成立。 */
+    if(hit_count < 2)
+    {
+        return;
+    }
+
+    if(left_x >= right_x)
+    {
+        return;
+    }
+
+    center_x = (left_x + right_x) / 2;
+
+    TargetFound = 1;
+    TargetCenterX = (uint8)center_x;
+    TargetCenterY = (uint8)((first_hit_row + last_hit_row) / 2);
+    TargetLeftX = (uint8)left_x;
+    TargetRightX = (uint8)right_x;
+    TargetTopY = last_hit_row;
+    TargetBottomY = first_hit_row;
+}
+
+static void image_target_fire_if_needed(void)
+{
+    if(SmartCar.camera.laser_test != 0)
+    {
+        return;
+    }
+
+    if(TargetFound == 0)
+    {
+        if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
+        {
+            TargetFrameGap++;
+        }
+        return;
+    }
+
+    /* 同一个靶子触发后，至少间隔 10 帧再允许下一次开火。 */
+    if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
+    {
+        TargetFrameGap++;
+        return;
+    }
+
+    if(LaserBusy)
+    {
+        return;
+    }
+
+    image_target_laser_start(TargetCenterX);
+    TargetFrameGap = 0;
+}
 /* =============================================================================
  * 查找表
  * ============================================================================= */
@@ -375,6 +730,10 @@ static uint16 image_debug_y(uint16 y, uint16 h, int16 row)
 void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
 {
     uint8 row;
+    uint8 scan_idx;
+    uint8 base_row;
+    uint8 gap;
+    int16 scan_row;
     uint16 draw_x;
     uint16 draw_y;
     uint16 tow_y;
@@ -415,6 +774,30 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
     {
         ips200_draw_point(draw_x, tow_y, RGB565_YELLOW);
     }
+
+    base_row = image_target_normalize_row(SmartCar.camera.laser_row);
+    gap = image_target_normalize_gap(SmartCar.camera.target_gap);
+    for(scan_idx = 0; scan_idx < IMAGE_TARGET_SCAN_ROWS; scan_idx++)
+    {
+        scan_row = (int16)base_row - (int16)scan_idx * (int16)gap;
+        if(scan_row < 0)
+        {
+            break;
+        }
+
+        draw_y = image_debug_y(y, h, scan_row);
+        for(draw_x = x; draw_x < (uint16)(x + w); draw_x++)
+        {
+            ips200_draw_point(draw_x, draw_y, (scan_idx == 0) ? RGB565_YELLOW : RGB565_CYAN);
+        }
+    }
+
+    if(TargetFound)
+    {
+        draw_x = image_debug_x(x, w, TargetCenterX);
+        draw_y = image_debug_y(y, h, TargetCenterY);
+        ips200_draw_point(draw_x, draw_y, RGB565_YELLOW);
+    }
 }
 
 void image_apply_camera(void)
@@ -451,6 +834,10 @@ void image_apply_camera(void)
     config[8][0] = MT9V03X_GAIN;
     config[8][1] = SmartCar.camera.gain;
 
+    SmartCar.camera.laser_row = image_target_normalize_row(SmartCar.camera.laser_row);
+    SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
+    SmartCar.camera.laser_test = (SmartCar.camera.laser_test != 0) ? 1 : 0;
+
     mt9v03x_sccb_set_config(config);
 }
 
@@ -486,8 +873,20 @@ void image_init(void)
     ZebraCooldownFrames = 0;
     ImageLostCount = 0;
     ImageRunFrameCount = 0;
+    TargetFrameGap = IMAGE_TARGET_FIRE_INTERVAL;
+    TargetFound = 0;
+    LaserBusy = 0;
+    LaserTestLast = 0;
+    LaserPitInit = 0;
+    LaserTickLeft = 0;
 
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+    gpio_init(LASER_LEFT_2, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(LASER_LEFT_1, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(LASER_CENTER, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(LASER_RIGHT_1, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(LASER_RIGHT_2, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    image_laser_all_off();
 
     retry = 0;
     while(retry < CAMERA_INIT_RETRY)
@@ -2825,6 +3224,8 @@ static void image_process(void)
     image_route_filter();          /* 9. 路径滤波 */
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
+    image_target_check();          /* 12. 打靶检测 */
+    image_target_fire_if_needed(); /* 13. 激光触发 */
     image_check_ramp();            /* 12. 坡道检测 */
     image_check_straight();        /* 13. 直道检测（环岛用） */
     image_check_long_straight();   /* 14. 长直道加速检测 */
@@ -2843,6 +3244,8 @@ static void image_process(void)
  */
 void image_update(void)
 {
+    image_target_update_laser_mode();
+
     if(Image.ready == 0)
     {
         return;
@@ -2861,6 +3264,13 @@ void image_update(void)
     {
         ImageLostCount = 0;
         ImageRunFrameCount = 0;
+        if(SmartCar.camera.laser_test == 0)
+        {
+            LaserBusy = 0;
+            LaserTickLeft = 0;
+            image_target_laser_pit_stop();
+            image_laser_all_off();
+        }
         return;
     }
 

@@ -24,6 +24,8 @@
 #define FAN_STRAIGHT_DUTY          (0)  /* 直道风扇档位（降低下压力） */
 
 #define CAMERA_LASER_ROW           (50)
+#define CAMERA_TARGET_GAP          (2)
+#define CAMERA_LASER_TEST          (0)
 #define CAMERA_THRESHOLD_OFFSET    (0)
 
 /*硬件配置，修改设置*/
@@ -154,6 +156,8 @@ typedef struct
     uint8 gain;
     uint8 threshold_offset;
     uint8 laser_row;
+    uint8 target_gap;
+    uint8 laser_test;
 } camera_para;
 
 typedef struct

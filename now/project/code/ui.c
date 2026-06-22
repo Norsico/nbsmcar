@@ -87,6 +87,8 @@ static const ui_param_t camera_params[] = {
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
     {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
     {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
+    {"target gap",&SmartCar.camera.target_gap,       VAL_TYPE_UINT8,  1},
+    {"laser test",&SmartCar.camera.laser_test,       VAL_TYPE_UINT8,  1},
 };
 
 // 页面路由汇总表
