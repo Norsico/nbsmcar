@@ -540,6 +540,7 @@ static void image_target_fire_if_needed(void)
     }
 
     image_target_laser_start(TargetCenterX);
+    buzzer_short();
     TargetFrameGap = 0;
 }
 /* =============================================================================
