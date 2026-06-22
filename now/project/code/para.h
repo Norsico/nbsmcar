@@ -20,8 +20,8 @@
 #define MOTOR_LEFT_KI              (5)
 #define MOTOR_RIGHT_KP             (50)
 #define MOTOR_RIGHT_KI             (5)
-#define FAN_DUTY                   (0)
-#define FAN_STRAIGHT_DUTY          (0)  /* 直道风扇档位（降低下压力） */
+#define FAN_DUTY                   (75)
+#define FAN_STRAIGHT_DUTY          (75)  /* 直道风扇档位（降低下压力） */
 
 #define CAMERA_LASER_ROW           (50)
 #define CAMERA_TARGET_GAP          (2)
