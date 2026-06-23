@@ -100,13 +100,13 @@ void servo_update(void)
     if(error >= 0)
     {
         control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-							+(int32)SmartCar.servo.err2_k * error * error / 100
+							+(int32)SmartCar.servo.err2_k * error * error / 10
 							-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
     }
     else
     {
         control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-							-(int32)SmartCar.servo.err2_k * error * error / 100
+							-(int32)SmartCar.servo.err2_k * error * error / 10
 							-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
     }
     ServoLastError = error;
