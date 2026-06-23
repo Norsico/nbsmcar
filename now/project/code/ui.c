@@ -350,33 +350,41 @@ static void ui_show_camera_image(void)
     ips200_show_string(88, 124, "   ");
     ips200_show_uint8(88, 124, Image.threshold);
 
-    /* 第2行：左边线拟合误差 */
-    ips200_show_string(0, 140, "L err x10");
+    /* 第2行：图像误差 */
+    ips200_show_string(0, 140, "Img err");
     ips200_show_string(88, 140, "      ");
-    ips200_show_int16(88, 140, Image.straight_left_error_x10);
+    ips200_show_int16(88, 140, Image.error);
 
-    /* 第3行：右边线拟合误差 */
-    ips200_show_string(0, 156, "R err x10");
+    /* 第3行：陀螺仪 Z 轴角速度 */
+    ips200_show_string(0, 156, "Gyro z");
     ips200_show_string(88, 156, "      ");
-    ips200_show_int16(88, 156, Image.straight_right_error_x10);
+    ips200_show_int16(88, 156, imu660ra_gyro_z);
 
-    /* 第4行：坡道检测 */
-    ips200_show_string(0, 172, "Ramp");
-    ips200_show_string(88, 172, Image.is_ramp ? "YES" : "NO ");
-    ips200_show_string(144, 172, "Cnt");
-    ips200_show_string(184, 172, "  ");
-    ips200_show_uint8(184, 172, Image.ramp_count);
+    /* 第4行：左/右边线拟合误差 */
+    ips200_show_string(0, 172, "L err");
+    ips200_show_string(48, 172, "      ");
+    ips200_show_int16(48, 172, Image.straight_left_error_x10);
+    ips200_show_string(128, 172, "R err");
+    ips200_show_string(176, 172, "      ");
+    ips200_show_int16(176, 172, Image.straight_right_error_x10);
 
-    /* 第5行：宽度差（底部-顶部）*/
-    ips200_show_string(0, 188, "WB");
-    ips200_show_string(32, 188, "   ");
-    ips200_show_uint8(32, 188, ImageDeal[55].Wide);
-    ips200_show_string(72, 188, "WT");
-    ips200_show_string(104, 188, "   ");
-    ips200_show_uint8(104, 188, ImageDeal[10].Wide);
-    ips200_show_string(144, 188, "Diff");
-    ips200_show_string(184, 188, "   ");
-    ips200_show_int16(184, 188, ImageDeal[55].Wide - ImageDeal[10].Wide);
+    /* 第5行：坡道检测 */
+    ips200_show_string(0, 188, "Ramp");
+    ips200_show_string(88, 188, Image.is_ramp ? "YES" : "NO ");
+    ips200_show_string(144, 188, "Cnt");
+    ips200_show_string(184, 188, "  ");
+    ips200_show_uint8(184, 188, Image.ramp_count);
+
+    /* 第6行：宽度差（底部-顶部）*/
+    ips200_show_string(0, 204, "WB");
+    ips200_show_string(32, 204, "   ");
+    ips200_show_uint8(32, 204, ImageDeal[55].Wide);
+    ips200_show_string(72, 204, "WT");
+    ips200_show_string(104, 204, "   ");
+    ips200_show_uint8(104, 204, ImageDeal[10].Wide);
+    ips200_show_string(144, 204, "Diff");
+    ips200_show_string(184, 204, "   ");
+    ips200_show_int16(184, 204, ImageDeal[55].Wide - ImageDeal[10].Wide);
 }
 
 static void ui_show(void)
