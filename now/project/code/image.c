@@ -563,15 +563,16 @@ static const uint8 Half_Road_Wide[IMAGE_H] =
 };
 
 /**
- * Weighting[i]: 加权平均中心计算的权重系数
+ * WeightingX10[i]: 加权平均中心计算的权重系数（整数版 ×10）
  * 用途：计算转向控制中心时，离瞄点越近的行权重越大
  * 作用：让转向控制更平滑，不会因为单行抖动而跳变
+ * @note   原 float 数组 0.96, 0.92, ... ×10 后取整；WeightingSumX10 在 image_init 中计算
  */
-static const float Weighting[10] =
+static const uint8 WeightingX10[10] =
 {
-    0.96f, 0.92f, 0.88f, 0.83f, 0.77f,
-    0.71f, 0.65f, 0.59f, 0.53f, 0.47f
+    10, 9, 9, 8, 8, 7, 7, 6, 5, 5
 };
+static uint16 WeightingSumX10 = 0;     /* 启动时累加得到（= 74） */
 
 /* =============================================================================
  * 内部辅助函数
@@ -845,6 +846,11 @@ void image_apply_camera(void)
 void image_init(void)
 {
     uint8 retry;
+    uint8 i;
+
+    /* 初始化加权权重总和（一次累加，避免每帧重复计算） */
+    WeightingSumX10 = 0;
+    for(i = 0; i < 10; i++) { WeightingSumX10 += WeightingX10[i]; }
 
     Image.ready = 0;
     Image.sequence = 0;
@@ -2007,90 +2013,114 @@ static void image_route_filter(void)
 }
 
 /**
- * @brief  直线度判断（计算边线的线性拟合误差）
+ * @brief  直线度判断（边线线性拟合的均方误差，整数版 ×10）
  * @param  dir    1=判断左边线, 2=判断右边线
  * @param  start  起始行
  * @param  end    结束行
- * @return 均方误差（越小越直）
+ * @return 均方误差 ×10（越小越直），单位 = 像素² ×10
+ * @note   等价公式 S*10 = Σ(err_num²) * 10 / (k_den² * count)
+ *         其中 err_num = border_start*k_den + k_num*i - actual*k_den
+ *         加 ±2048 钳位防溢出；阈值对照：<1.0f → <10, >50.0f → >500
  */
-static float Straight_Judge(uint8 dir, uint8 start, uint8 end)
+static int16 Straight_Judge(uint8 dir, uint8 start, uint8 end)
 {
     int i;
-    float S = 0.0f;
-    float Sum = 0.0f;
-    float Err;
-    float k = 0.0f;
+    int16 count;
+    int32 k_num;
+    int32 k_den;
+    int32 border_start;
+    int32 err_num;
+    int32 sum2 = 0;
+    int32 k_den_sq;
+    int32 S_x10;
 
-    switch(dir)
+    count = (int16)end - (int16)start;
+    if(count <= 0) { return 0; }
+
+    if(dir == 1)  /* 左边线 */
     {
-        case 1:  /* 左边线 */
-            k = (float)(ImageDeal[start].LeftBorder - ImageDeal[end].LeftBorder) / (start - end);
-            for(i = 0; i < (end - start); i++)
-            {
-                Err = (ImageDeal[start].LeftBorder + k * i - ImageDeal[i + start].LeftBorder);
-                Err = Err * Err;
-                Sum += Err;
-            }
-            S = Sum / (end - start);
-            break;
+        border_start = ImageDeal[start].LeftBorder;
+        k_num = (int32)ImageDeal[start].LeftBorder - (int32)ImageDeal[end].LeftBorder;
+        k_den = (int32)((int16)start - (int16)end);
 
-        case 2:  /* 右边线 */
-            k = (float)(ImageDeal[start].RightBorder - ImageDeal[end].RightBorder) / (start - end);
-            for(i = 0; i < (end - start); i++)
-            {
-                Err = (ImageDeal[start].RightBorder + k * i - ImageDeal[i + start].RightBorder);
-                Err = Err * Err;
-                Sum += Err;
-            }
-            S = Sum / (end - start);
-            break;
+        for(i = 0; i < count; i++)
+        {
+            err_num = border_start * k_den
+                    + k_num * i
+                    - (int32)ImageDeal[i + start].LeftBorder * k_den;
+            /* 钳位到 ±2048，保证极端情况下不溢出 int32 */
+            if(err_num >  2047) err_num =  2047;
+            else if(err_num < -2048) err_num = -2048;
+            sum2 += err_num * err_num;
+        }
+    }
+    else if(dir == 2)  /* 右边线 */
+    {
+        border_start = ImageDeal[start].RightBorder;
+        k_num = (int32)ImageDeal[start].RightBorder - (int32)ImageDeal[end].RightBorder;
+        k_den = (int32)((int16)start - (int16)end);
 
-        default:
-            break;
+        for(i = 0; i < count; i++)
+        {
+            err_num = border_start * k_den
+                    + k_num * i
+                    - (int32)ImageDeal[i + start].RightBorder * k_den;
+            if(err_num >  2047) err_num =  2047;
+            else if(err_num < -2048) err_num = -2048;
+            sum2 += err_num * err_num;
+        }
+    }
+    else
+    {
+        return 0;
     }
 
-    return S;
+    k_den_sq = k_den * k_den;
+    S_x10 = (int32)((sum2 * 10L) / (k_den_sq * count));
+    if(S_x10 > 32767) S_x10 = 32767;
+    return (int16)S_x10;
 }
 
 /**
- * @brief  计算右边线的最大偏离度
+ * @brief  计算右边线的最大偏离度（整数版 ×10）
  * @param  start  起始行
  * @param  end    结束行
- * @return 最大偏离值（绝对值）
+ * @return 最大偏离值 ×10（绝对值，整数）
+ * @note   循环内只累加 |err_num|，最后除 k_den 得到最大像素偏差 ×10
  */
-static float Right_Border_Max_Deviation(uint8 start, uint8 end)
+static int16 Right_Border_Max_Deviation(uint8 start, uint8 end)
 {
     uint8 row;
-    float k;
-    float expect;
-    float err;
-    float max_err = 0.0f;
+    int32 k_num;
+    int32 k_den;
+    int32 border_start;
+    int32 err_num;
+    int32 max_abs_err_num = 0;
+    int32 ret;
 
     if(end <= start)
     {
-        return 0.0f;
+        return 0;
     }
 
-    /* 计算直线斜率 */
-    k = (float)(ImageDeal[end].RightBorder - ImageDeal[start].RightBorder) /
-        (float)(end - start);
+    k_num = (int32)ImageDeal[end].RightBorder - (int32)ImageDeal[start].RightBorder;
+    k_den = (int32)end - (int32)start;
+    border_start = ImageDeal[start].RightBorder;
 
-    /* 计算每一行的偏离度 */
+    /* 计算每一行的偏离度（整数：err_num = border_start*k_den + k_num*Δrow - actual*k_den） */
     for(row = start; row <= end; row++)
     {
-        expect = (float)ImageDeal[start].RightBorder + k * (float)(row - start);
-        err = expect - (float)ImageDeal[row].RightBorder;
-        if(err < 0.0f)
-        {
-            err = -err;
-        }
-        if(err > max_err)
-        {
-            max_err = err;
-        }
+        err_num = border_start * k_den
+                + k_num * ((int32)row - (int32)start)
+                - (int32)ImageDeal[row].RightBorder * k_den;
+        if(err_num < 0) err_num = -err_num;
+        if(err_num > max_abs_err_num) max_abs_err_num = err_num;
     }
 
-    return max_err;
+    /* max_err = max_abs_err_num / k_den，再 ×10 */
+    ret = (max_abs_err_num * 10L) / k_den;
+    if(ret > 32767) ret = 32767;
+    return (int16)ret;
 }
 
 /**
@@ -2099,37 +2129,37 @@ static float Right_Border_Max_Deviation(uint8 start, uint8 end)
  * @param  end    结束行
  * @return 最大偏离值（绝对值）
  */
-static float Left_Border_Max_Deviation(uint8 start, uint8 end)
+static int16 Left_Border_Max_Deviation(uint8 start, uint8 end)
 {
     uint8 row;
-    float k;
-    float expect;
-    float err;
-    float max_err = 0.0f;
+    int32 k_num;
+    int32 k_den;
+    int32 border_start;
+    int32 err_num;
+    int32 max_abs_err_num = 0;
+    int32 ret;
 
     if(end <= start)
     {
-        return 0.0f;
+        return 0;
     }
 
-    k = (float)(ImageDeal[end].LeftBorder - ImageDeal[start].LeftBorder) /
-        (float)(end - start);
+    k_num = (int32)ImageDeal[end].LeftBorder - (int32)ImageDeal[start].LeftBorder;
+    k_den = (int32)end - (int32)start;
+    border_start = ImageDeal[start].LeftBorder;
 
     for(row = start; row <= end; row++)
     {
-        expect = (float)ImageDeal[start].LeftBorder + k * (float)(row - start);
-        err = expect - (float)ImageDeal[row].LeftBorder;
-        if(err < 0.0f)
-        {
-            err = -err;
-        }
-        if(err > max_err)
-        {
-            max_err = err;
-        }
+        err_num = border_start * k_den
+                + k_num * ((int32)row - (int32)start)
+                - (int32)ImageDeal[row].LeftBorder * k_den;
+        if(err_num < 0) err_num = -err_num;
+        if(err_num > max_abs_err_num) max_abs_err_num = err_num;
     }
 
-    return max_err;
+    ret = (max_abs_err_num * 10L) / k_den;
+    if(ret > 32767) ret = 32767;
+    return (int16)ret;
 }
 
 /* =============================================================================
@@ -2145,9 +2175,9 @@ static void image_judge_left_ring(void)
     Left_RingsFlag_Point1_Ysite = 0;
     Left_RingsFlag_Point2_Ysite = 0;
 
-    /* 计算右边线偏离度（左环岛时右边线应该比较直） */
+    /* 计算右边线偏离度（左环岛时右边线应该比较直，已 ×10） */
     Left_Ring_Right_Deviation_X10 =
-        (int16)(Right_Border_Max_Deviation(20, 55) * 10.0f);
+        Right_Border_Max_Deviation(20, 55);
 
     /* 左环岛前置条件检查（任一条件不满足则直接返回） */
     if((ImageStatus.Right_Line > 7) ||           /* 右侧丢线过多 */
@@ -2233,15 +2263,15 @@ static void image_judge_right_ring(void)
     Right_RingsFlag_Point1_Ysite = 0;
     Right_RingsFlag_Point2_Ysite = 0;
 
-    /* 计算左边线偏离度（右环岛时左边线应该比较直） */
+    /* 计算左边线偏离度（右环岛时左边线应该比较直，已 ×10） */
     Right_Ring_Left_Deviation_X10 =
-        (int16)(Left_Border_Max_Deviation(20, 55) * 10.0f);
+        Left_Border_Max_Deviation(20, 55);
 
     /* 右环岛前置条件检查 */
     if((ImageStatus.Left_Line > 7) ||            /* 左侧丢线过多 */
        (ImageStatus.Right_Line < 13) ||          /* 右侧丢线太少 */
        (ImageStatus.OFFLine > 10) ||             /* 有效行太少 */
-       (Straight_Judge(1, 25, 45) > 50.0f) ||    /* 左边线不够直 */
+       (Straight_Judge(1, 25, 45) > 500) ||     /* 左边线不够直 (原 50.0f, ×10) */
        (Right_Ring_Left_Deviation_X10 >= 15) ||  /* 左边线偏离太大 */
        (ImageStatus.WhiteLine > 15) ||           /* 全白行过多 */
        (ImageDeal[52].IsRightFind == 'W') ||     /* 底部右边线不能丢失 */
@@ -2660,7 +2690,7 @@ static void image_handle_right_ring(void)
     }
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        if((Straight_Judge(1, ImageStatus.OFFLine + 10, 45) < 1.0f) &&
+        if((Straight_Judge(1, ImageStatus.OFFLine + 10, 45) < 10) &&    /* 原 < 1.0f, ×10 */
            (ImageStatus.Left_Line < 9) &&
            (ImageStatus.OFFLine < 20))
         {
@@ -2955,19 +2985,19 @@ static void image_check_zebra(void)
 static void image_check_straight(void)
 {
     static uint8 straight_count = 0;
-    float left_error;
-    float right_error;
+    int16 left_err_x10;     /* 整数版，Straight_Judge 已返回 ×10 */
+    int16 right_err_x10;
 
-    /* 计算左右边线的直线度（均方误差） */
-    left_error = Straight_Judge(1, 25, 45);
-    right_error = Straight_Judge(2, 25, 45);
+    /* 计算左右边线的直线度（均方误差 ×10） */
+    left_err_x10  = Straight_Judge(1, 25, 45);
+    right_err_x10 = Straight_Judge(2, 25, 45);
 
-    /* 导出误差值到Image结构体（x10用于整数显示） */
-    Image.straight_left_error_x10 = (int16)(left_error * 10.0f);
-    Image.straight_right_error_x10 = (int16)(right_error * 10.0f);
+    /* 导出误差值到Image结构体（已 ×10，直接赋值） */
+    Image.straight_left_error_x10  = left_err_x10;
+    Image.straight_right_error_x10 = right_err_x10;
 
-    /* 左右边线均为直线，连续3帧确认 */
-    if((left_error < 1.0f) && (right_error < 1.0f))
+    /* 左右边线均为直线，连续3帧确认 (原 < 1.0f, ×10 后 < 10) */
+    if((left_err_x10 < 10) && (right_err_x10 < 10))
     {
         straight_count++;
         if(straight_count >= 3)
@@ -3146,59 +3176,67 @@ static void image_check_ramp(void)
  */
 static void image_get_det(uint8 tow_point)
 {
-    float det_temp;
-    float unit_all;
+    int32 acc = 0;
+    uint16 unit_all_x10 = 0;
+    int16 row;
 
-    det_temp = 0.0f;
-    unit_all = 0.0f;
-
-    /* 瞄点上下各5行都可见 */
+    /* 情况1：瞄点上下各5行都可见 */
     if((tow_point - 5) >= ImageStatus.OFFLine)
     {
-        for(Ysite = (int16)(tow_point - 5); Ysite < tow_point; Ysite++)
+        for(row = (int16)(tow_point - 5); row < tow_point; row++)
         {
-            det_temp += Weighting[tow_point - Ysite - 1] * (float)ImageDeal[Ysite].Center;
-            unit_all += Weighting[tow_point - Ysite - 1];
+            uint8 w = WeightingX10[tow_point - row - 1];
+            acc += (int32)w * ImageDeal[row].Center;
+            unit_all_x10 += w;
         }
-        for(Ysite = (int16)(tow_point + 5); Ysite > tow_point; Ysite--)
+        for(row = (int16)(tow_point + 5); row > tow_point; row--)
         {
-            det_temp += Weighting[Ysite - tow_point - 1] * (float)ImageDeal[Ysite].Center;
-            unit_all += Weighting[Ysite - tow_point - 1];
+            uint8 w = WeightingX10[row - tow_point - 1];
+            acc += (int32)w * ImageDeal[row].Center;
+            unit_all_x10 += w;
         }
-        det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
+        /* 当前行权重 = 1.0 → ×10 = 10 */
+        acc += (int32)ImageDeal[tow_point].Center * 10;
+        unit_all_x10 += 10;
     }
-    /* 瞄点上方被遮挡，只用下方 */
+    /* 情况2：瞄点上方被遮挡，只用下方 */
     else if(tow_point > ImageStatus.OFFLine)
     {
-        for(Ysite = ImageStatus.OFFLine; Ysite < tow_point; Ysite++)
+        for(row = ImageStatus.OFFLine; row < tow_point; row++)
         {
-            det_temp += Weighting[tow_point - Ysite - 1] * (float)ImageDeal[Ysite].Center;
-            unit_all += Weighting[tow_point - Ysite - 1];
+            uint8 w = WeightingX10[tow_point - row - 1];
+            acc += (int32)w * ImageDeal[row].Center;
+            unit_all_x10 += w;
         }
-        for(Ysite = (int16)(tow_point + tow_point - ImageStatus.OFFLine); Ysite > tow_point; Ysite--)
+        for(row = (int16)(tow_point + tow_point - ImageStatus.OFFLine); row > tow_point; row--)
         {
-            det_temp += Weighting[Ysite - tow_point - 1] * (float)ImageDeal[Ysite].Center;
-            unit_all += Weighting[Ysite - tow_point - 1];
+            uint8 w = WeightingX10[row - tow_point - 1];
+            acc += (int32)w * ImageDeal[row].Center;
+            unit_all_x10 += w;
         }
-        det_temp = ((float)ImageDeal[tow_point].Center + det_temp) / (unit_all + 1.0f);
+        acc += (int32)ImageDeal[tow_point].Center * 10;
+        unit_all_x10 += 10;
     }
-    /* 有效行太少，用有效行附近 */
+    /* 情况3：有效行太少，用 OFFLine 附近 */
     else if(ImageStatus.OFFLine < 49)
     {
-        for(Ysite = (int16)(ImageStatus.OFFLine + 3); Ysite > ImageStatus.OFFLine; Ysite--)
+        for(row = (int16)(ImageStatus.OFFLine + 3); row > ImageStatus.OFFLine; row--)
         {
-            det_temp += Weighting[Ysite - tow_point - 1] * (float)ImageDeal[Ysite].Center;
-            unit_all += Weighting[Ysite - tow_point - 1];
+            uint8 w = WeightingX10[row - tow_point - 1];
+            acc += (int32)w * ImageDeal[row].Center;
+            unit_all_x10 += w;
         }
-        det_temp = ((float)ImageDeal[ImageStatus.OFFLine].Center + det_temp) / (unit_all + 1.0f);
+        acc += (int32)ImageDeal[ImageStatus.OFFLine].Center * 10;
+        unit_all_x10 += 10;
     }
-    /* 严重丢线，保持上次值 */
+    /* 情况4：严重丢线，保持上次值，直接返回 */
     else
     {
-        det_temp = (float)ImageStatus.Det_True;
+        return;
     }
 
-    ImageStatus.Det_True = (int16)det_temp;
+    if(unit_all_x10 == 0) { return; }
+    ImageStatus.Det_True = (int16)(acc / unit_all_x10);
     ImageStatus.TowPoint_True = tow_point;
 }
 
