@@ -1,57 +1,57 @@
 /*********************************************************************************************************************
-* STC32G144K Opensource Library ����STC32G144K ��Դ�⣩��һ�����ڹٷ� SDK �ӿڵĵ�������Դ��
-* Copyright (c) 2025 SEEKFREE ��ɿƼ�
+* STC32G144K Opensource Library 即（STC32G144K 开源库）是一个基于官方 SDK 接口的第三方开源库
+* Copyright (c) 2025 SEEKFREE 逐飞科技
 *
-* ���ļ���STC32G144K��Դ���һ����
+* 本文件是STC32G144K开源库的一部分
 *
-* STC32G144K ��Դ�� ���������
-* �����Ը���������������ᷢ���� GPL��GNU General Public License���� GNUͨ�ù�������֤��������
-* �� GPL �ĵ�3�棨�� GPL3.0������ѡ��ģ��κκ����İ汾�����·�����/���޸���
+* STC32G144K 开源库 是免费软件
+* 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
+* 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
-* ����Դ��ķ�����ϣ�����ܷ������ã�����δ�������κεı�֤
-* ����û�������������Ի��ʺ��ض���;�ı�֤
-* ����ϸ����μ� GPL
+* 本开源库的发布是希望它能发挥作用，但并未对其作任何的保证
+* 甚至没有隐含的适销性或适合特定用途的保证
+* 更多细节请参见 GPL
 *
-* ��Ӧ�����յ�����Դ���ͬʱ�յ�һ�� GPL �ĸ���
-* ���û�У������<https://www.gnu.org/licenses/>
+* 您应该在收到本开源库的同时收到一份 GPL 的副本
+* 如果没有，请参阅<https://www.gnu.org/licenses/>
 *
-* ����ע����
-* ����Դ��ʹ�� GPL3.0 ��Դ����֤Э�� ������������Ϊ���İ汾
-* ��������Ӣ�İ��� libraries/doc �ļ����µ� GPL3_permission_statement.txt �ļ���
-* ����֤������ libraries �ļ����� �����ļ����µ� LICENSE �ļ�
-* ��ӭ��λʹ�ò����������� ���޸�����ʱ���뱣����ɿƼ��İ�Ȩ����������������
+* 额外注明：
+* 本开源库使用 GPL3.0 开源许可证协议 以上许可声明为译文版本
+* 许可声明英文版在 libraries/doc 文件夹下的 GPL3_permission_statement.txt 文件中
+* 许可证副本在 libraries 文件夹下 即该文件夹下的 LICENSE 文件
+* 欢迎各位使用并传播本程序 但修改内容时必须保留逐飞科技的版权声明（即本声明）
 *
-* �ļ�����          
-* ��˾����          �ɶ���ɿƼ����޹�˾
-* �汾��Ϣ          �鿴 libraries/doc �ļ����� version �ļ� �汾˵��
-* ��������          MDK FOR C251
-* ����ƽ̨          STC32G144K
-* ��������          https://seekfree.taobao.com/
+* 文件名称          
+* 公司名称          成都逐飞科技有限公司
+* 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
+* 开发环境          MDK FOR C251
+* 适用平台          STC32G144K
+* 店铺链接          https://seekfree.taobao.com/
 *
-* �޸ļ�¼
-* ����              ����           ��ע
-* 2024-08-01        ��W            first version
+* 修改记录
+* 日期              作者           备注
+* 2024-08-01        大W            first version
 ********************************************************************************************************************/
 /*********************************************************************************************************************
-* ���߶��壺
+* 接线定义：
 *                   ------------------------------------
-*                   ģ��ܽ�            ��Ƭ���ܽ�
-*                   // Ӳ�� SPI ����
-*                   SCL/SPC           �鿴 zf_device_imu660rc.h �� IMU660RC_SPC_PIN �궨��
-*                   SDA/SDI           �鿴 zf_device_imu660rc.h �� IMU660RC_SDI_PIN �궨��
-*                   SA0/SDO           �鿴 zf_device_imu660rc.h �� IMU660RC_SDO_PIN �궨��
-*                   CS                �鿴 zf_device_imu660rc.h �� IMU660RC_CS_PIN �궨��
-*					INT2              �鿴 zf_device_imu660rc.h �� IMU660RC_INT2_PIN	�궨��
-*                   VCC               3.3V��Դ
-*                   GND               ��Դ��
-*                   ������������
+*                   模块管脚            单片机管脚
+*                   // 硬件 SPI 引脚
+*                   SCL/SPC           查看 zf_device_imu660rc.h 中 IMU660RC_SPC_PIN 宏定义
+*                   SDA/SDI           查看 zf_device_imu660rc.h 中 IMU660RC_SDI_PIN 宏定义
+*                   SA0/SDO           查看 zf_device_imu660rc.h 中 IMU660RC_SDO_PIN 宏定义
+*                   CS                查看 zf_device_imu660rc.h 中 IMU660RC_CS_PIN 宏定义
+*					INT2              查看 zf_device_imu660rc.h 中 IMU660RC_INT2_PIN	宏定义
+*                   VCC               3.3V电源
+*                   GND               电源地
+*                   其余引脚悬空
 *
-*                   // ���� IIC ����
-*                   SCL/SPC           �鿴 zf_device_imu660rc.h �� IMU660RC_SCL_PIN �궨��
-*                   SDA/SDI           �鿴 zf_device_imu660rc.h �� IMU660RC_SDA_PIN �궨��
-*                   VCC               3.3V��Դ
-*                   GND               ��Դ��
-*                   ������������
+*                   // 软件 IIC 引脚
+*                   SCL/SPC           查看 zf_device_imu660rc.h 中 IMU660RC_SCL_PIN 宏定义
+*                   SDA/SDI           查看 zf_device_imu660rc.h 中 IMU660RC_SDA_PIN 宏定义
+*                   VCC               3.3V电源
+*                   GND               电源地
+*                   其余引脚悬空
 *                   ------------------------------------
 ********************************************************************************************************************/
 
@@ -80,19 +80,19 @@
 static uint8 imu660rc_quarternion_rate;
 
 float imu660rc_transition_factor[2];
-int16 imu660rc_gyro_x = 0,  imu660rc_gyro_y = 0,    imu660rc_gyro_z = 0;    // ��������������   gyro (������)
-int16 imu660rc_acc_x  = 0,  imu660rc_acc_y  = 0,    imu660rc_acc_z  = 0;    // ������ٶȼ����� acc  (accelerometer ���ٶȼ�)
-float imu660rc_roll   = 0,  imu660rc_pitch  = 0,    imu660rc_yaw    = 0;    // ŷ����
-float imu660rc_quarternion[4];                                              // ��Ԫ��
+int16 imu660rc_gyro_x = 0,  imu660rc_gyro_y = 0,    imu660rc_gyro_z = 0;    // 三轴陀螺仪数据   gyro (陀螺仪)
+int16 imu660rc_acc_x  = 0,  imu660rc_acc_y  = 0,    imu660rc_acc_z  = 0;    // 三轴加速度计数据 acc  (accelerometer 加速度计)
+float imu660rc_roll   = 0,  imu660rc_pitch  = 0,    imu660rc_yaw    = 0;    // 欧拉角
+float imu660rc_quarternion[4];                                              // 四元数
 
 #if (IMU660RC_USE_INTERFACE==HARDWARE_SPI) 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC д�Ĵ���
-	// ����˵��     reg             �Ĵ�����ַ
-	// ����˵��     dat            ����
-	// ���ز���     void
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 写寄存器
+	// 参数说明     reg             寄存器地址
+	// 参数说明     dat            数据
+	// 返回参数     void
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static void imu660rc_write_register(uint8 reg, uint8 dat)
 	{
@@ -102,12 +102,12 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC д����
-	// ����˵��     reg             �Ĵ�����ַ
-	// ����˵��     dat            ����
-	// ���ز���     void
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 写数据
+	// 参数说明     reg             寄存器地址
+	// 参数说明     dat            数据
+	// 返回参数     void
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static void imu660rc_write_registers(uint8 reg, const uint8 *dat, uint32 len)
 	{
@@ -117,11 +117,11 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC ���Ĵ���
-	// ����˵��     reg             �Ĵ�����ַ
-	// ���ز���     uint8           ����
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 读寄存器
+	// 参数说明     reg             寄存器地址
+	// 返回参数     uint8           数据
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static uint8 imu660rc_read_register(uint8 reg)
 	{
@@ -133,13 +133,13 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC ������
-	// ����˵��     reg             �Ĵ�����ַ
-	// ����˵��     dat            ���ݻ�����
-	// ����˵��     len             ���ݳ���
-	// ���ز���     void
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 读数据
+	// 参数说明     reg             寄存器地址
+	// 参数说明     dat            数据缓冲区
+	// 参数说明     len             数据长度
+	// 返回参数     void
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static void imu660rc_read_registers(uint8 reg, uint8 *dat, uint32 len)
 	{
@@ -157,9 +157,9 @@ float imu660rc_quarternion[4];                                              // �
 	#define IMU660RC_CS(x)  			IMU660RC_CS_PIN  = x
 
 	//-------------------------------------------------------------------------------------------------------------------
-	//  @brief      ͨ��SPIдһ��byte,ͬʱ��ȡһ��byte
-	//  @param      byte        ���͵�����
-	//  @return     uint8 edata       return ����status״̬
+	//  @brief      通过SPI写一个byte,同时读取一个byte
+	//  @param      byte        发送的数据
+	//  @return     uint8 edata       return 返回status状态
 	//  @since      v1.0
 	//  Sample usage:
 	//-------------------------------------------------------------------------------------------------------------------
@@ -179,9 +179,9 @@ float imu660rc_quarternion[4];                                              // �
 	}
 	
 	//-------------------------------------------------------------------------------------------------------------------
-	//  @brief      ��valд��cmd��Ӧ�ļĴ�����ַ,ͬʱ����status�ֽ�
-	//  @param      cmd         ������
-	//  @param      val         ��д��Ĵ�������ֵ
+	//  @brief      将val写入cmd对应的寄存器地址,同时返回status字节
+	//  @param      cmd         命令字
+	//  @param      val         待写入寄存器的数值
 	//  @since      v1.0
 	//  Sample usage:
 	//-------------------------------------------------------------------------------------------------------------------
@@ -194,9 +194,9 @@ float imu660rc_quarternion[4];                                              // �
 
 
 	//-------------------------------------------------------------------------------------------------------------------
-	//  @brief      ��valд��cmd��Ӧ�ļĴ�����ַ
-	//  @param      cmd         ������
-	//  @param      val         ��д��Ĵ�������ֵ
+	//  @brief      将val写入cmd对应的寄存器地址
+	//  @param      cmd         命令字
+	//  @param      val         待写入寄存器的数值
 	//  @since      v1.0
 	//  Sample usage:
 	//-------------------------------------------------------------------------------------------------------------------
@@ -211,10 +211,10 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	//  @brief      ��ȡcmd����Ӧ�ļĴ�����ַ
-	//  @param      cmd         ������
-	//  @param      *val        �洢��ȡ�����ݵ�ַ
-	//  @param      num         ��ȡ������
+	//  @brief      读取cmd所对应的寄存器地址
+	//  @param      cmd         命令字
+	//  @param      *val        存储读取的数据地址
+	//  @param      num         读取的数量
 	//  @since      v1.0
 	//  Sample usage:
 	//-------------------------------------------------------------------------------------------------------------------
@@ -230,12 +230,12 @@ float imu660rc_quarternion[4];                                              // �
 
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC д�Ĵ���
-	// ����˵��     reg             �Ĵ�����ַ
-	// ����˵��     dat            ����
-	// ���ز���     void
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 写寄存器
+	// 参数说明     reg             寄存器地址
+	// 参数说明     dat            数据
+	// 返回参数     void
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static void imu660rc_write_register(uint8 reg, uint8 dat)
 	{
@@ -245,12 +245,12 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC д����
-	// ����˵��     reg             �Ĵ�����ַ
-	// ����˵��     dat            ����
-	// ���ز���     void
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 写数据
+	// 参数说明     reg             寄存器地址
+	// 参数说明     dat            数据
+	// 返回参数     void
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static void imu660rc_write_registers(uint8 reg, const uint8 *dat, uint32 len)
 	{
@@ -260,11 +260,11 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC ���Ĵ���
-	// ����˵��     reg             �Ĵ�����ַ
-	// ���ز���     uint8 edata           ����
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 读寄存器
+	// 参数说明     reg             寄存器地址
+	// 返回参数     uint8 edata           数据
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static uint8 imu660rc_read_register(uint8 reg)
 	{
@@ -276,13 +276,13 @@ float imu660rc_quarternion[4];                                              // �
 	}
 
 	//-------------------------------------------------------------------------------------------------------------------
-	// �������     IMU660RC ������
-	// ����˵��     reg             �Ĵ�����ַ
-	// ����˵��     dat            ���ݻ�����
-	// ����˵��     len             ���ݳ���
-	// ���ز���     void
-	// ʹ��ʾ��     
-	// ��ע��Ϣ     �ڲ�����
+	// 函数简介     IMU660RC 读数据
+	// 参数说明     reg             寄存器地址
+	// 参数说明     dat            数据缓冲区
+	// 参数说明     len             数据长度
+	// 返回参数     void
+	// 使用示例     
+	// 备注信息     内部调用
 	//-------------------------------------------------------------------------------------------------------------------
 	static void imu660rc_read_registers(uint8 reg, uint8 *dat, uint32 len)
 	{
@@ -302,11 +302,11 @@ float imu660rc_quarternion[4];                                              // �
 #endif
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     IMU660RC fp16ת������
-// ����˵��     void
-// ���ز���     uint8           
-// ʹ��ʾ��     
-// ��ע��Ϣ     �ڲ�����
+// 函数简介     IMU660RC fp16转浮点数
+// 参数说明     void
+// 返回参数     uint8           
+// 使用示例     
+// 备注信息     内部调用
 //-------------------------------------------------------------------------------------------------------------------
 static uint32 fp16_to_float(uint16 h)
 {
@@ -352,11 +352,11 @@ static uint32 fp16_to_float(uint16 h)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     IMU660RC ��Ԫ����һ��
-// ����˵��     void
-// ���ز���     uint8           
-// ʹ��ʾ��     
-// ��ע��Ϣ     �ڲ�����
+// 函数简介     IMU660RC 四元数归一化
+// 参数说明     void
+// 返回参数     uint8           
+// 使用示例     
+// 备注信息     内部调用
 //-------------------------------------------------------------------------------------------------------------------
 static void quarternion_normalize(float quat[4], uint16 *fp16)
 {
@@ -371,7 +371,7 @@ static void quarternion_normalize(float quat[4], uint16 *fp16)
     n = temp[0] * temp[0] + temp[1] * temp[1] + temp[2] * temp[2] + temp[3] * temp[3];
     n = sqrt(n);
     
-    if(n > 0.001f)  // ������Խӽ�0��ֵ
+    if(n > 0.001f)  // 避免除以接近0的值
     {
         n = temp[3] < 0.0f ? -n : n;
         
@@ -383,11 +383,11 @@ static void quarternion_normalize(float quat[4], uint16 *fp16)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     IMU660RC ��Ԫ��תŷ����
-// ����˵��     void
-// ���ز���     uint8           
-// ʹ��ʾ��     
-// ��ע��Ϣ     �ڲ�����
+// 函数简介     IMU660RC 四元数转欧拉角
+// 参数说明     void
+// 返回参数     uint8           
+// 使用示例     
+// 备注信息     内部调用
 //-------------------------------------------------------------------------------------------------------------------
 static void quarternion_to_euler(float quat[4], float *roll, float *pitch, float *yaw)
 {
@@ -401,12 +401,12 @@ static void quarternion_to_euler(float quat[4], float *roll, float *pitch, float
   	euler[1] = -asin(2.0f * (quat[0] * quat[3] - quat[1] * quat[2]));
   	euler[2] =  atan2(2.0f * (quat[0] * quat[1] + quat[2] * quat[3]), 1.0f - 2.0f * (sqx + sqz));
     
-    // ����ת�Ƕ�
+    // 弧度转角度
     euler[0] = 180 * (euler[0]) / M_PI;
     euler[1] = 180 * (euler[1]) / M_PI;
     euler[2] = 180 * (euler[2]) / M_PI;
     
-    // �Ƕȵ���
+    // 角度调整
     euler[2] = 0 > euler[2] ? euler[2] + 360 : euler[2];
     
     *roll   = euler[0];
@@ -415,11 +415,11 @@ static void quarternion_to_euler(float quat[4], float *roll, float *pitch, float
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     IMU660RC ���÷�������
-// ����˵��     void
-// ���ز���     uint8           
-// ʹ��ʾ��     
-// ��ע��Ϣ     �ڲ�����
+// 函数简介     IMU660RC 设置访问区域
+// 参数说明     void
+// 返回参数     uint8           
+// 使用示例     
+// 备注信息     内部调用
 //-------------------------------------------------------------------------------------------------------------------
 static void imu660rc_set_mem_bank (imu660rc_mem_bank_enum bank)
 {
@@ -428,11 +428,11 @@ static void imu660rc_set_mem_bank (imu660rc_mem_bank_enum bank)
 
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     IMU660RC �Լ�
-// ����˵��     void
-// ���ز���     uint8           1-�Լ�ʧ�� 0-�Լ�ɹ�
-// ʹ��ʾ��     imu660rc_self_check();
-// ��ע��Ϣ     �ڲ�����
+// 函数简介     IMU660RC 自检
+// 参数说明     void
+// 返回参数     uint8           1-自检失败 0-自检成功
+// 使用示例     imu660rc_self_check();
+// 备注信息     内部调用
 //-------------------------------------------------------------------------------------------------------------------
 static uint8 imu660rc_self_check (void)
 {
@@ -447,22 +447,22 @@ static uint8 imu660rc_self_check (void)
         }
         dat = imu660rc_read_register(IMU660RC_CHIP_ID);
         system_delay_ms(1);
-    }while(0x70 != dat);                                                        // ��ȡ�豸ID�Ƿ����0x70���������0x70����Ϊû��⵽�豸
+    }while(0x70 != dat);                                                        // 读取设备ID是否等于0x70，如果不是0x70则认为没检测到设备
     return return_state;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     ��ȡ IMU660RC ���ٶȼ�����
-// ����˵��     void
-// ���ز���     void
-// ʹ��ʾ��     imu660rc_get_acc();                                             // ִ�иú�����ֱ�Ӳ鿴��Ӧ�ı�������
-// ��ע��Ϣ     ʹ�� SPI �Ĳɼ�ʱ��Ϊ10us
+// 函数简介     获取 IMU660RC 加速度计数据
+// 参数说明     void
+// 返回参数     void
+// 使用示例     imu660rc_get_acc();                                             // 执行该函数后，直接查看对应的变量即可
+// 备注信息     使用 SPI 的采集时间为10us
 //-------------------------------------------------------------------------------------------------------------------
 void imu660rc_get_acc (void)
 {
     uint8 dat[6];
     if(IMU660RC_QUARTERNION_DISABLE == imu660rc_quarternion_rate)
-    {   // ������Ԫ���ر�״̬��֧�ֵ��ô˺����� ��Ԫ������ʱ�����Ҫ��ȡ���ٶ���Ϣ��IMU660RC_QUARTERNION_GET_ACC����Ϊ1
+    {   // 仅在四元数关闭状态下支持调用此函数， 四元数开启时如果需要读取加速度信息则IMU660RC_QUARTERNION_GET_ACC设置为1
         imu660rc_read_registers(IMU660RC_OUTX_L_A, dat, 6);
         imu660rc_acc_x =((uint16)dat[1] << 8) | dat[0];
         imu660rc_acc_y =((uint16)dat[3] << 8) | dat[2];
@@ -470,17 +470,17 @@ void imu660rc_get_acc (void)
     }
 }
 //-------------------------------------------------------------------------------------------------------------------
-// �������     ��ȡ IMU660RC ����������
-// ����˵��     void
-// ���ز���     void
-// ʹ��ʾ��     imu660rc_get_gyro();                                            // ִ�иú�����ֱ�Ӳ鿴��Ӧ�ı�������
-// ��ע��Ϣ     ʹ�� SPI �Ĳɼ�ʱ��Ϊ10us
+// 函数简介     获取 IMU660RC 陀螺仪数据
+// 参数说明     void
+// 返回参数     void
+// 使用示例     imu660rc_get_gyro();                                            // 执行该函数后，直接查看对应的变量即可
+// 备注信息     使用 SPI 的采集时间为10us
 //-------------------------------------------------------------------------------------------------------------------
 void imu660rc_get_gyro (void)
 {
     uint8 dat[6];
     if(IMU660RC_QUARTERNION_DISABLE == imu660rc_quarternion_rate)
-    {   // ������Ԫ���ر�״̬��֧�ֵ��ô˺����� ��Ԫ������ʱ�����Ҫ��ȡ���ٶ���Ϣ��IMU660RC_QUARTERNION_GET_GYRO����Ϊ1
+    {   // 仅在四元数关闭状态下支持调用此函数， 四元数开启时如果需要读取加速度信息则IMU660RC_QUARTERNION_GET_GYRO设置为1
         imu660rc_read_registers(IMU660RC_OUTX_L_G, dat, 6);
         imu660rc_gyro_x = ((uint16)dat[1] << 8) | dat[0];
         imu660rc_gyro_y = ((uint16)dat[3] << 8) | dat[2];
@@ -490,11 +490,11 @@ void imu660rc_get_gyro (void)
 
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     ��ȡ IMU660RC ��Ԫ�����ݲ�ת��Ϊŷ����
-// ����˵��     void
-// ���ز���     void
-// ʹ��ʾ��     imu660rc_get_quarternion();                                     // ִ�иú�����ֱ�Ӳ鿴��Ӧ�ı�������
-// ��ע��Ϣ     ��Ҫ��INT2���Ŵ������������жϵ��ô˺���
+// 函数简介     获取 IMU660RC 四元数数据并转换为欧拉角
+// 参数说明     void
+// 返回参数     void
+// 使用示例     imu660rc_get_quarternion();                                     // 执行该函数后，直接查看对应的变量即可
+// 备注信息     需要在INT2引脚触发的上升沿中断调用此函数
 //             
 //-------------------------------------------------------------------------------------------------------------------
 void imu660rc_get_quarternion(void)
@@ -523,12 +523,12 @@ void imu660rc_get_quarternion(void)
         imu660rc_write_register(IMU660RC_PAGE_RW, 0x0);
         imu660rc_set_mem_bank(IMU660RC_MAIN_MEM_BANK);
         
-        // ��Ԫ����һ��
+        // 四元数归一化
         quarternion_normalize(imu660rc_quarternion, buff);
-        // ��Ԫ��תŷ����
+        // 四元数转欧拉角
         quarternion_to_euler(imu660rc_quarternion, &imu660rc_roll, &imu660rc_pitch, &imu660rc_yaw);
         
-        // ��ȡ���ٶ�����ٶ���Ϣ
+        // 读取加速度与角速度信息
         #if(1 == IMU660RC_QUARTERNION_GET_ACC)
         {
             imu660rc_read_registers(IMU660RC_OUTX_L_A, dat, 6);
@@ -549,11 +549,11 @@ void imu660rc_get_quarternion(void)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     IMU660RC�жϻص���������Ҫ���ж��ڶ�ȡ��Ԫ��
-// ����˵��     void
-// ���ز���     void
-// ʹ��ʾ��     
-// ��ע��Ϣ     �˺���Ĭ����IMU660RC_INT2_PIN�Ŷ�Ӧ���жϷ���������
+// 函数简介     IMU660RC中断回调函数，主要在中断内读取四元数
+// 参数说明     void
+// 返回参数     void
+// 使用示例     
+// 备注信息     此函数默认在IMU660RC_INT2_PIN脚对应的中断服务函数调用
 //             
 //-------------------------------------------------------------------------------------------------------------------
 void imu660rc_callback(void)
@@ -562,11 +562,11 @@ void imu660rc_callback(void)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     ��ʼ�� IMU660RC
-// ����˵��     void
-// ���ز���     uint8           1-��ʼ��ʧ�� 0-��ʼ���ɹ�
-// ʹ��ʾ��     imu660rc_init(IMU660RC_QUARTERNION_120HZ);
-// ��ע��Ϣ     
+// 函数简介     初始化 IMU660RC
+// 参数说明     void
+// 返回参数     uint8           1-初始化失败 0-初始化成功
+// 使用示例     imu660rc_init(IMU660RC_QUARTERNION_120HZ);
+// 备注信息     
 //-------------------------------------------------------------------------------------------------------------------
 uint8 imu660rc_init(imu660rc_quarternion_rate_config quarternion_rate)
 {
@@ -575,34 +575,34 @@ uint8 imu660rc_init(imu660rc_quarternion_rate_config quarternion_rate)
     imu660rc_quarternion_rate = quarternion_rate;
 	
 #if (IMU660RC_USE_INTERFACE==HARDWARE_SPI)   
-    spi_init(IMU660RC_SPI, SPI_MODE0, IMU660RC_SPI_SPEED, IMU660RC_SPC_PIN, IMU660RC_SDI_PIN, IMU660RC_SDO_PIN, SPI_CS_NULL);   // ���� IMU660RC �� SPI �˿�
-    gpio_init(IMU660RC_CS_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);                  // ���� IMU660RC ��CS�˿�
+    spi_init(IMU660RC_SPI, SPI_MODE0, IMU660RC_SPI_SPEED, IMU660RC_SPC_PIN, IMU660RC_SDI_PIN, IMU660RC_SDO_PIN, SPI_CS_NULL);   // 配置 IMU660RC 的 SPI 端口
+    gpio_init(IMU660RC_CS_PIN, GPO, GPIO_HIGH, GPO_PUSH_PULL);                  // 配置 IMU660RC 的CS端口
 #elif (IMU660RC_USE_INTERFACE==SOFT_SPI)
-    // Ĭ��ʹ��˫��IO������Ҫ��ʼ����
+    // 默认使用双向IO，不需要初始化。
     // soft_spi_init (IMU660RC_SPI, SPI_MODE0, 0, IMU660RC_SPC_PIN, IMU660RC_SDI_PIN, IMU660RC_SDO_PIN, IMU660RC_CS_PIN);
 #elif (IMU660RC_USE_INTERFACE==SOFT_IIC)
-    soft_iic_init(&imu660rc_iic_struct, IMU660RC_DEV_ADDR, IMU660RC_SOFT_IIC_DELAY, IMU660RC_SCL_PIN, IMU660RC_SDA_PIN);        // ���� IMU660RC �� IIC �˿�
+    soft_iic_init(&imu660rc_iic_struct, IMU660RC_DEV_ADDR, IMU660RC_SOFT_IIC_DELAY, IMU660RC_SCL_PIN, IMU660RC_SDA_PIN);        // 配置 IMU660RC 的 IIC 端口
 #endif
 
     system_delay_ms(10);
 
     do
     {
-        if(imu660rc_self_check())                                               // IMU660RC �Լ�
+        if(imu660rc_self_check())                                               // IMU660RC 自检
         {
-            // �������������˶�����Ϣ ������ʾ����λ��������
-            // ��ô���� IMU660RC �Լ��������ʱ�˳���
-            // ���һ�½�����û������ ���û������ܾ��ǻ���
+            // 如果程序在输出了断言信息 并且提示出错位置在这里
+            // 那么就是 IMU660RC 自检出错并超时退出了
+            // 检查一下接线有没有问题 如果没问题可能就是坏了
             printf("imu660rc self check error.");
             return_state = 1;
             break;
         }
                 
-        // ��λ������
+        // 复位传感器
         imu660rc_write_register(IMU660RC_FUNC_CFG_ACCESS, 0x04);
         system_delay_ms(30);
 
-        // ���ÿ���¹������ַ����
+        // 启用块更新功能与地址递增
         imu660rc_write_register(IMU660RC_CTRL3, 0x44);
         
         switch(IMU660RC_ACC_SAMPLE_DEFAULT)
@@ -681,32 +681,32 @@ uint8 imu660rc_init(imu660rc_quarternion_rate_config quarternion_rate)
             break;
         }
         
-        // ���ô�����ģʽ������Ϊ�߾���ģʽ�Լ��������
+        // 设置传感器模式，设置为高精度模式以及输出速率
         imu660rc_write_register(IMU660RC_CTRL1, 0x15);
         imu660rc_write_register(IMU660RC_CTRL2, 0x18);
         
-        // ����LPF1�˲���
+        // 开启LPF1滤波器
         imu660rc_write_register(IMU660RC_CTRL7, 0x01);
         
-        // ����LPF2�˲���
+        // 开启LPF2滤波器
         imu660rc_write_register(IMU660RC_CTRL9, 0x08);
         
 
         
-        // ���������Ԫ���������������Ӧ����
+        // 如果启用四元数输出，则配置相应数据
         if(IMU660RC_QUARTERNION_DISABLE != quarternion_rate)
         {
             imu660rc_write_register(IMU660RC_FIFO_CRTL1, 0x01);
             imu660rc_write_register(IMU660RC_FIFO_CRTL4, 0x06);
-            // �����жϴ����ź�
+            // 设置中断触发信号
             imu660rc_write_register(IMU660RC_INT2_CTRL, 0x80);
             imu660rc_write_register(IMU660RC_CTRL4, 0x08);
             
-            // �������ü��ٶȡ����ٶ��������
+            // 重新配置加速度、角速度输出速率
             imu660rc_write_register(IMU660RC_CTRL1, 0x10 | (uint8)(quarternion_rate + 3));
             imu660rc_write_register(IMU660RC_CTRL2, 0x10 | (uint8)(quarternion_rate + 3));
             
-            // ������Ԫ��������ʲ�����
+            // 设置四元数输出速率并开启
             imu660rc_set_mem_bank(IMU660RC_EMBED_MEM_BANK);
             imu660rc_write_register(IMU660RC_EMB_FUNC_FIFO_EN_A, 0x02);
             imu660rc_write_register(IMU660RC_SFLP_ODR, 0x43 | (uint8)(quarternion_rate << 3));
@@ -714,9 +714,9 @@ uint8 imu660rc_init(imu660rc_quarternion_rate_config quarternion_rate)
             imu660rc_write_register(IMU660RC_PAGE_RW, 0x00);
             imu660rc_set_mem_bank(IMU660RC_MAIN_MEM_BANK);
             
-            gpio_int_irq_handlers[((IMU660RC_INT2_PIN & 0X0F00) >> 8)][(IMU660RC_INT2_PIN & 0X000F)] = imu660rc_callback;//�����жϻص�����
-            exit_init(IMU660RC_INT2_PIN,RISING_EDGE);// �����жϼ�����ţ��������ж�	
-			interrupt_set_priority(0X50 + ((IMU660RC_INT2_PIN & 0X0F00) >> 8), 2);//�ж����ȼ�Ϊ2
+            gpio_int_irq_handlers[((IMU660RC_INT2_PIN & 0X0F00) >> 8)][(IMU660RC_INT2_PIN & 0X000F)] = imu660rc_callback;//设置中断回调函数
+            exit_init(IMU660RC_INT2_PIN,RISING_EDGE);// 开启中断检测引脚，上升沿中断	
+			interrupt_set_priority(0X50 + ((IMU660RC_INT2_PIN & 0X0F00) >> 8), 2);//中断优先级为2
 			
 //			int_irq_handlers[0] = imu660rc_callback;
 //			exit_init(IMU660RC_INT2_PIN,BOTH);

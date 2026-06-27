@@ -1,48 +1,48 @@
 /*********************************************************************************************************************
-* STC32G144K Opensource Library ����STC32G144K ��Դ�⣩��һ�����ڹٷ� SDK �ӿڵĵ�������Դ��
-* Copyright (c) 2025 SEEKFREE ��ɿƼ�
+* STC32G144K Opensource Library 即（STC32G144K 开源库）是一个基于官方 SDK 接口的第三方开源库
+* Copyright (c) 2025 SEEKFREE 逐飞科技
 *
-* ���ļ���STC32G144K��Դ���һ����
+* 本文件是STC32G144K开源库的一部分
 *
-* STC32G144K ��Դ�� ���������
-* �����Ը���������������ᷢ���� GPL��GNU General Public License���� GNUͨ�ù�������֤��������
-* �� GPL �ĵ�3�棨�� GPL3.0������ѡ��ģ��κκ����İ汾�����·�����/���޸���
+* STC32G144K 开源库 是免费软件
+* 您可以根据自由软件基金会发布的 GPL（GNU General Public License，即 GNU通用公共许可证）的条款
+* 即 GPL 的第3版（即 GPL3.0）或（您选择的）任何后来的版本，重新发布和/或修改它
 *
-* ����Դ��ķ�����ϣ�����ܷ������ã�����δ�������κεı�֤
-* ����û�������������Ի��ʺ��ض���;�ı�֤
-* ����ϸ����μ� GPL
+* 本开源库的发布是希望它能发挥作用，但并未对其作任何的保证
+* 甚至没有隐含的适销性或适合特定用途的保证
+* 更多细节请参见 GPL
 *
-* ��Ӧ�����յ�����Դ���ͬʱ�յ�һ�� GPL �ĸ���
-* ���û�У������<https://www.gnu.org/licenses/>
+* 您应该在收到本开源库的同时收到一份 GPL 的副本
+* 如果没有，请参阅<https://www.gnu.org/licenses/>
 *
-* ����ע����
-* ����Դ��ʹ�� GPL3.0 ��Դ����֤Э�� ������������Ϊ���İ汾
-* ��������Ӣ�İ��� libraries/doc �ļ����µ� GPL3_permission_statement.txt �ļ���
-* ����֤������ libraries �ļ����� �����ļ����µ� LICENSE �ļ�
-* ��ӭ��λʹ�ò����������� ���޸�����ʱ���뱣����ɿƼ��İ�Ȩ����������������
+* 额外注明：
+* 本开源库使用 GPL3.0 开源许可证协议 以上许可声明为译文版本
+* 许可声明英文版在 libraries/doc 文件夹下的 GPL3_permission_statement.txt 文件中
+* 许可证副本在 libraries 文件夹下 即该文件夹下的 LICENSE 文件
+* 欢迎各位使用并传播本程序 但修改内容时必须保留逐飞科技的版权声明（即本声明）
 *
-* �ļ�����          
-* ��˾����          �ɶ���ɿƼ����޹�˾
-* �汾��Ϣ          �鿴 libraries/doc �ļ����� version �ļ� �汾˵��
-* ��������          MDK FOR C251
-* ����ƽ̨          STC32G144K
-* ��������          https://seekfree.taobao.com/
+* 文件名称          
+* 公司名称          成都逐飞科技有限公司
+* 版本信息          查看 libraries/doc 文件夹内 version 文件 版本说明
+* 开发环境          MDK FOR C251
+* 适用平台          STC32G144K
+* 店铺链接          https://seekfree.taobao.com/
 *
-* �޸ļ�¼
-* ����              ����           ��ע
-* 2025-11-20        ��W            first version
+* 修改记录
+* 日期              作者           备注
+* 2025-11-20        大W            first version
 ********************************************************************************************************************/
 
 #include "zf_common_interrupt.h"
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     ָ���ж��������ȼ�
-// ����˵��     irqn            
-// ����˵��     priority        ��ռʽ���ȼ� 0��3��0Ϊ������ȼ���3Ϊ������ȼ�
-// ���ز���     void
-// ʹ��ʾ��     interrupt_set_priority(	TIM5_IRQn, 3);
-//                       ���������ж϶�ʱ��0�����ȼ�Ϊ3
-// ��ע��Ϣ				 ���಻�����õģ��ж����ȼ�ȫ��Ϊ������ȼ�0
+// 函数简介     指定中断设置优先级
+// 参数说明     irqn            
+// 参数说明     priority        抢占式优先级 0到3，0为最低优先级，3为最高优先级
+// 返回参数     void
+// 使用示例     interrupt_set_priority(	TIM5_IRQn, 3);
+//                       设置周期中断定时器0的优先级为3
+// 备注信息				 其余不能设置的，中断优先级全部为最低优先级0
 //-------------------------------------------------------------------------------------------------------------------
 void interrupt_set_priority (irqn_type_enum irqn, uint8 priority)
 {
@@ -85,7 +85,7 @@ void interrupt_set_priority (irqn_type_enum irqn, uint8 priority)
 
 			case LCM_DMA_IRQn:DMA_LCM_CFG &= ~(3<<2); DMA_LCM_CFG |= priority << 2;break;
 			
-			case P0_INI_IRQ: //P0��P7����2���ֽڿ����ж����ȼ�
+			case P0_INI_IRQ: //P0到P7共用2个字节控制中断优先级
 			case P1_INI_IRQ:
 			case P2_INI_IRQ: 
 			case P3_INI_IRQ: 
@@ -93,31 +93,27 @@ void interrupt_set_priority (irqn_type_enum irqn, uint8 priority)
 			case P5_INI_IRQ: 
 			case P6_INI_IRQ: 
 			case P7_INI_IRQ: 
-				if(priority / 2){PINIPH |= (0x01 << (irqn & 0x0f));}
-				else{PINIPH &= ~(0x01 << (irqn & 0x0f));}
-				if(priority % 2){PINIPL |= (0x01 << (irqn & 0x0f));}
-				else{PINIPL |= (0x01 << (irqn & 0x0f));}
+                PINIPH = (priority >> 1) ? (PINIPH | (1U << (irqn & 0x0F))) : (PINIPH & ~(1U << (irqn & 0x0F)));
+                PINIPL = (priority & 1U) ? (PINIPL | (1U << (irqn & 0x0F))) : (PINIPL & ~(1U << (irqn & 0x0F)));
 				break;
-			case P8_INI_IRQ: //P8��PB����2���ֽڿ����ж����ȼ�
+			case P8_INI_IRQ: //P8到PB共用2个字节控制中断优先级
 			case P9_INI_IRQ: 
 			case PA_INI_IRQ: 
 			case PB_INI_IRQ: 
-				if(priority / 2){PIN2IPH |= (0x01 << (irqn & 0x0f));}
-				else{PIN2IPH &= ~(0x01 << (irqn & 0x0f));}
-				if(priority % 2){PIN2IPL |= (0x01 << (irqn & 0x0f));}
-				else{PIN2IPL |= (0x01 << (irqn & 0x0f));}
-				break;
+                PIN2IPH = (priority >> 1) ? (PIN2IPH | (1U << (irqn & 0x0F))) : (PIN2IPH & ~(1U << (irqn & 0x0F)));
+                PIN2IPL = (priority & 1U) ? (PIN2IPL | (1U << (irqn & 0x0F))) : (PIN2IPL & ~(1U << (irqn & 0x0F)));
+            	break;
 		}
 	}
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     �ر�ȫ���ж�
-// ����˵��     void            
-// ���ز���     void
-// ʹ��ʾ��     
+// 函数简介     关闭全局中断
+// 参数说明     void            
+// 返回参数     void
+// 使用示例     
 //             
-// ��ע��Ϣ				 
+// 备注信息				 
 //-------------------------------------------------------------------------------------------------------------------
 void interrupt_global_disable(void)
 {
@@ -125,12 +121,12 @@ void interrupt_global_disable(void)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// �������     ����ȫ���ж�
-// ����˵��     void            
-// ���ز���     void
-// ʹ��ʾ��     
+// 函数简介     开启全局中断
+// 参数说明     void            
+// 返回参数     void
+// 使用示例     
 //             
-// ��ע��Ϣ				 
+// 备注信息				 
 //-------------------------------------------------------------------------------------------------------------------
 void interrupt_global_enable(void)
 {
