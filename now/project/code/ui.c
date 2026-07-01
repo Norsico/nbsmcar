@@ -78,7 +78,7 @@ static const ui_param_t motor_params[] = {
     {"ring",     &SmartCar.motor.ring_speed,     VAL_TYPE_INT16, 10},
     {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 5},
     {"fan st",   &SmartCar.motor.fan_straight_duty, VAL_TYPE_INT16, 5},
-
+    {"fan en",   &SmartCar.motor.fan_en,         VAL_TYPE_UINT8,  1},
 };
 
 // Camera 菜单配置
@@ -222,6 +222,14 @@ static void ui_change_current_value(int8 dir)
         case VAL_TYPE_INT16:  *(int16*)p->val_ptr  = (int16)(*(int16*)p->val_ptr + change); break;
         case VAL_TYPE_UINT16: *(uint16*)p->val_ptr = (uint16)((int16)*(uint16*)p->val_ptr + change); break;
         case VAL_TYPE_UINT8:  *(uint8*)p->val_ptr  = (uint8)((int16)*(uint8*)p->val_ptr + change); break;
+    }
+
+    if((UiPage == UI_PAGE_CAMERA) && (p->val_ptr == &SmartCar.camera.laser_test))
+    {
+        if(*(uint8*)p->val_ptr > 6)
+        {
+            *(uint8*)p->val_ptr = 6;
+        }
     }
 
 }

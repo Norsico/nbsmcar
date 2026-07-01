@@ -58,6 +58,8 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_LASER_94_MAX_COL         (34)
 #define IMAGE_LASER_92_MAX_COL         (44)
 #define IMAGE_LASER_93_MAX_COL         (54)
+#define IMAGE_LASER_TEST_OFF           (0)
+#define IMAGE_LASER_TEST_ALL           (6)
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -235,26 +237,85 @@ static void image_laser_all_on(void)
     gpio_set_level(LASER_RIGHT_2, GPIO_HIGH);
 }
 
+typedef struct
+{
+    uint8 max_col;
+    gpio_pin_enum pin;
+} image_laser_pick_map_t;
+
+static const image_laser_pick_map_t ImageLaserPickMap[] =
+{
+    {IMAGE_LASER_95_MAX_COL, LASER_LEFT_2},
+    {IMAGE_LASER_94_MAX_COL, LASER_LEFT_1},
+    {IMAGE_LASER_92_MAX_COL, LASER_CENTER},
+    {IMAGE_LASER_93_MAX_COL, LASER_RIGHT_1},
+};
+
 static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
 {
-    if(center_x <= IMAGE_LASER_95_MAX_COL)
+    uint8 i;
+
+    for(i = 0; i < (uint8)(sizeof(ImageLaserPickMap) / sizeof(ImageLaserPickMap[0])); i++)
     {
-        return LASER_LEFT_2;
-    }
-    if(center_x <= IMAGE_LASER_94_MAX_COL)
-    {
-        return LASER_LEFT_1;
-    }
-    if(center_x <= IMAGE_LASER_92_MAX_COL)
-    {
-        return LASER_CENTER;
-    }
-    if(center_x <= IMAGE_LASER_93_MAX_COL)
-    {
-        return LASER_RIGHT_1;
+        if(center_x <= ImageLaserPickMap[i].max_col)
+        {
+            return ImageLaserPickMap[i].pin;
+        }
     }
 
     return LASER_RIGHT_2;
+}
+
+static uint8 image_laser_test_mode(void)
+{
+    uint8 mode;
+
+    if(ui_is_debug() == 0)
+    {
+        return IMAGE_LASER_TEST_OFF;
+    }
+
+    mode = SmartCar.camera.laser_test;
+    if(mode > IMAGE_LASER_TEST_ALL)
+    {
+        mode = IMAGE_LASER_TEST_ALL;
+    }
+
+    return mode;
+}
+
+static void image_laser_apply_test_mode(uint8 mode)
+{
+    static const gpio_pin_enum TestPins[5] =
+    {
+        LASER_LEFT_2,
+        LASER_LEFT_1,
+        LASER_CENTER,
+        LASER_RIGHT_1,
+        LASER_RIGHT_2
+    };
+    uint8 i;
+
+    image_laser_all_off();
+
+    if(mode == IMAGE_LASER_TEST_OFF)
+    {
+        return;
+    }
+
+    if(mode == IMAGE_LASER_TEST_ALL)
+    {
+        image_laser_all_on();
+        return;
+    }
+
+    if((mode >= 1) && (mode <= 5))
+    {
+        for(i = 0; i < mode; i++)
+        {
+            gpio_set_level(TestPins[i], GPIO_HIGH);
+        }
+    }
 }
 
 static uint8 image_target_normalize_row(int16 row)
@@ -283,6 +344,16 @@ static uint8 image_target_normalize_gap(int16 gap)
     }
 
     return (uint8)gap;
+}
+
+static uint8 image_target_normalize_laser_test(uint8 laser_test)
+{
+    if(laser_test > IMAGE_LASER_TEST_ALL)
+    {
+        return IMAGE_LASER_TEST_ALL;
+    }
+
+    return laser_test;
 }
 
 static void image_target_reset_result(void)
@@ -362,7 +433,7 @@ static void image_target_update_laser_mode(void)
 {
     uint8 laser_test;
 
-    laser_test = (SmartCar.camera.laser_test != 0) ? 1 : 0;
+    laser_test = image_target_laser_test_mode();
     if(laser_test != LaserTestLast)
     {
         LaserTestLast = laser_test;
@@ -372,10 +443,7 @@ static void image_target_update_laser_mode(void)
         image_laser_all_off();
     }
 
-    if(laser_test)
-    {
-        image_laser_all_on();
-    }
+    image_laser_apply_test_mode(laser_test);
 }
 
 static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x)
@@ -492,6 +560,10 @@ static void image_target_check(void)
     /* 三行里命中两行，就认为靶子成立。 */
     if(hit_count < 2)
     {
+        if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
+        {
+            TargetFrameGap++;
+        }
         return;
     }
 
@@ -509,21 +581,14 @@ static void image_target_check(void)
     TargetRightX = (uint8)right_x;
     TargetTopY = last_hit_row;
     TargetBottomY = first_hit_row;
-}
 
-static void image_target_fire_if_needed(void)
-{
-    if(SmartCar.camera.laser_test != 0)
+    if(image_target_laser_test_mode() != IMAGE_LASER_TEST_OFF)
     {
         return;
     }
 
-    if(TargetFound == 0)
+    if(LaserBusy)
     {
-        if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
-        {
-            TargetFrameGap++;
-        }
         return;
     }
 
@@ -531,11 +596,6 @@ static void image_target_fire_if_needed(void)
     if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
     {
         TargetFrameGap++;
-        return;
-    }
-
-    if(LaserBusy)
-    {
         return;
     }
 
@@ -838,7 +898,7 @@ void image_apply_camera(void)
 
     SmartCar.camera.laser_row = image_target_normalize_row(SmartCar.camera.laser_row);
     SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
-    SmartCar.camera.laser_test = (SmartCar.camera.laser_test != 0) ? 1 : 0;
+    SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
 
     mt9v03x_sccb_set_config(config);
 }
@@ -3263,8 +3323,7 @@ static void image_process(void)
     image_route_filter();          /* 9. 路径滤波 */
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
-    image_target_check();          /* 12. 打靶检测 */
-    image_target_fire_if_needed(); /* 13. 激光触发 */
+    image_target_check();          /* 12. 打靶检测 + 激光触发 */
     image_check_ramp();            /* 12. 坡道检测 */
     image_check_straight();        /* 13. 直道检测（环岛用） */
     image_check_long_straight();   /* 14. 长直道加速检测 */
@@ -3303,7 +3362,7 @@ void image_update(void)
     {
         ImageLostCount = 0;
         ImageRunFrameCount = 0;
-        if(SmartCar.camera.laser_test == 0)
+        if(image_target_laser_test_mode() == IMAGE_LASER_TEST_OFF)
         {
             LaserBusy = 0;
             LaserTickLeft = 0;

@@ -23,6 +23,7 @@ void para_init(void)
 
     SmartCar.motor.fan_duty = FAN_DUTY;
     SmartCar.motor.fan_straight_duty = FAN_STRAIGHT_DUTY;
+    SmartCar.motor.fan_en = FAN_ENABLE;
 
     SmartCar.camera.exposure = CAMERA_EXPOSURE;
     SmartCar.camera.gain = CAMERA_GAIN;

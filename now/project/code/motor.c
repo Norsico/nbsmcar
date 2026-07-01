@@ -49,6 +49,11 @@ static void fan_start_ramp(int16 target_duty)
 {
     int16 duty;
 
+    if(SmartCar.motor.fan_en == 0)
+    {
+        return;
+    }
+
     for(duty = 0;
         duty <= target_duty;
         duty += 1)
@@ -102,6 +107,11 @@ void motor_update_fan(void)
     int16 fan_target;
 
     if(CarMode != CAR_MODE_RUN)
+    {
+        return;
+    }
+
+    if(SmartCar.motor.fan_en == 0)
     {
         return;
     }
@@ -162,7 +172,10 @@ void motor_start_control(void)
     pwm_init(FAN_RIGHT_PWM, FAN_PWM_FREQ, 3000);
     if(CarMode == CAR_MODE_RUN)
     {
-        fan_start_ramp(SmartCar.motor.fan_duty);
+        if(SmartCar.motor.fan_en != 0)
+        {
+            fan_start_ramp(SmartCar.motor.fan_straight_duty);
+        }
     }
 
     /* 启动电机控制中断（所有外设初始化完成后才启动） */

@@ -22,6 +22,7 @@
 #define MOTOR_RIGHT_KI             (5)
 #define FAN_DUTY                   (75)
 #define FAN_STRAIGHT_DUTY          (75)  /* 直道风扇档位（降低下压力） */
+#define FAN_ENABLE                 (1)   /* 0=关闭风扇，1=开启风扇 */
 
 #define CAMERA_LASER_ROW           (50)
 #define CAMERA_TARGET_GAP          (2)
@@ -148,6 +149,7 @@ typedef struct
     int16 right_ki;
     int16 fan_duty;
     int16 fan_straight_duty;
+    uint8 fan_en;
 } motor_para;
 
 typedef struct
