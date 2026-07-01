@@ -119,6 +119,11 @@ uint8 ui_is_debug(void)
     return (UiPage == UI_PAGE_DEBUG) ? 1 : 0;
 }
 
+uint8 ui_is_laser_test_active(void)
+{
+    return (UiPage == UI_PAGE_CAMERA) ? 1 : 0;
+}
+
 // ==========================================
 // 5. 底层基础功能函数
 // ==========================================
@@ -219,19 +224,28 @@ static void ui_change_current_value(int8 dir)
     p = &menu_pages[UiPage - UI_PAGE_SERVO].params[UiSelect];
     change = (int16)(p->step * dir);
 
+    if((UiPage == UI_PAGE_CAMERA) && (UiSelect == camera_laser_test_index))
+    {
+        int16 value = (int16)(*(uint8*)p->val_ptr + change);
+
+        if(value < 0)
+        {
+            value = 0;
+        }
+        else if(value > 6)
+        {
+            value = 6;
+        }
+
+        *(uint8*)p->val_ptr = (uint8)value;
+        return;
+    }
+
     // 根据数据类型，正确转换指针并加上偏移量
     switch(p->type) {
         case VAL_TYPE_INT16:  *(int16*)p->val_ptr  = (int16)(*(int16*)p->val_ptr + change); break;
         case VAL_TYPE_UINT16: *(uint16*)p->val_ptr = (uint16)((int16)*(uint16*)p->val_ptr + change); break;
         case VAL_TYPE_UINT8:  *(uint8*)p->val_ptr  = (uint8)((int16)*(uint8*)p->val_ptr + change); break;
-    }
-
-    if((UiPage == UI_PAGE_CAMERA) && (UiSelect == camera_laser_test_index))
-    {
-        if(*(uint8*)p->val_ptr > 6)
-        {
-            *(uint8*)p->val_ptr = 6;
-        }
     }
 
 }

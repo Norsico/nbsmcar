@@ -270,7 +270,7 @@ static uint8 image_target_laser_test_mode(void)
 {
     uint8 mode;
 
-    if(ui_is_debug() == 0)
+    if(ui_is_laser_test_active() == 0)
     {
         return IMAGE_LASER_TEST_OFF;
     }
@@ -311,9 +311,9 @@ static void image_laser_apply_test_mode(uint8 mode)
 
     if((mode >= 1) && (mode <= 5))
     {
-        for(i = 0; i < mode; i++)
+        for(i = 0; i < 5; i++)
         {
-            gpio_set_level(TestPins[i], GPIO_HIGH);
+            gpio_set_level(TestPins[i], (i == (uint8)(mode - 1)) ? GPIO_HIGH : GPIO_LOW);
         }
     }
 }
