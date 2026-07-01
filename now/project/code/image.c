@@ -266,7 +266,7 @@ static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
     return LASER_RIGHT_2;
 }
 
-static uint8 image_laser_test_mode(void)
+static uint8 image_target_laser_test_mode(void)
 {
     uint8 mode;
 

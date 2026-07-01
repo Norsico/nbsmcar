@@ -81,6 +81,8 @@ static const ui_param_t motor_params[] = {
     {"fan en",   &SmartCar.motor.fan_en,         VAL_TYPE_UINT8,  1},
 };
 
+static const uint8 camera_laser_test_index = 5;
+
 // Camera 菜单配置
 static const ui_param_t camera_params[] = {
     {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
@@ -224,7 +226,7 @@ static void ui_change_current_value(int8 dir)
         case VAL_TYPE_UINT8:  *(uint8*)p->val_ptr  = (uint8)((int16)*(uint8*)p->val_ptr + change); break;
     }
 
-    if((UiPage == UI_PAGE_CAMERA) && (p->val_ptr == &SmartCar.camera.laser_test))
+    if((UiPage == UI_PAGE_CAMERA) && (UiSelect == camera_laser_test_index))
     {
         if(*(uint8*)p->val_ptr > 6)
         {
