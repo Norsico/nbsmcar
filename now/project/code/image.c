@@ -417,11 +417,13 @@ static void image_target_update_laser_mode(void)
     image_laser_apply_test_mode(laser_test);
 }
 
-static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x)
+static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x, uint8 *target_left, uint8 *target_right)
 {
     uint8 col;
     uint8 prev_pixel;
     uint8 transition_count;
+    uint8 first_transition;
+    uint8 last_transition;
 
     if((left_x >= right_x) || ((right_x - left_x) < 6))
     {
@@ -430,11 +432,18 @@ static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x)
 
     prev_pixel = ImageBin[row][left_x];
     transition_count = 0;
+    first_transition = left_x;
+    last_transition = right_x;
 
     for(col = (uint8)(left_x + 1); col <= right_x; col++)
     {
         if(ImageBin[row][col] != prev_pixel)
         {
+            if(transition_count == 0)
+            {
+                first_transition = col;
+            }
+            last_transition = col;
             transition_count++;
             prev_pixel = ImageBin[row][col];
 
@@ -442,6 +451,8 @@ static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x)
             {
                 if((ImageBin[row][left_x] == IMAGE_WHITE) && (ImageBin[row][right_x] == IMAGE_WHITE))
                 {
+                    *target_left = first_transition;
+                    *target_right = last_transition;
                     return 1;
                 }
                 return 0;
@@ -460,6 +471,8 @@ static void image_target_check(void)
     uint8 hit_count;
     uint8 first_hit_row;
     uint8 last_hit_row;
+    uint8 target_left;
+    uint8 target_right;
     int16 scan_row;
     int16 left_x;
     int16 right_x;
@@ -504,23 +517,25 @@ static void image_target_check(void)
 
         if(image_target_match_row((uint8)scan_row,
                                   (uint8)ImageDeal[scan_row].LeftBoundary,
-                                  (uint8)ImageDeal[scan_row].RightBoundary))
+                                  (uint8)ImageDeal[scan_row].RightBoundary,
+                                  &target_left,
+                                  &target_right))
         {
             if(hit_count == 0)
             {
                 first_hit_row = (uint8)scan_row;
-                left_x = ImageDeal[scan_row].LeftBoundary;
-                right_x = ImageDeal[scan_row].RightBoundary;
+                left_x = target_left;
+                right_x = target_right;
             }
             else
             {
-                if(ImageDeal[scan_row].LeftBoundary > left_x)
+                if(target_left > left_x)
                 {
-                    left_x = ImageDeal[scan_row].LeftBoundary;
+                    left_x = target_left;
                 }
-                if(ImageDeal[scan_row].RightBoundary < right_x)
+                if(target_right < right_x)
                 {
-                    right_x = ImageDeal[scan_row].RightBoundary;
+                    right_x = target_right;
                 }
             }
             last_hit_row = (uint8)scan_row;
