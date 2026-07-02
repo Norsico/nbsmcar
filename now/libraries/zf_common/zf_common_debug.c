@@ -39,8 +39,10 @@
 #include "zf_common_interrupt.h"
 #include "zf_common_typedef.h"
 
-#include "zf_driver_uart.h"
-#include "zf_driver_usb_cdc.h"
+#if DEBUG_OUTPUT_ENABLE
+    #include "zf_driver_uart.h"
+    #include "zf_driver_usb_cdc.h"
+#endif
 #include "zf_driver_delay.h"
 
 
@@ -67,8 +69,11 @@ static volatile uint8       zf_debug_assert_enable = 1;
 //-------------------------------------------------------------------------------------------------------------------
 uint32 debug_send_buffer(const uint8 *buff, uint32 len)
 {
-    
-#if(USER_USB_CDC)
+
+#if(DEBUG_OUTPUT_ENABLE == 0)
+    (void)buff;
+    return len;
+#elif(USER_USB_CDC)
     if(len > 0xFFFF)
 	{
 		usb_cdc_write_buffer(buff, 0xFFFF);
@@ -166,7 +171,9 @@ extern uint8 test_count ;
     //重定义printf 数字 只能输出uint16
     char putchar(char c)
     {
-        #if(USER_USB_CDC)
+        #if(DEBUG_OUTPUT_ENABLE == 0)
+            return c;
+        #elif(USER_USB_CDC)
             usb_cdc_write_byte(c);
             return c;
         #else
@@ -225,7 +232,9 @@ void debug_assert_handler (uint8 pass, char *file, int line)
 //-------------------------------------------------------------------------------------------------------------------
 void debug_init (void)
 {
-#if(USER_USB_CDC)
+#if(DEBUG_OUTPUT_ENABLE == 0)
+    zf_debug_init_flag = 0;
+#elif(USER_USB_CDC)
     usb_cdc_init();
     #if DEBUG_UART_USE_INTERRUPT                                               // 条件编译 只有在启用串口中断才编译
         fifo_init(&debug_uart_fifo, FIFO_DATA_8BIT, debug_uart_buffer, DEBUG_RING_BUFFER_LEN);
@@ -246,7 +255,6 @@ void debug_init (void)
     #endif   
 #endif
 }
-
 
 
 
