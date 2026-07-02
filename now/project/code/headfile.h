@@ -26,7 +26,7 @@
 #include "zf_driver_pit.h"
 #include "zf_driver_encoder.h"
 #include "zf_driver_soft_iic.h"
-//#include "zf_driver_usb_cdc.h"     /* USB CDC / USB 虚拟串口，当前未用 */
+#include "zf_driver_usb_cdc.h"      /* USB CDC / USB 虚拟串口 */
 
 /* Device / 外设模块 */
 #include "zf_device_config.h"

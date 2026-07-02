@@ -40,8 +40,8 @@
 #include "zf_common_fifo.h"
 
 #define PRINTF_ENABLE               (1)                                             // 使能printf
-#define USER_USB_CDC                (0)
-#define DEBUG_OUTPUT_ENABLE         (0)                                             // 0=关闭调试输出，减少代码占用
+#define USER_USB_CDC                (1)
+#define DEBUG_OUTPUT_ENABLE         (1)                                             // 1=开启调试输出
 
 // 默认使用USB_CDC进行通信
 #if((USER_USB_CDC == 0) && DEBUG_OUTPUT_ENABLE)
@@ -51,7 +51,7 @@
     #define DEBUG_UART_RX_PIN           (UART1_RX_P36 )                        	    // 指定 debug uart 所使用的的串口引脚
 #endif
 
-#define DEBUG_UART_USE_INTERRUPT    (0)                                             // 是否启用 debug uart 接收中断
+#define DEBUG_UART_USE_INTERRUPT    (1)                                             // 是否启用 debug uart 接收中断
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     断言

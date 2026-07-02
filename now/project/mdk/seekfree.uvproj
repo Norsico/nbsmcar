@@ -544,6 +544,11 @@
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_driver\zf_driver_usb_cdc.h</FilePath>
             </File>
+            <File>
+              <FileName>zf_driver_usb_cdc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_driver\zf_driver_usb_cdc.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -685,9 +690,19 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb.h</FilePath>
             </File>
             <File>
+              <FileName>usb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb.c</FilePath>
+            </File>
+            <File>
               <FileName>usb_desc.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_desc.h</FilePath>
+            </File>
+            <File>
+              <FileName>usb_desc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_desc.c</FilePath>
             </File>
             <File>
               <FileName>usb_req_class.h</FileName>
@@ -695,9 +710,19 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_class.h</FilePath>
             </File>
             <File>
+              <FileName>usb_req_class.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_class.c</FilePath>
+            </File>
+            <File>
               <FileName>usb_req_std.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_std.h</FilePath>
+            </File>
+            <File>
+              <FileName>usb_req_std.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_std.c</FilePath>
             </File>
             <File>
               <FileName>usb_req_vendor.h</FileName>
@@ -705,9 +730,19 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_vendor.h</FilePath>
             </File>
             <File>
+              <FileName>usb_req_vendor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_vendor.c</FilePath>
+            </File>
+            <File>
               <FileName>util.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\util.h</FilePath>
+            </File>
+            <File>
+              <FileName>util.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\util.c</FilePath>
             </File>
             <File>
               <FileName>seekfree_assistant.h</FileName>
