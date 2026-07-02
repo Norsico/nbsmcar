@@ -54,10 +54,7 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_FIRE_US     (3000)
 #define IMAGE_TARGET_FIRE_INTERVAL     (10)
 #define IMAGE_TARGET_SCAN_ROWS         (3)
-#define IMAGE_LASER_95_MAX_COL         (24)
-#define IMAGE_LASER_94_MAX_COL         (34)
-#define IMAGE_LASER_92_MAX_COL         (44)
-#define IMAGE_LASER_93_MAX_COL         (54)
+#define IMAGE_LASER_COUNT              (5)
 #define IMAGE_LASER_TEST_OFF           (0)
 #define IMAGE_LASER_TEST_ALL           (6)
 
@@ -237,34 +234,16 @@ static void image_laser_all_on(void)
     gpio_set_level(LASER_RIGHT_2, GPIO_HIGH);
 }
 
-typedef struct
+static const gpio_pin_enum ImageLaserPins[IMAGE_LASER_COUNT] =
 {
-    uint8 max_col;
-    gpio_pin_enum pin;
-} image_laser_pick_map_t;
-
-static const image_laser_pick_map_t ImageLaserPickMap[] =
-{
-    {IMAGE_LASER_95_MAX_COL, LASER_LEFT_2},
-    {IMAGE_LASER_94_MAX_COL, LASER_LEFT_1},
-    {IMAGE_LASER_92_MAX_COL, LASER_CENTER},
-    {IMAGE_LASER_93_MAX_COL, LASER_RIGHT_1},
+    LASER_LEFT_2,
+    LASER_LEFT_1,
+    LASER_CENTER,
+    LASER_RIGHT_1,
+    LASER_RIGHT_2
 };
 
-static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
-{
-    uint8 i;
-
-    for(i = 0; i < (uint8)(sizeof(ImageLaserPickMap) / sizeof(ImageLaserPickMap[0])); i++)
-    {
-        if(center_x <= ImageLaserPickMap[i].max_col)
-        {
-            return ImageLaserPickMap[i].pin;
-        }
-    }
-
-    return LASER_RIGHT_2;
-}
+static gpio_pin_enum image_laser_pick_pin(uint8 center_x, uint8 center_y);
 
 static uint8 image_target_laser_test_mode(void)
 {
@@ -286,14 +265,6 @@ static uint8 image_target_laser_test_mode(void)
 
 static void image_laser_apply_test_mode(uint8 mode)
 {
-    static const gpio_pin_enum TestPins[5] =
-    {
-        LASER_LEFT_2,
-        LASER_LEFT_1,
-        LASER_CENTER,
-        LASER_RIGHT_1,
-        LASER_RIGHT_2
-    };
     uint8 i;
 
     image_laser_all_off();
@@ -309,11 +280,11 @@ static void image_laser_apply_test_mode(uint8 mode)
         return;
     }
 
-    if((mode >= 1) && (mode <= 5))
+    if((mode >= 1) && (mode <= IMAGE_LASER_COUNT))
     {
-        for(i = 0; i < 5; i++)
+        for(i = 0; i < IMAGE_LASER_COUNT; i++)
         {
-            gpio_set_level(TestPins[i], (i == (uint8)(mode - 1)) ? GPIO_HIGH : GPIO_LOW);
+            gpio_set_level(ImageLaserPins[i], (i == (uint8)(mode - 1)) ? GPIO_HIGH : GPIO_LOW);
         }
     }
 }
@@ -412,11 +383,11 @@ static void image_target_laser_pit_handler(void)
     }
 }
 
-static void image_target_laser_start(uint8 center_x)
+static void image_target_laser_start(uint8 center_x, uint8 center_y)
 {
     gpio_pin_enum laser_pin;
 
-    laser_pin = image_laser_pick_pin(center_x);
+    laser_pin = image_laser_pick_pin(center_x, center_y);
 
     interrupt_global_disable();
     image_laser_all_off();
@@ -599,7 +570,7 @@ static void image_target_check(void)
         return;
     }
 
-    image_target_laser_start(TargetCenterX);
+    image_target_laser_start(TargetCenterX, TargetCenterY);
     buzzer_short();
     TargetFrameGap = 0;
 }
@@ -621,6 +592,104 @@ static const uint8 Half_Road_Wide[IMAGE_H] =
     25, 26, 26, 27, 27, 27, 28, 28, 29, 29,               /* 第40-49行 */
     30, 30, 30, 30, 31, 31, 31, 34, 34, 35                /* 第50-59行 */
 };
+
+static gpio_pin_enum image_laser_pick_pin(uint8 center_x, uint8 center_y)
+{
+    uint8 row;
+    uint8 index;
+    int16 left_x;
+    int16 right_x;
+    int16 road_width;
+    int16 half_width;
+    int16 distance;
+    uint8 from_right;
+
+    row = image_target_normalize_row(center_y);
+    left_x = ImageDeal[row].LeftBoundary;
+    right_x = ImageDeal[row].RightBoundary;
+    half_width = Half_Road_Wide[row];
+    road_width = half_width * 2;
+    from_right = 0;
+
+    if((ImageDeal[row].IsLeftFind == 'T') && (ImageDeal[row].IsRightFind == 'T'))
+    {
+        left_x = ImageDeal[row].LeftBoundary;
+        right_x = ImageDeal[row].RightBoundary;
+        road_width = right_x - left_x + 1;
+    }
+    else if(ImageDeal[row].IsLeftFind == 'T')
+    {
+        right_x = left_x + half_width * 2;
+    }
+    else if(ImageDeal[row].IsRightFind == 'T')
+    {
+        left_x = right_x - half_width * 2;
+        from_right = 1;
+    }
+    else
+    {
+        left_x = (int16)center_x - half_width;
+        right_x = (int16)center_x + half_width;
+    }
+
+    if(left_x < 0)
+    {
+        left_x = 0;
+    }
+    if(right_x > (IMAGE_W - 1))
+    {
+        right_x = IMAGE_W - 1;
+    }
+    if(left_x >= right_x)
+    {
+        return LASER_CENTER;
+    }
+
+    if(center_x <= left_x)
+    {
+        return ImageLaserPins[0];
+    }
+    if(center_x >= right_x)
+    {
+        return ImageLaserPins[IMAGE_LASER_COUNT - 1];
+    }
+
+    if(road_width <= 0)
+    {
+        return LASER_CENTER;
+    }
+
+    if(from_right)
+    {
+        distance = right_x - (int16)center_x;
+    }
+    else
+    {
+        distance = (int16)center_x - left_x;
+    }
+
+    if(distance < 0)
+    {
+        distance = 0;
+    }
+    else if(distance >= road_width)
+    {
+        distance = road_width - 1;
+    }
+
+    index = (uint8)((distance * IMAGE_LASER_COUNT) / road_width);
+    if(index >= IMAGE_LASER_COUNT)
+    {
+        index = IMAGE_LASER_COUNT - 1;
+    }
+
+    if(from_right)
+    {
+        index = (uint8)(IMAGE_LASER_COUNT - 1 - index);
+    }
+
+    return ImageLaserPins[index];
+}
 
 /**
  * WeightingX10[i]: 加权平均中心计算的权重系数（整数版 ×10）
