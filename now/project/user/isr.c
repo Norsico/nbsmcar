@@ -263,6 +263,7 @@ void INT4_IRQHandler(void) interrupt INT4_VECTOR
     }
 }
 
+#if 0
 void DMA_UART1_IRQHandler(void) interrupt DMA_UR1R_VECTOR
 {
     static vuint8 dwon_count = 0;
@@ -462,6 +463,7 @@ void DMA_UART8_IRQHandler(void) interrupt DMA_UR8R_VECTOR
         // 如果进入了这个中断，则代表UART的数据在没有取走之前被覆盖!
     }
 }
+#endif
 
 
 void TM0_IRQHandler() interrupt TMR0_VECTOR

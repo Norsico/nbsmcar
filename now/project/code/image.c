@@ -2819,7 +2819,7 @@ static void image_handle_right_ring(void)
     }
     if(ImageFlag.image_element_rings_flag == 8)
     {
-        if((Straight_Judge(1, ImageStatus.OFFLine + 10, 45) < 10) &&    /* 原 < 1.0f, ×10 */
+        if((Straight_Judge(1, (uint8)(ImageStatus.OFFLine + 10), (uint8)45) < 10) &&    /* 原 < 1.0f, ×10 */
            (ImageStatus.Left_Line < 9) &&
            (ImageStatus.OFFLine < 20))
         {

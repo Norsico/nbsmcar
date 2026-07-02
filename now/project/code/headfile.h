@@ -1,7 +1,6 @@
 #ifndef __SMARTCAR_HEADFILE_H__
 #define __SMARTCAR_HEADFILE_H__
 
-#include <math.h>
 #include "intrins.h"
 
 #include "stc32g144k246.h"

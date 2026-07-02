@@ -402,10 +402,10 @@ static void ui_show_camera_image(void)
     /* 第6行：宽度差（底部-顶部）*/
     ips200_show_string(0, 204, "WB");
     ips200_show_string(32, 204, "   ");
-    ips200_show_uint8(32, 204, ImageDeal[55].Wide);
+    ips200_show_uint8(32, 204, (uint8)ImageDeal[55].Wide);
     ips200_show_string(72, 204, "WT");
     ips200_show_string(104, 204, "   ");
-    ips200_show_uint8(104, 204, ImageDeal[10].Wide);
+    ips200_show_uint8(104, 204, (uint8)ImageDeal[10].Wide);
     ips200_show_string(144, 204, "Diff");
     ips200_show_string(184, 204, "   ");
     ips200_show_int16(184, 204, ImageDeal[55].Wide - ImageDeal[10].Wide);
