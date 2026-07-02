@@ -535,19 +535,9 @@
               <FilePath>..\..\libraries\zf_driver\zf_driver_timer.h</FilePath>
             </File>
             <File>
-              <FileName>zf_driver_uart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_uart.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_driver_uart.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_driver\zf_driver_uart.h</FilePath>
-            </File>
-            <File>
-              <FileName>zf_driver_usb_cdc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_driver\zf_driver_usb_cdc.c</FilePath>
             </File>
             <File>
               <FileName>zf_driver_usb_cdc.h</FileName>
@@ -600,19 +590,9 @@
               <FilePath>..\..\libraries\zf_device\zf_device_mt9v03x_dma.h</FilePath>
             </File>
             <File>
-              <FileName>zf_device_ips114.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips114.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_device_ips114.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_device\zf_device_ips114.h</FilePath>
-            </File>
-            <File>
-              <FileName>zf_device_tft180.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_tft180.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_tft180.h</FileName>
@@ -630,19 +610,9 @@
               <FilePath>..\..\libraries\zf_device\zf_device_ips200.h</FilePath>
             </File>
             <File>
-              <FileName>zf_device_ips200pro.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ips200pro.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_device_ips200pro.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_device\zf_device_ips200pro.h</FilePath>
-            </File>
-            <File>
-              <FileName>zf_device_ble6a20.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_ble6a20.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_ble6a20.h</FileName>
@@ -650,19 +620,9 @@
               <FilePath>..\..\libraries\zf_device\zf_device_ble6a20.h</FilePath>
             </File>
             <File>
-              <FileName>zf_device_wifi_spi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_wifi_spi.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_device_wifi_spi.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_device\zf_device_wifi_spi.h</FilePath>
-            </File>
-            <File>
-              <FileName>zf_device_wireless_uart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_wireless_uart.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_wireless_uart.h</FileName>
@@ -670,19 +630,9 @@
               <FilePath>..\..\libraries\zf_device\zf_device_wireless_uart.h</FilePath>
             </File>
             <File>
-              <FileName>zf_device_dl1a.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_dl1a.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_device_dl1a.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_device\zf_device_dl1a.h</FilePath>
-            </File>
-            <File>
-              <FileName>zf_device_dl1b.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_dl1b.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_dl1b.h</FileName>
@@ -700,29 +650,14 @@
               <FilePath>..\..\libraries\zf_device\zf_device_imu660ra.h</FilePath>
             </File>
             <File>
-              <FileName>zf_device_imu660rb.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu660rb.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_device_imu660rb.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_device\zf_device_imu660rb.h</FilePath>
             </File>
             <File>
-              <FileName>zf_device_imu660rc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu660rc.c</FilePath>
-            </File>
-            <File>
               <FileName>zf_device_imu660rc.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_device\zf_device_imu660rc.h</FilePath>
-            </File>
-            <File>
-              <FileName>zf_device_imu963ra.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_device\zf_device_imu963ra.c</FilePath>
             </File>
             <File>
               <FileName>zf_device_imu963ra.h</FileName>
@@ -745,19 +680,9 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\stc.h</FilePath>
             </File>
             <File>
-              <FileName>usb.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb.c</FilePath>
-            </File>
-            <File>
               <FileName>usb.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb.h</FilePath>
-            </File>
-            <File>
-              <FileName>usb_desc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_desc.c</FilePath>
             </File>
             <File>
               <FileName>usb_desc.h</FileName>
@@ -765,19 +690,9 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_desc.h</FilePath>
             </File>
             <File>
-              <FileName>usb_req_class.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_class.c</FilePath>
-            </File>
-            <File>
               <FileName>usb_req_class.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_class.h</FilePath>
-            </File>
-            <File>
-              <FileName>usb_req_std.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_std.c</FilePath>
             </File>
             <File>
               <FileName>usb_req_std.h</FileName>
@@ -785,19 +700,9 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_std.h</FilePath>
             </File>
             <File>
-              <FileName>usb_req_vendor.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_vendor.c</FilePath>
-            </File>
-            <File>
               <FileName>usb_req_vendor.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\usb_req_vendor.h</FilePath>
-            </File>
-            <File>
-              <FileName>util.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\util.c</FilePath>
             </File>
             <File>
               <FileName>util.h</FileName>
@@ -805,19 +710,9 @@
               <FilePath>..\..\libraries\zf_components\stc32g_usb_lib\util.h</FilePath>
             </File>
             <File>
-              <FileName>seekfree_assistant.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant.c</FilePath>
-            </File>
-            <File>
               <FileName>seekfree_assistant.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant.h</FilePath>
-            </File>
-            <File>
-              <FileName>seekfree_assistant_interface.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\..\libraries\zf_components\seekfree_assistant\seekfree_assistant_interface.c</FilePath>
             </File>
             <File>
               <FileName>seekfree_assistant_interface.h</FileName>
