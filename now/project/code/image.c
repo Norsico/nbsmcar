@@ -57,10 +57,11 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_LASER_COUNT              (5)
 #define IMAGE_LASER_TEST_OFF           (0)
 #define IMAGE_LASER_TEST_ALL           (6)
-#define IMAGE_LASER_EDGE_LIMIT         (24)
-#define IMAGE_LASER_INNER_LIMIT        (42)
-#define IMAGE_LASER_CENTER_LIMIT       (58)
-#define IMAGE_LASER_RIGHT_LIMIT        (76)
+#define IMAGE_LASER_LEFT_2_COL         (12)
+#define IMAGE_LASER_LEFT_1_COL         (29)
+#define IMAGE_LASER_CENTER_COL         (39)
+#define IMAGE_LASER_RIGHT_1_COL        (49)
+#define IMAGE_LASER_RIGHT_2_COL        (67)
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -247,7 +248,16 @@ static const gpio_pin_enum ImageLaserPins[IMAGE_LASER_COUNT] =
     LASER_RIGHT_2
 };
 
-static gpio_pin_enum image_laser_pick_pin(uint8 center_x, uint8 center_y);
+static const uint8 ImageLaserAimCols[IMAGE_LASER_COUNT] =
+{
+    IMAGE_LASER_LEFT_2_COL,
+    IMAGE_LASER_LEFT_1_COL,
+    IMAGE_LASER_CENTER_COL,
+    IMAGE_LASER_RIGHT_1_COL,
+    IMAGE_LASER_RIGHT_2_COL
+};
+
+static gpio_pin_enum image_laser_pick_pin(uint8 center_x);
 
 static uint8 image_target_laser_test_mode(void)
 {
@@ -391,7 +401,8 @@ static void image_target_laser_start(uint8 center_x, uint8 center_y)
 {
     gpio_pin_enum laser_pin;
 
-    laser_pin = image_laser_pick_pin(center_x, center_y);
+    (void)center_y;
+    laser_pin = image_laser_pick_pin(center_x);
 
     interrupt_global_disable();
     image_laser_all_off();
@@ -416,6 +427,11 @@ static void image_target_update_laser_mode(void)
         LaserTickLeft = 0;
         image_target_laser_pit_stop();
         image_laser_all_off();
+    }
+
+    if(laser_test == IMAGE_LASER_TEST_OFF)
+    {
+        return;
     }
 
     image_laser_apply_test_mode(laser_test);
@@ -612,115 +628,26 @@ static const uint8 Half_Road_Wide[IMAGE_H] =
     30, 30, 30, 30, 31, 31, 31, 34, 34, 35                /* 第50-59行 */
 };
 
-static gpio_pin_enum image_laser_pick_pin(uint8 center_x, uint8 center_y)
+static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
 {
-    uint8 row;
+    uint8 i;
     uint8 index;
-    int16 left_x;
-    int16 right_x;
-    int16 road_width;
-    int16 half_width;
-    int16 distance;
-    uint8 from_right;
+    uint8 best_distance;
+    uint8 distance;
 
-    row = image_target_normalize_row(center_y);
-    left_x = ImageDeal[row].LeftBoundary;
-    right_x = ImageDeal[row].RightBoundary;
-    half_width = Half_Road_Wide[row];
-    road_width = half_width * 2;
-    from_right = 0;
+    index = 0;
+    best_distance = IMAGE_W;
 
-    if((ImageDeal[row].IsLeftFind == 'T') && (ImageDeal[row].IsRightFind == 'T'))
+    for(i = 0; i < IMAGE_LASER_COUNT; i++)
     {
-        left_x = ImageDeal[row].LeftBoundary;
-        right_x = ImageDeal[row].RightBoundary;
-        road_width = right_x - left_x + 1;
-    }
-    else if(ImageDeal[row].IsLeftFind == 'T')
-    {
-        right_x = left_x + half_width * 2;
-    }
-    else if(ImageDeal[row].IsRightFind == 'T')
-    {
-        left_x = right_x - half_width * 2;
-        from_right = 1;
-    }
-    else
-    {
-        left_x = (int16)center_x - half_width;
-        right_x = (int16)center_x + half_width;
-    }
-
-    if(left_x < 0)
-    {
-        left_x = 0;
-    }
-    if(right_x > (IMAGE_W - 1))
-    {
-        right_x = IMAGE_W - 1;
-    }
-    if(left_x >= right_x)
-    {
-        return LASER_CENTER;
-    }
-
-    if(center_x <= left_x)
-    {
-        return ImageLaserPins[0];
-    }
-    if(center_x >= right_x)
-    {
-        return ImageLaserPins[IMAGE_LASER_COUNT - 1];
-    }
-
-    if(road_width <= 0)
-    {
-        return LASER_CENTER;
-    }
-
-    if(from_right)
-    {
-        distance = right_x - (int16)center_x;
-    }
-    else
-    {
-        distance = (int16)center_x - left_x;
-    }
-
-    if(distance < 0)
-    {
-        distance = 0;
-    }
-    else if(distance >= road_width)
-    {
-        distance = road_width - 1;
-    }
-
-    distance = distance * 100;
-    if(distance < (road_width * IMAGE_LASER_EDGE_LIMIT))
-    {
-        index = 0;
-    }
-    else if(distance < (road_width * IMAGE_LASER_INNER_LIMIT))
-    {
-        index = 1;
-    }
-    else if(distance < (road_width * IMAGE_LASER_CENTER_LIMIT))
-    {
-        index = 2;
-    }
-    else if(distance < (road_width * IMAGE_LASER_RIGHT_LIMIT))
-    {
-        index = 3;
-    }
-    else
-    {
-        index = 4;
-    }
-
-    if(from_right)
-    {
-        index = (uint8)(IMAGE_LASER_COUNT - 1 - index);
+        distance = (center_x > ImageLaserAimCols[i]) ?
+                   (uint8)(center_x - ImageLaserAimCols[i]) :
+                   (uint8)(ImageLaserAimCols[i] - center_x);
+        if(distance < best_distance)
+        {
+            best_distance = distance;
+            index = i;
+        }
     }
 
     return ImageLaserPins[index];
