@@ -57,10 +57,10 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_LASER_COUNT              (5)
 #define IMAGE_LASER_TEST_OFF           (0)
 #define IMAGE_LASER_TEST_ALL           (6)
-#define IMAGE_LASER_EDGE_LIMIT         (28)
-#define IMAGE_LASER_INNER_LIMIT        (45)
-#define IMAGE_LASER_CENTER_LIMIT       (55)
-#define IMAGE_LASER_RIGHT_LIMIT        (72)
+#define IMAGE_LASER_EDGE_LIMIT         (24)
+#define IMAGE_LASER_INNER_LIMIT        (42)
+#define IMAGE_LASER_CENTER_LIMIT       (58)
+#define IMAGE_LASER_RIGHT_LIMIT        (76)
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
