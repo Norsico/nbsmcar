@@ -57,6 +57,10 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_LASER_COUNT              (5)
 #define IMAGE_LASER_TEST_OFF           (0)
 #define IMAGE_LASER_TEST_ALL           (6)
+#define IMAGE_LASER_EDGE_LIMIT         (28)
+#define IMAGE_LASER_INNER_LIMIT        (45)
+#define IMAGE_LASER_CENTER_LIMIT       (55)
+#define IMAGE_LASER_RIGHT_LIMIT        (72)
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -692,10 +696,26 @@ static gpio_pin_enum image_laser_pick_pin(uint8 center_x, uint8 center_y)
         distance = road_width - 1;
     }
 
-    index = (uint8)((distance * IMAGE_LASER_COUNT) / road_width);
-    if(index >= IMAGE_LASER_COUNT)
+    distance = distance * 100;
+    if(distance < (road_width * IMAGE_LASER_EDGE_LIMIT))
     {
-        index = IMAGE_LASER_COUNT - 1;
+        index = 0;
+    }
+    else if(distance < (road_width * IMAGE_LASER_INNER_LIMIT))
+    {
+        index = 1;
+    }
+    else if(distance < (road_width * IMAGE_LASER_CENTER_LIMIT))
+    {
+        index = 2;
+    }
+    else if(distance < (road_width * IMAGE_LASER_RIGHT_LIMIT))
+    {
+        index = 3;
+    }
+    else
+    {
+        index = 4;
     }
 
     if(from_right)
