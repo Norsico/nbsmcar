@@ -27,7 +27,7 @@ unsigned char code DEVICEDESC[18] =
     0x00,0x01,              //bcdDevice(1.00);
     0x01,                   //iManufacturer(1);
     0x02,                   //iProduct(2);
-    0x00,                   //iSerialNumber(0);
+    0x03,                   //iSerialNumber(3);
     0x01,                   //bNumConfigurations(1);
 };
 
@@ -112,31 +112,49 @@ unsigned  char code LANGIDDESC[4] =
     0x09,0x04,
 };
 
-unsigned  char code MANUFACTDESC[8] =
+unsigned  char code MANUFACTDESC[18] =
 {
-    0x08,0x03,
+    0x12,0x03,
+    'N',0,
+    'B',0,
     'S',0,
-    'T',0,
+    'M',0,
+    'C',0,
+    'a',0,
+    'r',0,
+    ' ',0,
+};
+
+unsigned  char code PRODUCTDESC[26] =
+{
+    0x1a,0x03,
+    'S',0,
+    'm',0,
+    'a',0,
+    'r',0,
+    't',0,
+    'C',0,
+    'a',0,
+    'r',0,
+    ' ',0,
+    'C',0,
+    'D',0,
     'C',0,
 };
 
-unsigned  char code PRODUCTDESC[30] =
+unsigned  char code SERIALDESC[22] =
 {
-    0x1e,0x03,
+    0x16,0x03,
     'S',0,
-    'T',0,
     'C',0,
-    ' ',0,
-    'U',0,
-    'S',0,
-    'B',0,
-    ' ',0,
-    'S',0,
-    'e',0,
-    'r',0,
-    'i',0,
-    'a',0,
-    'l',0,
+    '3',0,
+    '2',0,
+    'G',0,
+    '2',0,
+    '4',0,
+    '6',0,
+    '0',0,
+    '1',0,
 };
 
 unsigned  char code PACKET0[2] = 

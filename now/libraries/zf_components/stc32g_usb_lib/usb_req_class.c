@@ -16,7 +16,13 @@
 #include "util.h"
 
 
-LINECODING LineCoding;
+LINECODING LineCoding =
+{
+    115200UL,
+    0,
+    NONE_PARITY,
+    8
+};
 
 void usb_req_class()
 {
@@ -40,7 +46,10 @@ void usb_req_class()
 void usb_set_line_coding()
 {
     if ((DeviceState != DEVSTATE_CONFIGURED) ||
-        (Setup.bmRequestType != (OUT_DIRECT | CLASS_REQUEST | INTERFACE_RECIPIENT)))
+        (Setup.bmRequestType != (OUT_DIRECT | CLASS_REQUEST | INTERFACE_RECIPIENT)) ||
+        (Setup.wIndexH != 0) ||
+        (Setup.wIndexL != 0) ||
+        (Setup.wLength != sizeof(LINECODING)))
     {
         usb_setup_stall();
         return;
@@ -55,7 +64,10 @@ void usb_set_line_coding()
 void usb_get_line_coding()
 {
     if ((DeviceState != DEVSTATE_CONFIGURED) ||
-        (Setup.bmRequestType != (IN_DIRECT | CLASS_REQUEST | INTERFACE_RECIPIENT)))
+        (Setup.bmRequestType != (IN_DIRECT | CLASS_REQUEST | INTERFACE_RECIPIENT)) ||
+        (Setup.wIndexH != 0) ||
+        (Setup.wIndexL != 0) ||
+        (Setup.wLength != sizeof(LINECODING)))
     {
         usb_setup_stall();
         return;
@@ -70,7 +82,10 @@ void usb_get_line_coding()
 void usb_set_ctrl_line_state()
 {
     if ((DeviceState != DEVSTATE_CONFIGURED) ||
-        (Setup.bmRequestType != (OUT_DIRECT | CLASS_REQUEST | INTERFACE_RECIPIENT)))
+        (Setup.bmRequestType != (OUT_DIRECT | CLASS_REQUEST | INTERFACE_RECIPIENT)) ||
+        (Setup.wIndexH != 0) ||
+        (Setup.wIndexL != 0) ||
+        (Setup.wLength != 0))
     {
         usb_setup_stall();
         return;
@@ -83,8 +98,22 @@ void usb_uart_settings()
 {
     if (Setup.bRequest == SET_LINE_CODING)
     {
-        LineCoding.bCharFormat = 0;
-        LineCoding.bDataBits = 8;
+        if(LineCoding.dwDTERate == 0)
+        {
+            LineCoding.dwDTERate = 115200UL;
+        }
+        if(LineCoding.bCharFormat > 2)
+        {
+            LineCoding.bCharFormat = 0;
+        }
+        if(LineCoding.bParityType > SPACE_PARITY)
+        {
+            LineCoding.bParityType = NONE_PARITY;
+        }
+        if(LineCoding.bDataBits == 0)
+        {
+            LineCoding.bDataBits = 8;
+        }
         
 //        uart_set_parity(LineCoding.bParityType);
 //        uart_set_baud(reverse4(LineCoding.dwDTERate));

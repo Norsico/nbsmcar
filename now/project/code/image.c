@@ -397,11 +397,10 @@ static void image_target_laser_pit_handler(void)
     }
 }
 
-static void image_target_laser_start(uint8 center_x, uint8 center_y)
+static void image_target_laser_start(uint8 center_x)
 {
     gpio_pin_enum laser_pin;
 
-    (void)center_y;
     laser_pin = image_laser_pick_pin(center_x);
 
     interrupt_global_disable();
@@ -605,7 +604,7 @@ static void image_target_check(void)
         return;
     }
 
-    image_target_laser_start(TargetCenterX, TargetCenterY);
+    image_target_laser_start(TargetCenterX);
     buzzer_short();
     TargetFrameGap = 0;
 }

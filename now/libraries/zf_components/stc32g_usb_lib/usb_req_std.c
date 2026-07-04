@@ -385,6 +385,10 @@ void usb_get_descriptor()
             Ep0State.pData = PRODUCTDESC;
             Ep0State.wSize = sizeof(PRODUCTDESC);
             break;
+        case 3:
+            Ep0State.pData = SERIALDESC;
+            Ep0State.wSize = sizeof(SERIALDESC);
+            break;
         default:
             usb_setup_stall();
             return;
