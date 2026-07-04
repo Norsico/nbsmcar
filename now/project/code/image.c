@@ -51,17 +51,13 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_IRQ         (TIMER0_IRQn)
 #define IMAGE_TARGET_LASER_PRIORITY    (0)
 #define IMAGE_TARGET_LASER_PERIOD_US   (500)
-#define IMAGE_TARGET_LASER_FIRE_US     (3000)
 #define IMAGE_TARGET_FIRE_INTERVAL     (10)
 #define IMAGE_TARGET_SCAN_ROWS         (3)
 #define IMAGE_LASER_COUNT              (5)
 #define IMAGE_LASER_TEST_OFF           (0)
 #define IMAGE_LASER_TEST_ALL           (6)
-#define IMAGE_LASER_LEFT_2_COL         (12)
-#define IMAGE_LASER_LEFT_1_COL         (29)
-#define IMAGE_LASER_CENTER_COL         (39)
-#define IMAGE_LASER_RIGHT_1_COL        (49)
-#define IMAGE_LASER_RIGHT_2_COL        (67)
+#define IMAGE_TARGET_LASER_FIRE_US_MIN (200)
+#define IMAGE_TARGET_LASER_FIRE_US_MAX (20000)
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -248,15 +244,6 @@ static const gpio_pin_enum ImageLaserPins[IMAGE_LASER_COUNT] =
     LASER_RIGHT_2
 };
 
-static const uint8 ImageLaserAimCols[IMAGE_LASER_COUNT] =
-{
-    IMAGE_LASER_LEFT_2_COL,
-    IMAGE_LASER_LEFT_1_COL,
-    IMAGE_LASER_CENTER_COL,
-    IMAGE_LASER_RIGHT_1_COL,
-    IMAGE_LASER_RIGHT_2_COL
-};
-
 static gpio_pin_enum image_laser_pick_pin(uint8 center_x);
 
 static uint8 image_target_laser_test_mode(void)
@@ -319,9 +306,9 @@ static uint8 image_target_normalize_row(int16 row)
 
 static uint8 image_target_normalize_gap(int16 gap)
 {
-    if(gap < 1)
+    if(gap < 0)
     {
-        return 1;
+        return 0;
     }
     if(gap > 8)
     {
@@ -339,6 +326,60 @@ static uint8 image_target_normalize_laser_test(uint8 laser_test)
     }
 
     return laser_test;
+}
+
+static uint16 image_target_normalize_fire_us(int32 fire_us)
+{
+    if(fire_us < IMAGE_TARGET_LASER_FIRE_US_MIN)
+    {
+        return IMAGE_TARGET_LASER_FIRE_US_MIN;
+    }
+    if(fire_us > IMAGE_TARGET_LASER_FIRE_US_MAX)
+    {
+        return IMAGE_TARGET_LASER_FIRE_US_MAX;
+    }
+
+    return (uint16)fire_us;
+}
+
+static uint8 image_target_normalize_col(int16 col)
+{
+    if(col < 0)
+    {
+        return 0;
+    }
+    if(col > (IMAGE_W - 1))
+    {
+        return (IMAGE_W - 1);
+    }
+
+    return (uint8)col;
+}
+
+static void image_target_normalize_config(void)
+{
+    SmartCar.camera.laser_row = image_target_normalize_row(SmartCar.camera.laser_row);
+    SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
+    SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
+    SmartCar.camera.laser_fire_us = image_target_normalize_fire_us(SmartCar.camera.laser_fire_us);
+    SmartCar.camera.laser_left2_col = image_target_normalize_col(SmartCar.camera.laser_left2_col);
+    SmartCar.camera.laser_left1_col = image_target_normalize_col(SmartCar.camera.laser_left1_col);
+    SmartCar.camera.laser_center_col = image_target_normalize_col(SmartCar.camera.laser_center_col);
+    SmartCar.camera.laser_right1_col = image_target_normalize_col(SmartCar.camera.laser_right1_col);
+    SmartCar.camera.laser_right2_col = image_target_normalize_col(SmartCar.camera.laser_right2_col);
+    SmartCar.camera.laser_ui_test_col = image_target_normalize_col(SmartCar.camera.laser_ui_test_col);
+}
+
+static uint8 image_laser_get_aim_col(uint8 index)
+{
+    switch(index)
+    {
+        case 0: return SmartCar.camera.laser_left2_col;
+        case 1: return SmartCar.camera.laser_left1_col;
+        case 2: return SmartCar.camera.laser_center_col;
+        case 3: return SmartCar.camera.laser_right1_col;
+        default: return SmartCar.camera.laser_right2_col;
+    }
 }
 
 static void image_target_reset_result(void)
@@ -400,14 +441,16 @@ static void image_target_laser_pit_handler(void)
 static void image_target_laser_start(uint8 center_x)
 {
     gpio_pin_enum laser_pin;
+    uint16 fire_us;
 
     laser_pin = image_laser_pick_pin(center_x);
+    fire_us = image_target_normalize_fire_us(SmartCar.camera.laser_fire_us);
 
     interrupt_global_disable();
     image_laser_all_off();
     gpio_set_level(laser_pin, GPIO_HIGH);
-    /* 3ms 开火时长换算成 0.5ms 的定时器节拍数。 */
-    LaserTickLeft = (uint8)((IMAGE_TARGET_LASER_FIRE_US + IMAGE_TARGET_LASER_PERIOD_US - 1) /
+    /* 开火时长换算成 0.5ms 的定时器节拍数。 */
+    LaserTickLeft = (uint8)((fire_us + IMAGE_TARGET_LASER_PERIOD_US - 1) /
                             IMAGE_TARGET_LASER_PERIOD_US);
     LaserBusy = 1;
     image_target_laser_pit_start();
@@ -486,6 +529,7 @@ static void image_target_check(void)
 {
     uint8 base_row;
     uint8 gap;
+    uint8 scan_step;
     uint8 row;
     uint8 hit_count;
     uint8 first_hit_row;
@@ -499,7 +543,7 @@ static void image_target_check(void)
 
     image_target_reset_result();
 
-    if(CarMode != CAR_MODE_RUN)
+    if((CarMode != CAR_MODE_RUN) && (ui_is_debug() == 0))
     {
         return;
     }
@@ -511,6 +555,7 @@ static void image_target_check(void)
 
     gap = image_target_normalize_gap(SmartCar.camera.target_gap);
     SmartCar.camera.target_gap = gap;
+    scan_step = (uint8)(gap + 1);
     base_row = image_target_normalize_row(SmartCar.camera.laser_row);
     SmartCar.camera.laser_row = base_row;
 
@@ -520,10 +565,10 @@ static void image_target_check(void)
     left_x = ImageDeal[base_row].LeftBoundary;
     right_x = ImageDeal[base_row].RightBoundary;
 
-    /* 在基准行及其上方两行内做判定，行距由 UI 的 target gap 控制。 */
+    /* target gap 表示两条扫描线之间隔几行，所以实际步距 = gap + 1。 */
     for(row = 0; row < IMAGE_TARGET_SCAN_ROWS; row++)
     {
-        scan_row = (int16)base_row - (int16)row * (int16)gap;
+        scan_row = (int16)base_row - (int16)row * (int16)scan_step;
         if(scan_row < 1)
         {
             break;
@@ -562,8 +607,8 @@ static void image_target_check(void)
         }
     }
 
-    /* 三行里命中两行，就认为靶子成立。 */
-    if(hit_count < 2)
+    /* 三行里任意命中一行，就认为靶子成立。 */
+    if(hit_count < 1)
     {
         if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
         {
@@ -630,6 +675,7 @@ static const uint8 Half_Road_Wide[IMAGE_H] =
 static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
 {
     uint8 i;
+    uint8 aim_col;
     uint8 index;
     uint8 best_distance;
     uint8 distance;
@@ -639,9 +685,10 @@ static gpio_pin_enum image_laser_pick_pin(uint8 center_x)
 
     for(i = 0; i < IMAGE_LASER_COUNT; i++)
     {
-        distance = (center_x > ImageLaserAimCols[i]) ?
-                   (uint8)(center_x - ImageLaserAimCols[i]) :
-                   (uint8)(ImageLaserAimCols[i] - center_x);
+        aim_col = image_laser_get_aim_col(i);
+        distance = (center_x > aim_col) ?
+                   (uint8)(center_x - aim_col) :
+                   (uint8)(aim_col - center_x);
         if(distance < best_distance)
         {
             best_distance = distance;
@@ -825,6 +872,8 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
     uint8 scan_idx;
     uint8 base_row;
     uint8 gap;
+    uint8 scan_step;
+    uint8 ui_test_col;
     int16 scan_row;
     uint16 draw_x;
     uint16 draw_y;
@@ -867,11 +916,19 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
         ips200_draw_point(draw_x, tow_y, RGB565_YELLOW);
     }
 
+    ui_test_col = image_target_normalize_col(SmartCar.camera.laser_ui_test_col);
+    draw_x = image_debug_x(x, w, ui_test_col);
+    for(draw_y = y; draw_y < (uint16)(y + h); draw_y++)
+    {
+        ips200_draw_point(draw_x, draw_y, RGB565_PINK);
+    }
+
     base_row = image_target_normalize_row(SmartCar.camera.laser_row);
     gap = image_target_normalize_gap(SmartCar.camera.target_gap);
+    scan_step = (uint8)(gap + 1);
     for(scan_idx = 0; scan_idx < IMAGE_TARGET_SCAN_ROWS; scan_idx++)
     {
-        scan_row = (int16)base_row - (int16)scan_idx * (int16)gap;
+        scan_row = (int16)base_row - (int16)scan_idx * (int16)scan_step;
         if(scan_row < 0)
         {
             break;
@@ -926,9 +983,7 @@ void image_apply_camera(void)
     config[8][0] = MT9V03X_GAIN;
     config[8][1] = SmartCar.camera.gain;
 
-    SmartCar.camera.laser_row = image_target_normalize_row(SmartCar.camera.laser_row);
-    SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
-    SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
+    image_target_normalize_config();
 
     mt9v03x_sccb_set_config(config);
 }
@@ -976,6 +1031,7 @@ void image_init(void)
     LaserTestLast = 0;
     LaserPitInit = 0;
     LaserTickLeft = 0;
+    image_target_normalize_config();
 
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
     gpio_init(LASER_LEFT_2, GPO, GPIO_LOW, GPO_PUSH_PULL);
@@ -3372,6 +3428,7 @@ static void image_process(void)
  */
 void image_update(void)
 {
+    image_target_normalize_config();
     image_target_update_laser_mode();
 
     if(Image.ready == 0)
@@ -3392,7 +3449,7 @@ void image_update(void)
     {
         ImageLostCount = 0;
         ImageRunFrameCount = 0;
-        if(image_target_laser_test_mode() == IMAGE_LASER_TEST_OFF)
+        if((ui_is_debug() == 0) && (image_target_laser_test_mode() == IMAGE_LASER_TEST_OFF))
         {
             LaserBusy = 0;
             LaserTickLeft = 0;

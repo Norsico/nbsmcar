@@ -2,7 +2,7 @@
 
 #define FLASH_PARA_ADDR             (0x0000)
 #define FLASH_PARA_MAGIC            (0x5343)
-#define FLASH_PARA_VERSION          (1)
+#define FLASH_PARA_VERSION          (2)
 
 typedef struct
 {

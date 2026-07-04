@@ -9,6 +9,7 @@ typedef enum
     UI_PAGE_SERVO,
     UI_PAGE_MOTOR,
     UI_PAGE_CAMERA,
+    UI_PAGE_LASER,
     UI_PAGE_DEBUG
 } ui_page;
 
@@ -25,6 +26,9 @@ typedef enum
 #define UI_ROW_H                     (16)  //控制每行 y 间距
 #define UI_NAME_X                    (16)  //控制名字 x 位置
 #define UI_VALUE_X                   (144) //控制数据 x 位置
+#define UI_LASER_TEST_MAX            (6)
+#define UI_LASER_FIRE_US_MIN         (200)
+#define UI_LASER_FIRE_US_MAX         (20000)
 
 // ==========================================
 // 2. 数据驱动 UI 核心结构体定义 
@@ -81,16 +85,35 @@ static const ui_param_t motor_params[] = {
     {"fan en",   &SmartCar.motor.fan_en,         VAL_TYPE_UINT8,  1},
 };
 
-static const uint8 camera_laser_test_index = 5;
+#define UI_LASER_PAGE_TEST_INDEX        (0)
+#define UI_LASER_PAGE_FIRE_US_INDEX     (1)
+#define UI_LASER_PAGE_LEFT2_INDEX       (2)
+#define UI_LASER_PAGE_LEFT1_INDEX       (3)
+#define UI_LASER_PAGE_CENTER_INDEX      (4)
+#define UI_LASER_PAGE_RIGHT1_INDEX      (5)
+#define UI_LASER_PAGE_RIGHT2_INDEX      (6)
+#define UI_LASER_PAGE_UI_TEST_INDEX     (7)
+#define UI_LASER_PAGE_GAP_INDEX         (8)
+#define UI_LASER_PAGE_ROW_INDEX         (9)
 
 // Camera 菜单配置
 static const ui_param_t camera_params[] = {
-    {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
+    {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_UINT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
     {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
-    {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
-    {"target gap",&SmartCar.camera.target_gap,       VAL_TYPE_UINT8,  1},
+};
+
+static const ui_param_t laser_params[] = {
     {"laser test",&SmartCar.camera.laser_test,       VAL_TYPE_UINT8,  1},
+    {"laser us",  &SmartCar.camera.laser_fire_us,    VAL_TYPE_UINT16, 200},
+    {"left2",     &SmartCar.camera.laser_left2_col,  VAL_TYPE_UINT8,  1},
+    {"left1",     &SmartCar.camera.laser_left1_col,  VAL_TYPE_UINT8,  1},
+    {"center",    &SmartCar.camera.laser_center_col, VAL_TYPE_UINT8,  1},
+    {"right1",    &SmartCar.camera.laser_right1_col, VAL_TYPE_UINT8,  1},
+    {"right2",    &SmartCar.camera.laser_right2_col, VAL_TYPE_UINT8,  1},
+    {"laser ui test",&SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
+    {"laser gap num",&SmartCar.camera.target_gap,    VAL_TYPE_UINT8,  1},
+    {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
 };
 
 // 页面路由汇总表
@@ -98,11 +121,12 @@ static const ui_menu_t menu_pages[] = {
     {"Servo",  servo_params,  (uint8)(sizeof(servo_params) / sizeof(servo_params[0]))},
     {"Motor",  motor_params,  (uint8)(sizeof(motor_params) / sizeof(motor_params[0]))},
     {"Camera", camera_params, (uint8)(sizeof(camera_params) / sizeof(camera_params[0]))},
+    {"Laser",  laser_params,  (uint8)(sizeof(laser_params) / sizeof(laser_params[0]))},
 };
 
 // 主页菜单名字配置
-static const char* main_menu_names[] = {"Servo", "Motor", "Camera", "Debug"};
-#define MAIN_MENU_COUNT 4
+static const char* main_menu_names[] = {"Servo", "Motor", "Camera", "Laser", "Debug"};
+#define MAIN_MENU_COUNT 5
 
 // ==========================================
 // 4. 全局状态变量
@@ -121,7 +145,7 @@ uint8 ui_is_debug(void)
 
 uint8 ui_is_laser_test_active(void)
 {
-    return (UiPage == UI_PAGE_CAMERA) ? 1 : 0;
+    return (UiPage == UI_PAGE_LASER) ? 1 : 0;
 }
 
 // ==========================================
@@ -206,48 +230,108 @@ static uint8 get_current_page_item_count(void)
     if(UiPage == UI_PAGE_MAIN) {
         return (uint8)MAIN_MENU_COUNT;
     }
-    if((UiPage >= UI_PAGE_SERVO) && (UiPage <= UI_PAGE_CAMERA)) {
+    if((UiPage >= UI_PAGE_SERVO) && (UiPage <= UI_PAGE_LASER)) {
         return menu_pages[UiPage - UI_PAGE_SERVO].param_count;
     }
     return 0;
+}
+
+static int32 ui_get_unsigned_min(void)
+{
+    if(UiPage == UI_PAGE_LASER)
+    {
+        if(UiSelect == UI_LASER_PAGE_FIRE_US_INDEX)
+        {
+            return UI_LASER_FIRE_US_MIN;
+        }
+        if(UiSelect == UI_LASER_PAGE_GAP_INDEX)
+        {
+            return 0;
+        }
+        if(UiSelect == UI_LASER_PAGE_ROW_INDEX)
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static int32 ui_get_unsigned_max(const ui_param_t *p)
+{
+    int32 value_max;
+
+    value_max = (p->type == VAL_TYPE_UINT8) ? 255 : 65535L;
+
+    if(UiPage == UI_PAGE_LASER)
+    {
+        if(UiSelect == UI_LASER_PAGE_TEST_INDEX)
+        {
+            return UI_LASER_TEST_MAX;
+        }
+        if(UiSelect == UI_LASER_PAGE_FIRE_US_INDEX)
+        {
+            return UI_LASER_FIRE_US_MAX;
+        }
+        if((UiSelect == UI_LASER_PAGE_LEFT2_INDEX) ||
+           (UiSelect == UI_LASER_PAGE_LEFT1_INDEX) ||
+           (UiSelect == UI_LASER_PAGE_CENTER_INDEX) ||
+           (UiSelect == UI_LASER_PAGE_RIGHT1_INDEX) ||
+           (UiSelect == UI_LASER_PAGE_RIGHT2_INDEX) ||
+           (UiSelect == UI_LASER_PAGE_UI_TEST_INDEX))
+        {
+            return (IMAGE_W - 1);
+        }
+        if(UiSelect == UI_LASER_PAGE_GAP_INDEX)
+        {
+            return 8;
+        }
+        if(UiSelect == UI_LASER_PAGE_ROW_INDEX)
+        {
+            return (IMAGE_H - 2);
+        }
+    }
+
+    return value_max;
 }
 
 static void ui_change_current_value(int8 dir)
 {
     const ui_param_t *p;
     int16 change;
+    int32 value;
+    int32 value_min;
+    int32 value_max;
 
-    if((UiPage < UI_PAGE_SERVO) || (UiPage > UI_PAGE_CAMERA)) {
+    if((UiPage < UI_PAGE_SERVO) || (UiPage > UI_PAGE_LASER)) {
         return;
     }
 
     p = &menu_pages[UiPage - UI_PAGE_SERVO].params[UiSelect];
     change = (int16)(p->step * dir);
 
-    if((UiPage == UI_PAGE_CAMERA) && (UiSelect == camera_laser_test_index))
-    {
-        int16 value = (int16)(*(uint8*)p->val_ptr + change);
-
-        if(value < 0)
-        {
-            value = 0;
-        }
-        else if(value > 6)
-        {
-            value = 6;
-        }
-
-        *(uint8*)p->val_ptr = (uint8)value;
-        return;
-    }
-
     // 根据数据类型，正确转换指针并加上偏移量
     switch(p->type) {
-        case VAL_TYPE_INT16:  *(int16*)p->val_ptr  = (int16)(*(int16*)p->val_ptr + change); break;
-        case VAL_TYPE_UINT16: *(uint16*)p->val_ptr = (uint16)((int16)*(uint16*)p->val_ptr + change); break;
-        case VAL_TYPE_UINT8:  *(uint8*)p->val_ptr  = (uint8)((int16)*(uint8*)p->val_ptr + change); break;
+        case VAL_TYPE_INT16:
+            *(int16*)p->val_ptr = (int16)(*(int16*)p->val_ptr + change);
+            break;
+        case VAL_TYPE_UINT16:
+            value = (int32)(*(uint16*)p->val_ptr) + change;
+            value_min = ui_get_unsigned_min();
+            value_max = ui_get_unsigned_max(p);
+            if(value < value_min) value = value_min;
+            if(value > value_max) value = value_max;
+            *(uint16*)p->val_ptr = (uint16)value;
+            break;
+        case VAL_TYPE_UINT8:
+            value = (int32)(*(uint8*)p->val_ptr) + change;
+            value_min = ui_get_unsigned_min();
+            value_max = ui_get_unsigned_max(p);
+            if(value < value_min) value = value_min;
+            if(value > value_max) value = value_max;
+            *(uint8*)p->val_ptr = (uint8)value;
+            break;
     }
-
 }
 
 static void ui_show_current_value(const ui_param_t *p, uint16 y) 
@@ -422,7 +506,7 @@ static void ui_show(void)
     if (UiPage == UI_PAGE_MAIN) {
         ui_show_main();
     } 
-    else if (UiPage >= UI_PAGE_SERVO && UiPage <= UI_PAGE_CAMERA) {
+    else if (UiPage >= UI_PAGE_SERVO && UiPage <= UI_PAGE_LASER) {
         ui_show_generic_page(UiPage);
     } 
 }

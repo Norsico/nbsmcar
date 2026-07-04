@@ -27,6 +27,13 @@
 #define CAMERA_LASER_ROW           (50)
 #define CAMERA_TARGET_GAP          (2)
 #define CAMERA_LASER_TEST          (0)
+#define CAMERA_LASER_FIRE_US       (3000)
+#define CAMERA_LASER_LEFT2_COL     (12)
+#define CAMERA_LASER_LEFT1_COL     (29)
+#define CAMERA_LASER_CENTER_COL    (39)
+#define CAMERA_LASER_RIGHT1_COL    (49)
+#define CAMERA_LASER_RIGHT2_COL    (67)
+#define CAMERA_LASER_UI_TEST_COL   (39)
 #define CAMERA_THRESHOLD_OFFSET    (0)
 
 /*硬件配置，修改设置*/
@@ -160,6 +167,13 @@ typedef struct
     uint8 laser_row;
     uint8 target_gap;
     uint8 laser_test;
+    uint16 laser_fire_us;
+    uint8 laser_left2_col;
+    uint8 laser_left1_col;
+    uint8 laser_center_col;
+    uint8 laser_right1_col;
+    uint8 laser_right2_col;
+    uint8 laser_ui_test_col;
 } camera_para;
 
 typedef struct
