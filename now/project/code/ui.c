@@ -29,6 +29,11 @@ typedef enum
 #define UI_LASER_TEST_MAX            (6)
 #define UI_LASER_FIRE_US_MIN         (200)
 #define UI_LASER_FIRE_US_MAX         (20000)
+#define UI_LASER_TEST_INDEX          (0)
+#define UI_LASER_FIRE_US_INDEX       (1)
+#define UI_LASER_UI_TEST_INDEX       (7)
+#define UI_LASER_GAP_INDEX           (8)
+#define UI_LASER_ROW_INDEX           (9)
 
 // ==========================================
 // 2. 数据驱动 UI 核心结构体定义 
@@ -85,20 +90,9 @@ static const ui_param_t motor_params[] = {
     {"fan en",   &SmartCar.motor.fan_en,         VAL_TYPE_UINT8,  1},
 };
 
-#define UI_LASER_PAGE_TEST_INDEX        (0)
-#define UI_LASER_PAGE_FIRE_US_INDEX     (1)
-#define UI_LASER_PAGE_LEFT2_INDEX       (2)
-#define UI_LASER_PAGE_LEFT1_INDEX       (3)
-#define UI_LASER_PAGE_CENTER_INDEX      (4)
-#define UI_LASER_PAGE_RIGHT1_INDEX      (5)
-#define UI_LASER_PAGE_RIGHT2_INDEX      (6)
-#define UI_LASER_PAGE_UI_TEST_INDEX     (7)
-#define UI_LASER_PAGE_GAP_INDEX         (8)
-#define UI_LASER_PAGE_ROW_INDEX         (9)
-
 // Camera 菜单配置
 static const ui_param_t camera_params[] = {
-    {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_UINT16, 10},
+    {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
     {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
 };
@@ -111,8 +105,8 @@ static const ui_param_t laser_params[] = {
     {"center",    &SmartCar.camera.laser_center_col, VAL_TYPE_UINT8,  1},
     {"right1",    &SmartCar.camera.laser_right1_col, VAL_TYPE_UINT8,  1},
     {"right2",    &SmartCar.camera.laser_right2_col, VAL_TYPE_UINT8,  1},
-    {"laser ui test",&SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
-    {"laser gap num",&SmartCar.camera.target_gap,    VAL_TYPE_UINT8,  1},
+    {"laser ui",  &SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
+    {"gap num",   &SmartCar.camera.target_gap,       VAL_TYPE_UINT8,  1},
     {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
 };
 
@@ -236,72 +230,10 @@ static uint8 get_current_page_item_count(void)
     return 0;
 }
 
-static int32 ui_get_unsigned_min(void)
-{
-    if(UiPage == UI_PAGE_LASER)
-    {
-        if(UiSelect == UI_LASER_PAGE_FIRE_US_INDEX)
-        {
-            return UI_LASER_FIRE_US_MIN;
-        }
-        if(UiSelect == UI_LASER_PAGE_GAP_INDEX)
-        {
-            return 0;
-        }
-        if(UiSelect == UI_LASER_PAGE_ROW_INDEX)
-        {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-static int32 ui_get_unsigned_max(const ui_param_t *p)
-{
-    int32 value_max;
-
-    value_max = (p->type == VAL_TYPE_UINT8) ? 255 : 65535L;
-
-    if(UiPage == UI_PAGE_LASER)
-    {
-        if(UiSelect == UI_LASER_PAGE_TEST_INDEX)
-        {
-            return UI_LASER_TEST_MAX;
-        }
-        if(UiSelect == UI_LASER_PAGE_FIRE_US_INDEX)
-        {
-            return UI_LASER_FIRE_US_MAX;
-        }
-        if((UiSelect == UI_LASER_PAGE_LEFT2_INDEX) ||
-           (UiSelect == UI_LASER_PAGE_LEFT1_INDEX) ||
-           (UiSelect == UI_LASER_PAGE_CENTER_INDEX) ||
-           (UiSelect == UI_LASER_PAGE_RIGHT1_INDEX) ||
-           (UiSelect == UI_LASER_PAGE_RIGHT2_INDEX) ||
-           (UiSelect == UI_LASER_PAGE_UI_TEST_INDEX))
-        {
-            return (IMAGE_W - 1);
-        }
-        if(UiSelect == UI_LASER_PAGE_GAP_INDEX)
-        {
-            return 8;
-        }
-        if(UiSelect == UI_LASER_PAGE_ROW_INDEX)
-        {
-            return (IMAGE_H - 2);
-        }
-    }
-
-    return value_max;
-}
-
 static void ui_change_current_value(int8 dir)
 {
     const ui_param_t *p;
     int16 change;
-    int32 value;
-    int32 value_min;
-    int32 value_max;
 
     if((UiPage < UI_PAGE_SERVO) || (UiPage > UI_PAGE_LASER)) {
         return;
@@ -310,28 +242,63 @@ static void ui_change_current_value(int8 dir)
     p = &menu_pages[UiPage - UI_PAGE_SERVO].params[UiSelect];
     change = (int16)(p->step * dir);
 
+    if(UiPage == UI_PAGE_LASER)
+    {
+        int16 value;
+
+        if(UiSelect == UI_LASER_TEST_INDEX)
+        {
+            value = (int16)SmartCar.camera.laser_test + change;
+            if(value < 0) value = 0;
+            if(value > UI_LASER_TEST_MAX) value = UI_LASER_TEST_MAX;
+            SmartCar.camera.laser_test = (uint8)value;
+            return;
+        }
+
+        if(UiSelect == UI_LASER_FIRE_US_INDEX)
+        {
+            value = (int16)SmartCar.camera.laser_fire_us + change;
+            if(value < UI_LASER_FIRE_US_MIN) value = UI_LASER_FIRE_US_MIN;
+            if(value > UI_LASER_FIRE_US_MAX) value = UI_LASER_FIRE_US_MAX;
+            SmartCar.camera.laser_fire_us = (uint16)value;
+            return;
+        }
+
+        if(UiSelect == UI_LASER_ROW_INDEX)
+        {
+            value = (int16)SmartCar.camera.laser_row + change;
+            if(value < 1) value = 1;
+            if(value > (IMAGE_H - 2)) value = (IMAGE_H - 2);
+            SmartCar.camera.laser_row = (uint8)value;
+            return;
+        }
+
+        if(UiSelect == UI_LASER_GAP_INDEX)
+        {
+            value = (int16)SmartCar.camera.target_gap + change;
+            if(value < 0) value = 0;
+            if(value > 8) value = 8;
+            SmartCar.camera.target_gap = (uint8)value;
+            return;
+        }
+
+        if((UiSelect >= 2) && (UiSelect <= UI_LASER_UI_TEST_INDEX))
+        {
+            value = (int16)(*(uint8*)p->val_ptr + change);
+            if(value < 0) value = 0;
+            if(value > (IMAGE_W - 1)) value = (IMAGE_W - 1);
+            *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+    }
+
     // 根据数据类型，正确转换指针并加上偏移量
     switch(p->type) {
-        case VAL_TYPE_INT16:
-            *(int16*)p->val_ptr = (int16)(*(int16*)p->val_ptr + change);
-            break;
-        case VAL_TYPE_UINT16:
-            value = (int32)(*(uint16*)p->val_ptr) + change;
-            value_min = ui_get_unsigned_min();
-            value_max = ui_get_unsigned_max(p);
-            if(value < value_min) value = value_min;
-            if(value > value_max) value = value_max;
-            *(uint16*)p->val_ptr = (uint16)value;
-            break;
-        case VAL_TYPE_UINT8:
-            value = (int32)(*(uint8*)p->val_ptr) + change;
-            value_min = ui_get_unsigned_min();
-            value_max = ui_get_unsigned_max(p);
-            if(value < value_min) value = value_min;
-            if(value > value_max) value = value_max;
-            *(uint8*)p->val_ptr = (uint8)value;
-            break;
+        case VAL_TYPE_INT16:  *(int16*)p->val_ptr  = (int16)(*(int16*)p->val_ptr + change); break;
+        case VAL_TYPE_UINT16: *(uint16*)p->val_ptr = (uint16)((int16)*(uint16*)p->val_ptr + change); break;
+        case VAL_TYPE_UINT8:  *(uint8*)p->val_ptr  = (uint8)((int16)*(uint8*)p->val_ptr + change); break;
     }
+
 }
 
 static void ui_show_current_value(const ui_param_t *p, uint16 y) 
