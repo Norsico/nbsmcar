@@ -53,13 +53,13 @@ static void servo_update_motor_target(void)
 
     if(speed_delta <= 0)
     {
-        Motor.target_left = speed + speed_delta;
-		Motor.target_right = speed;
+        Motor.target_left = speed + speed_delta/2;
+		Motor.target_right = speed - speed_delta/2;
     }
     else if(speed_delta > 0)
     {
-        Motor.target_right = speed- speed_delta ;
-		Motor.target_left = speed;
+        Motor.target_right = speed - speed_delta/2;
+		Motor.target_left = speed + speed_delta/2;
     }
 }
 
