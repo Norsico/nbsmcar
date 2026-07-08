@@ -31,7 +31,7 @@ static void servo_update_motor_target(void)
     /* 速度选择：坡道降速 > 长直道加速 > 环岛减速 > 正常速度 */
     if(Image.is_ramp)
     {
-        speed = 150;  /* 坡道固定速度150（防止飞起来）*/
+        speed = SmartCar.motor.ramp_speed;
     }
     else if(Image.is_long_straight && (Image.ring == 0))
     {
@@ -53,13 +53,13 @@ static void servo_update_motor_target(void)
 
     if(speed_delta <= 0)
     {
-        Motor.target_left = speed + speed_delta/2;
-		Motor.target_right = speed - speed_delta/2;
+        Motor.target_left = speed + speed_delta;
+		Motor.target_right = speed;
     }
     else if(speed_delta > 0)
     {
-        Motor.target_right = speed - speed_delta/2;
-		Motor.target_left = speed + speed_delta/2;
+        Motor.target_right = speed- speed_delta ;
+		Motor.target_left = speed;
     }
 }
 
@@ -116,4 +116,3 @@ void servo_update(void)
 
     servo_update_motor_target();
 }
-

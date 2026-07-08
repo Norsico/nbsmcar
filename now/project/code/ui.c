@@ -10,6 +10,7 @@ typedef enum
     UI_PAGE_MOTOR,
     UI_PAGE_CAMERA,
     UI_PAGE_LASER,
+    UI_PAGE_OTHER,
     UI_PAGE_DEBUG
 } ui_page;
 
@@ -34,6 +35,10 @@ typedef enum
 #define UI_LASER_UI_TEST_INDEX       (7)
 #define UI_LASER_GAP_INDEX           (8)
 #define UI_LASER_ROW_INDEX           (9)
+#define UI_LASER_ROW_ST_INDEX        (10)
+#define UI_OTHER_LAP_INDEX           (0)
+#define UI_OTHER_LAP_MIN             (1)
+#define UI_OTHER_LAP_MAX             (9)
 
 // ==========================================
 // 2. 数据驱动 UI 核心结构体定义 
@@ -72,8 +77,8 @@ static const ui_param_t servo_params[] = {
     {"imu d",    &SmartCar.servo.imu_d,         VAL_TYPE_INT16, 1},
     {"ackerman", &SmartCar.servo.ackerman,      VAL_TYPE_INT16, 10},
     {"point",    &SmartCar.servo.tow_point,     VAL_TYPE_INT16, 1},
-    {"in r pt",  &SmartCar.servo.in_ring_point,  VAL_TYPE_INT16, 1},
-    {"out r pt", &SmartCar.servo.out_ring_point, VAL_TYPE_INT16, 1},
+    {"in r point",  &SmartCar.servo.in_ring_point,  VAL_TYPE_INT16, 1},
+    {"out r point", &SmartCar.servo.out_ring_point, VAL_TYPE_INT16, 1},
 };
 
 // Motor 菜单配置
@@ -85,6 +90,7 @@ static const ui_param_t motor_params[] = {
     {"target",   &SmartCar.motor.target_speed,   VAL_TYPE_INT16, 10},
     {"straight", &SmartCar.motor.straight_speed, VAL_TYPE_INT16, 10},
     {"ring",     &SmartCar.motor.ring_speed,     VAL_TYPE_INT16, 10},
+    {"ramp",     &SmartCar.motor.ramp_speed,     VAL_TYPE_INT16, 10},
     {"fan",      &SmartCar.motor.fan_duty,       VAL_TYPE_INT16, 5},
     {"fan st",   &SmartCar.motor.fan_straight_duty, VAL_TYPE_INT16, 5},
     {"fan en",   &SmartCar.motor.fan_en,         VAL_TYPE_UINT8,  1},
@@ -108,19 +114,25 @@ static const ui_param_t laser_params[] = {
     {"laser ui",  &SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
     {"gap num",   &SmartCar.camera.target_gap,       VAL_TYPE_UINT8,  1},
     {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
+    {"laser row st",&SmartCar.camera.laser_row_st,   VAL_TYPE_UINT8,  1},
 };
 
+static const ui_param_t other_params[] = {
+    {"lap count", &SmartCar.other.lap_count,          VAL_TYPE_UINT8,  1},
+};
+	
 // 页面路由汇总表
 static const ui_menu_t menu_pages[] = {
     {"Servo",  servo_params,  (uint8)(sizeof(servo_params) / sizeof(servo_params[0]))},
     {"Motor",  motor_params,  (uint8)(sizeof(motor_params) / sizeof(motor_params[0]))},
     {"Camera", camera_params, (uint8)(sizeof(camera_params) / sizeof(camera_params[0]))},
     {"Laser",  laser_params,  (uint8)(sizeof(laser_params) / sizeof(laser_params[0]))},
+    {"Other",  other_params,  (uint8)(sizeof(other_params) / sizeof(other_params[0]))},
 };
-
+	
 // 主页菜单名字配置
-static const char* main_menu_names[] = {"Servo", "Motor", "Camera", "Laser", "Debug"};
-#define MAIN_MENU_COUNT 5
+static const char* main_menu_names[] = {"Servo", "Motor", "Camera", "Laser", "Other", "Debug"};
+#define MAIN_MENU_COUNT 6
 
 // ==========================================
 // 4. 全局状态变量
@@ -224,7 +236,7 @@ static uint8 get_current_page_item_count(void)
     if(UiPage == UI_PAGE_MAIN) {
         return (uint8)MAIN_MENU_COUNT;
     }
-    if((UiPage >= UI_PAGE_SERVO) && (UiPage <= UI_PAGE_LASER)) {
+    if((UiPage >= UI_PAGE_SERVO) && (UiPage <= UI_PAGE_OTHER)) {
         return menu_pages[UiPage - UI_PAGE_SERVO].param_count;
     }
     return 0;
@@ -235,7 +247,7 @@ static void ui_change_current_value(int8 dir)
     const ui_param_t *p;
     int16 change;
 
-    if((UiPage < UI_PAGE_SERVO) || (UiPage > UI_PAGE_LASER)) {
+    if((UiPage < UI_PAGE_SERVO) || (UiPage > UI_PAGE_OTHER)) {
         return;
     }
 
@@ -264,12 +276,12 @@ static void ui_change_current_value(int8 dir)
             return;
         }
 
-        if(UiSelect == UI_LASER_ROW_INDEX)
+        if((UiSelect == UI_LASER_ROW_INDEX) || (UiSelect == UI_LASER_ROW_ST_INDEX))
         {
-            value = (int16)SmartCar.camera.laser_row + change;
+            value = (int16)(*(uint8*)p->val_ptr) + change;
             if(value < 1) value = 1;
             if(value > (IMAGE_H - 2)) value = (IMAGE_H - 2);
-            SmartCar.camera.laser_row = (uint8)value;
+            *(uint8*)p->val_ptr = (uint8)value;
             return;
         }
 
@@ -288,6 +300,20 @@ static void ui_change_current_value(int8 dir)
             if(value < 0) value = 0;
             if(value > (IMAGE_W - 1)) value = (IMAGE_W - 1);
             *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+    }
+
+    if(UiPage == UI_PAGE_OTHER)
+    {
+        int16 value;
+
+        if(UiSelect == UI_OTHER_LAP_INDEX)
+        {
+            value = (int16)SmartCar.other.lap_count + change;
+            if(value < UI_OTHER_LAP_MIN) value = UI_OTHER_LAP_MIN;
+            if(value > UI_OTHER_LAP_MAX) value = UI_OTHER_LAP_MAX;
+            SmartCar.other.lap_count = (uint8)value;
             return;
         }
     }
@@ -473,7 +499,7 @@ static void ui_show(void)
     if (UiPage == UI_PAGE_MAIN) {
         ui_show_main();
     } 
-    else if (UiPage >= UI_PAGE_SERVO && UiPage <= UI_PAGE_LASER) {
+    else if (UiPage >= UI_PAGE_SERVO && UiPage <= UI_PAGE_OTHER) {
         ui_show_generic_page(UiPage);
     } 
 }

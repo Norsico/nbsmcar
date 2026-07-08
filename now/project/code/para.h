@@ -4,35 +4,39 @@
 #include "headfile.h"
 
 /*软件参数，修改设置*/
-#define SERVO_KP                   (106)
-#define SERVO_KD                   (60)
-#define SERVO_ERR2_K               (16)
-#define SERVO_IMU_D                (14)
+#define SERVO_KP                   (116)
+#define SERVO_KD                   (270)
+#define SERVO_ERR2_K               (28)
+#define SERVO_IMU_D                (18)
 #define SERVO_ACKERMAN             (1400)
-#define SERVO_POINT                (19)
-#define SERVO_IN_RING_POINT        (20)
-#define SERVO_OUT_RING_POINT       (20)
+#define SERVO_POINT                (28)
+#define SERVO_IN_RING_POINT        (25)
+#define SERVO_OUT_RING_POINT       (25)
 
 #define MOTOR_TARGET_SPEED         (230)
 #define MOTOR_STRAIGHT_SPEED       (230)
 #define MOTOR_RING_SPEED           (210)
+#define MOTOR_RAMP_SPEED           (150)
 #define MOTOR_LEFT_KP              (50)
 #define MOTOR_LEFT_KI              (5)
 #define MOTOR_RIGHT_KP             (50)
 #define MOTOR_RIGHT_KI             (5)
-#define FAN_DUTY                   (75)
-#define FAN_STRAIGHT_DUTY          (75)  /* 直道风扇档位（降低下压力） */
+#define FAN_DUTY                   (85)
+#define FAN_STRAIGHT_DUTY          (85)  /* 直道风扇档位（降低下压力） */
 #define FAN_ENABLE                 (1)   /* 0=关闭风扇，1=开启风扇 */
 
-#define CAMERA_LASER_ROW           (50)
-#define CAMERA_TARGET_GAP          (2)
+#define OTHER_LAP_COUNT            (1)
+
+#define CAMERA_LASER_ROW           (52)
+#define CAMERA_LASER_ROW_ST        (55)
+#define CAMERA_TARGET_GAP          (1)
 #define CAMERA_LASER_TEST          (0)
-#define CAMERA_LASER_FIRE_US       (3000)
-#define CAMERA_LASER_LEFT2_COL     (12)
-#define CAMERA_LASER_LEFT1_COL     (29)
+#define CAMERA_LASER_FIRE_US       (4500)
+#define CAMERA_LASER_LEFT2_COL     (23)
+#define CAMERA_LASER_LEFT1_COL     (31)
 #define CAMERA_LASER_CENTER_COL    (39)
-#define CAMERA_LASER_RIGHT1_COL    (49)
-#define CAMERA_LASER_RIGHT2_COL    (67)
+#define CAMERA_LASER_RIGHT1_COL    (47)
+#define CAMERA_LASER_RIGHT2_COL    (55)
 #define CAMERA_LASER_UI_TEST_COL   (39)
 #define CAMERA_THRESHOLD_OFFSET    (0)
 
@@ -150,6 +154,7 @@ typedef struct
     int16 target_speed;
     int16 straight_speed;
     int16 ring_speed;
+    int16 ramp_speed;
     int16 left_kp;
     int16 left_ki;
     int16 right_kp;
@@ -165,6 +170,7 @@ typedef struct
     uint8 gain;
     uint8 threshold_offset;
     uint8 laser_row;
+    uint8 laser_row_st;
     uint8 target_gap;
     uint8 laser_test;
     uint16 laser_fire_us;
@@ -178,9 +184,15 @@ typedef struct
 
 typedef struct
 {
+    uint8 lap_count;
+} other_para;
+	
+typedef struct
+{
     servo_para servo;
     motor_para motor;
     camera_para camera;
+    other_para other;
 } car_para;
 
 extern car_para SmartCar;

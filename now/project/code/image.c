@@ -30,34 +30,43 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_COMPRESS_SRC_W           (MT9V03X_W - (IMAGE_COMPRESS_CUT_COL * 2))
 
 /* 阈值和检测参数 */
-#define IMAGE_THRESHOLD_DETACH         (150)   /* 大津法扫描上限（防止过亮区域干扰） */
-#define IMAGE_THRESHOLD_STATIC         (40)    /* 二值化阈值下限（保证最小对比度） */
-#define IMAGE_STOP_RAW_THRESHOLD       (25)    /* 原始阈值低于此值判定为丢线 */
+#define IMAGE_THRESHOLD_DETACH         (200)   /* 大津法扫描上限（防止过亮区域干扰） */
+#define IMAGE_THRESHOLD_STATIC         (20)    /* 二值化阈值下限（保证最小对比度） */
+#define IMAGE_STOP_RAW_THRESHOLD       (15)    /* 原始阈值低于此值判定为丢线 */
 #define IMAGE_OFFLINE_INIT             (2)     /* 初始有效行起始位置 */
 #define IMAGE_SCAN_INTERVAL            (3)     /* 边线搜索时上下行的搜索范围 */
 
 /* 斑马线检测参数 */
 #define IMAGE_ZEBRA_MISS_COUNT         (3)     /* 斑马线消失多少帧后解锁 */
 #define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)    /* 两次斑马线检测之间的冷却帧数 */
-#define IMAGE_ZEBRA_EDGE_MIN           (4)     /* 确认斑马线需要的最少黑白跳变次数 */
-#define IMAGE_ZEBRA_STOP_COUNT         (2)     /* 检测到几次斑马线后停车 */
+#define IMAGE_ZEBRA_EDGE_MIN           (5)     /* 确认斑马线需要的最少黑白跳变次数 */
 
 /* 运行时安全参数 */
 #define IMAGE_LOST_STOP_COUNT          (4)     /* 连续丢线多少帧后停车 */
 #define IMAGE_RUN_START_IGNORE_FRAMES  (3)     /* 启动后忽略丢线的帧数（避免误判） */
+#define IMAGE_START_ROAD_CHECK_FRAMES  (8)     /* 启动后验证初始画面的帧数 */
+#define IMAGE_START_ROAD_TOP_ROW       (18)    /* 初始画面验证的最远行 */
+#define IMAGE_START_ROAD_BOTTOM_ROW    (55)    /* 初始画面验证的最近行 */
+#define IMAGE_START_ROAD_MIN_BOTH      (28)    /* 左右边同时有效的最少行数 */
+#define IMAGE_START_ROAD_MIN_CONTINUE  (16)    /* 左右边连续有效的最少行数 */
+#define IMAGE_START_ROAD_MIN_WIDTH     (22)    /* 宽度符合透视关系的最少行数 */
+#define IMAGE_START_ROAD_MIN_CENTER    (22)    /* 中心接近画面中线的最少行数 */
+#define IMAGE_START_ROAD_WIDTH_TOL     (14)    /* 宽度容差 */
+#define IMAGE_START_ROAD_CENTER_TOL    (10)    /* 中心容差 */
+#define IMAGE_START_ROAD_WIDTH_DIFF    (16)    /* 近处宽度至少比远处大多少 */
 
 /* 打靶检测参数 */
-#define IMAGE_TARGET_LASER_PIT         (TIM0_PIT)
-#define IMAGE_TARGET_LASER_IRQ         (TIMER0_IRQn)
-#define IMAGE_TARGET_LASER_PRIORITY    (0)
-#define IMAGE_TARGET_LASER_PERIOD_US   (500)
-#define IMAGE_TARGET_FIRE_INTERVAL     (10)
-#define IMAGE_TARGET_SCAN_ROWS         (3)
-#define IMAGE_LASER_COUNT              (5)
-#define IMAGE_LASER_TEST_OFF           (0)
-#define IMAGE_LASER_TEST_ALL           (6)
-#define IMAGE_TARGET_LASER_FIRE_US_MIN (200)
-#define IMAGE_TARGET_LASER_FIRE_US_MAX (20000)
+#define IMAGE_TARGET_LASER_PIT         (TIM0_PIT)    /* 激光关闭定时器 */
+#define IMAGE_TARGET_LASER_IRQ         (TIMER0_IRQn) /* 激光关闭定时器中断号 */
+#define IMAGE_TARGET_LASER_PRIORITY    (0)           /* 激光关闭定时器中断优先级 */
+#define IMAGE_TARGET_LASER_PERIOD_US   (500)         /* 激光关闭定时器周期，单位 us */
+#define IMAGE_TARGET_FIRE_INTERVAL     (10)          /* 两次自动打靶之间至少间隔的图像帧数 */
+#define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
+#define IMAGE_TARGET_MIN_HIT_ROWS      (2)           /* 至少命中几条扫描线才开火，减少急弯单行误触发 */
+#define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
+#define IMAGE_LASER_COUNT              (5)           /* 激光数量 */
+#define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
+#define IMAGE_LASER_TEST_ALL           (6)           /* 激光测试全开 */
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -328,20 +337,6 @@ static uint8 image_target_normalize_laser_test(uint8 laser_test)
     return laser_test;
 }
 
-static uint16 image_target_normalize_fire_us(int32 fire_us)
-{
-    if(fire_us < IMAGE_TARGET_LASER_FIRE_US_MIN)
-    {
-        return IMAGE_TARGET_LASER_FIRE_US_MIN;
-    }
-    if(fire_us > IMAGE_TARGET_LASER_FIRE_US_MAX)
-    {
-        return IMAGE_TARGET_LASER_FIRE_US_MAX;
-    }
-
-    return (uint16)fire_us;
-}
-
 static uint8 image_target_normalize_col(int16 col)
 {
     if(col < 0)
@@ -359,9 +354,9 @@ static uint8 image_target_normalize_col(int16 col)
 static void image_target_normalize_config(void)
 {
     SmartCar.camera.laser_row = image_target_normalize_row(SmartCar.camera.laser_row);
+    SmartCar.camera.laser_row_st = image_target_normalize_row(SmartCar.camera.laser_row_st);
     SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
     SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
-    SmartCar.camera.laser_fire_us = image_target_normalize_fire_us(SmartCar.camera.laser_fire_us);
     SmartCar.camera.laser_left2_col = image_target_normalize_col(SmartCar.camera.laser_left2_col);
     SmartCar.camera.laser_left1_col = image_target_normalize_col(SmartCar.camera.laser_left1_col);
     SmartCar.camera.laser_center_col = image_target_normalize_col(SmartCar.camera.laser_center_col);
@@ -444,7 +439,7 @@ static void image_target_laser_start(uint8 center_x)
     uint16 fire_us;
 
     laser_pin = image_laser_pick_pin(center_x);
-    fire_us = image_target_normalize_fire_us(SmartCar.camera.laser_fire_us);
+    fire_us = SmartCar.camera.laser_fire_us;
 
     interrupt_global_disable();
     image_laser_all_off();
@@ -556,8 +551,16 @@ static void image_target_check(void)
     gap = image_target_normalize_gap(SmartCar.camera.target_gap);
     SmartCar.camera.target_gap = gap;
     scan_step = (uint8)(gap + 1);
-    base_row = image_target_normalize_row(SmartCar.camera.laser_row);
-    SmartCar.camera.laser_row = base_row;
+    if(Image.is_straight)
+    {
+        base_row = image_target_normalize_row(SmartCar.camera.laser_row_st);
+        SmartCar.camera.laser_row_st = base_row;
+    }
+    else
+    {
+        base_row = image_target_normalize_row(SmartCar.camera.laser_row);
+        SmartCar.camera.laser_row = base_row;
+    }
 
     hit_count = 0;
     first_hit_row = base_row;
@@ -607,8 +610,8 @@ static void image_target_check(void)
         }
     }
 
-    /* 三行里任意命中一行，就认为靶子成立。 */
-    if(hit_count < 1)
+    /* 急弯里单行边界容易误触发，至少两行命中才认为靶子成立。 */
+    if(hit_count < IMAGE_TARGET_MIN_HIT_ROWS)
     {
         if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
         {
@@ -618,6 +621,11 @@ static void image_target_check(void)
     }
 
     if(left_x >= right_x)
+    {
+        return;
+    }
+
+    if((right_x - left_x) < IMAGE_TARGET_MIN_OVERLAP)
     {
         return;
     }
@@ -759,6 +767,76 @@ static uint8 image_tow_point(void)
     }
 
     return (uint8)tow_point;
+}
+
+static uint8 image_start_road_is_valid(void)
+{
+    uint8 both_count;
+    uint8 width_count;
+    uint8 center_count;
+    uint8 continue_count;
+    uint8 max_continue_count;
+    int16 expect_width;
+    int16 width_error;
+    int16 near_width;
+    int16 far_width;
+
+    both_count = 0;
+    width_count = 0;
+    center_count = 0;
+    continue_count = 0;
+    max_continue_count = 0;
+
+    for(Ysite = IMAGE_START_ROAD_BOTTOM_ROW; Ysite >= IMAGE_START_ROAD_TOP_ROW; Ysite--)
+    {
+        if((ImageDeal[Ysite].IsLeftFind == 'T') &&
+           (ImageDeal[Ysite].IsRightFind == 'T') &&
+           (ImageDeal[Ysite].LeftBorder < IMAGE_MID) &&
+           (ImageDeal[Ysite].RightBorder > IMAGE_MID) &&
+           (ImageDeal[Ysite].Wide > 0))
+        {
+            both_count++;
+            continue_count++;
+            if(continue_count > max_continue_count)
+            {
+                max_continue_count = continue_count;
+            }
+
+            expect_width = (int16)Half_Road_Wide[Ysite] * 2;
+            width_error = ImageDeal[Ysite].Wide - expect_width;
+            if(width_error < 0)
+            {
+                width_error = -width_error;
+            }
+            if(width_error <= IMAGE_START_ROAD_WIDTH_TOL)
+            {
+                width_count++;
+            }
+
+            if(IMAGE_ABS(ImageDeal[Ysite].Center - IMAGE_MID) <= IMAGE_START_ROAD_CENTER_TOL)
+            {
+                center_count++;
+            }
+        }
+        else
+        {
+            continue_count = 0;
+        }
+    }
+
+    near_width = ImageDeal[IMAGE_START_ROAD_BOTTOM_ROW].Wide;
+    far_width = ImageDeal[IMAGE_START_ROAD_TOP_ROW].Wide;
+
+    if((both_count >= IMAGE_START_ROAD_MIN_BOTH) &&
+       (max_continue_count >= IMAGE_START_ROAD_MIN_CONTINUE) &&
+       (width_count >= IMAGE_START_ROAD_MIN_WIDTH) &&
+       (center_count >= IMAGE_START_ROAD_MIN_CENTER) &&
+       ((near_width - far_width) >= IMAGE_START_ROAD_WIDTH_DIFF))
+    {
+        return 1;
+    }
+
+    return 0;
 }
 
 /**
@@ -3075,6 +3153,8 @@ static uint8 image_zebra_scan(void)
  */
 static void image_check_zebra(void)
 {
+    uint8 zebra_stop_count;
+
     ZebraHit = image_zebra_scan();
 
     if(CarMode != CAR_MODE_RUN)
@@ -3096,13 +3176,15 @@ static void image_check_zebra(void)
             ZebraFrameLatch = 1;
             if(ZebraCooldownFrames == 0)
             {
-                if(ZebraDetectCount < IMAGE_ZEBRA_STOP_COUNT)
+                zebra_stop_count = (uint8)(SmartCar.other.lap_count + 1);
+
+                if(ZebraDetectCount < zebra_stop_count)
                 {
                     ZebraDetectCount++;
                 }
 
                 buzzer_short();
-                if(ZebraDetectCount >= IMAGE_ZEBRA_STOP_COUNT)
+                if(ZebraDetectCount >= zebra_stop_count)
                 {
                     CarMode = CAR_MODE_STOP;
                 }
@@ -3409,12 +3491,12 @@ static void image_process(void)
     image_route_filter();          /* 9. 路径滤波 */
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
-    image_target_check();          /* 12. 打靶检测 + 激光触发 */
     image_check_ramp();            /* 12. 坡道检测 */
     image_check_straight();        /* 13. 直道检测（环岛用） */
     image_check_long_straight();   /* 14. 长直道加速检测 */
-    image_get_det(image_tow_point()); /* 15. 计算加权中心 */
-    image_export_result();         /* 16. 导出结果 */
+    image_target_check();          /* 15. 打靶检测 + 激光触发 */
+    image_get_det(image_tow_point()); /* 16. 计算加权中心 */
+    image_export_result();         /* 17. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }
@@ -3459,12 +3541,23 @@ void image_update(void)
         return;
     }
 
-    /* 启动后前几帧忽略丢线 */
-    if(ImageRunFrameCount < IMAGE_RUN_START_IGNORE_FRAMES)
+    /* 启动阶段先确认摄像头画面能看到正常左右边线 */
+    if(ImageRunFrameCount < IMAGE_START_ROAD_CHECK_FRAMES)
     {
+        if(image_start_road_is_valid() == 0)
+        {
+            CarMode = CAR_MODE_STOP;
+            ImageLostCount = 0;
+            return;
+        }
         ImageRunFrameCount++;
-        ImageLostCount = 0;
-        return;
+
+        /* 启动后前几帧忽略丢线 */
+        if(ImageRunFrameCount <= IMAGE_RUN_START_IGNORE_FRAMES)
+        {
+            ImageLostCount = 0;
+            return;
+        }
     }
 
     /* 连续丢线停车保护 */

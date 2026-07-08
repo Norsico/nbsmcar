@@ -16,6 +16,7 @@ void para_init(void)
     SmartCar.motor.target_speed = MOTOR_TARGET_SPEED;
     SmartCar.motor.straight_speed = MOTOR_STRAIGHT_SPEED;
     SmartCar.motor.ring_speed = MOTOR_RING_SPEED;
+    SmartCar.motor.ramp_speed = MOTOR_RAMP_SPEED;
     SmartCar.motor.left_kp = MOTOR_LEFT_KP;
     SmartCar.motor.left_ki = MOTOR_LEFT_KI;
     SmartCar.motor.right_kp = MOTOR_RIGHT_KP;
@@ -29,6 +30,7 @@ void para_init(void)
     SmartCar.camera.gain = CAMERA_GAIN;
     SmartCar.camera.threshold_offset = CAMERA_THRESHOLD_OFFSET;
     SmartCar.camera.laser_row = CAMERA_LASER_ROW;
+    SmartCar.camera.laser_row_st = CAMERA_LASER_ROW_ST;
     SmartCar.camera.target_gap = CAMERA_TARGET_GAP;
     SmartCar.camera.laser_test = CAMERA_LASER_TEST;
     SmartCar.camera.laser_fire_us = CAMERA_LASER_FIRE_US;
@@ -38,4 +40,6 @@ void para_init(void)
     SmartCar.camera.laser_right1_col = CAMERA_LASER_RIGHT1_COL;
     SmartCar.camera.laser_right2_col = CAMERA_LASER_RIGHT2_COL;
     SmartCar.camera.laser_ui_test_col = CAMERA_LASER_UI_TEST_COL;
+
+    SmartCar.other.lap_count = OTHER_LAP_COUNT;
 }
