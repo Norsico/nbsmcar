@@ -40,6 +40,7 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_ZEBRA_MISS_COUNT         (3)     /* 斑马线消失多少帧后解锁 */
 #define IMAGE_ZEBRA_COOLDOWN_FRAMES    (80)    /* 两次斑马线检测之间的冷却帧数 */
 #define IMAGE_ZEBRA_EDGE_MIN           (5)     /* 确认斑马线需要的最少黑白跳变次数 */
+#define IMAGE_RING_EDGE_LOSS_ROWS      (5)     /* 环岛入口至少需要几行真实贴边丢边 */
 
 /* 运行时安全参数 */
 #define IMAGE_LOST_STOP_COUNT          (4)     /* 连续丢线多少帧后停车 */
@@ -2591,19 +2592,20 @@ static void image_judge_left_ring(void)
         }
     }
 
-    /* 第二确认路径：两个拐点间隔足够大 */
+    /* 第二确认路径：除了边线形状外，还要求左侧原始边界出现真实贴边丢边。 */
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
        (Ring_Help_Flag == 0))
     {
-        if(ImageStatus.Left_Line > 13)
+        if(ImageStatus.WhiteLine_L >= IMAGE_RING_EDGE_LOSS_ROWS)
         {
             Ring_Help_Flag = 1;
         }
     }
 
-    /* 确认左环岛：满足所有条件 */
+    /* 确认左环岛：必须已经出现左侧真实贴边丢边。 */
     if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
        (Ring_Help_Flag == 1) &&
+       (ImageStatus.WhiteLine_L >= IMAGE_RING_EDGE_LOSS_ROWS) &&
        (ImageFlag.image_element_rings_flag == 0))
     {
         ImageFlag.image_element_rings = 1;
@@ -2699,14 +2701,13 @@ static void image_judge_right_ring(void)
      *   前面的 RightBorder 形态扫描没有确认右环入口
      *   所以这里再用 Right_Line 做一次确认
      *
-     * ImageStatus.Right_Line:
-     *   右侧丢边行数。右环入口出现时右侧开口变大
-     *   这个值通常会变大。当前第二确认阈值是 > 7
+     * ImageStatus.WhiteLine_R:
+     *   原始右边界贴在最右侧的行数。只有出现真实贴边丢边时才会变大。
      */
     if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 1)) &&
        (Ring_Help_Flag == 0))
     {
-        if(ImageStatus.Right_Line > 7)
+        if(ImageStatus.WhiteLine_R >= IMAGE_RING_EDGE_LOSS_ROWS)
         {
             Ring_Help_Flag = 1;
         }
@@ -2718,11 +2719,12 @@ static void image_judge_right_ring(void)
      *   2. Point2 至少比 Point1 低 1 行
      *   3. Ring_Help_Flag 已经为 1，来源可能是：
      *      - 前面的 RightBorder 形态扫描
-     *      - 上面这段 Right_Line > 7 的第二确认路径
+     *      - 上面这段 RightBoundary 贴边丢边的第二确认路径
      *   4. image_element_rings_flag 仍然为 0，表示环岛流程尚未开始
      */
     if((Right_RingsFlag_Point2_Ysite >= (Right_RingsFlag_Point1_Ysite + 1)) &&
        (Ring_Help_Flag == 1) &&
+       (ImageStatus.WhiteLine_R >= IMAGE_RING_EDGE_LOSS_ROWS) &&
        (ImageFlag.image_element_rings_flag == 0))
     {
         ImageFlag.image_element_rings = 2;
@@ -3346,7 +3348,7 @@ static void image_check_zebra(void)
 
 /**
  * @brief  直道检测（环岛用）
- * @note   使用左右边线拟合误差判断，连续3帧确认
+ * @note   使用左右边线拟合误差判断，连续2帧确认
  */
 static void image_check_straight(void)
 {
@@ -3364,11 +3366,11 @@ static void image_check_straight(void)
     Image.straight_right_error_x10 = right_err_x10;
     cross_straight = image_is_cross_straight_feature();
 
-    /* 左右边线均为直线，连续3帧确认 (原 < 1.0f, ×10 后 < 10) */
-    if(((left_err_x10 < 10) && (right_err_x10 < 10)) || cross_straight)
+    /* 左右边线较直即可，连续2帧确认。适当放松，便于更早进入直道状态。 */
+    if(((left_err_x10 < 12) && (right_err_x10 < 12)) || cross_straight)
     {
         straight_count++;
-        if(straight_count >= 3)
+        if(straight_count >= 2)
         {
             Image.is_straight = 1;
         }
