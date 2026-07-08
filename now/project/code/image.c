@@ -2305,6 +2305,144 @@ static int16 Straight_Judge(uint8 dir, uint8 start, uint8 end)
     return (int16)S_x10;
 }
 
+/*
+ * 十字直行特征：
+ * 两侧都出现“下方有边 -> 中间丢边 -> 上方又恢复有边”的结构。
+ * 这种情况下边线拟合误差通常会变大，但中线仍然适合继续直行和加速。
+ */
+static uint8 image_is_cross_straight_feature(void)
+{
+    uint8 left_low_len;
+    uint8 left_mid_len;
+    uint8 left_high_len;
+    uint8 right_low_len;
+    uint8 right_mid_len;
+    uint8 right_high_len;
+    int16 row;
+
+    left_low_len = 0;
+    left_mid_len = 0;
+    left_high_len = 0;
+    right_low_len = 0;
+    right_mid_len = 0;
+    right_high_len = 0;
+
+    if(ImageStatus.OFFLine > 20)
+    {
+        return 0;
+    }
+
+    for(row = 54; row > (ImageStatus.OFFLine + 2); row--)
+    {
+        if((ImageDeal[row].IsLeftFind == 'T') &&
+           (ImageDeal[row - 1].IsLeftFind == 'T') &&
+           (left_low_len == 0))
+        {
+            while((row > (ImageStatus.OFFLine + 2)) &&
+                  (ImageDeal[row].IsLeftFind == 'T'))
+            {
+                left_low_len++;
+                row--;
+                if((row + 5) < IMAGE_H)
+                {
+                    if(ImageDeal[row].LeftBorder < (ImageDeal[row + 5].LeftBorder - 2))
+                    {
+                        left_low_len = 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if((row > (ImageStatus.OFFLine + 2)) &&
+           (ImageDeal[row].IsLeftFind == 'W') &&
+           (ImageDeal[row - 1].IsLeftFind == 'W') &&
+           (left_mid_len == 0))
+        {
+            while((row > (ImageStatus.OFFLine + 2)) &&
+                  (ImageDeal[row].IsLeftFind == 'W'))
+            {
+                left_mid_len++;
+                row--;
+            }
+        }
+
+        if((row > (ImageStatus.OFFLine + 2)) &&
+           (ImageDeal[row].IsLeftFind == 'T') &&
+           (ImageDeal[row - 1].IsLeftFind == 'T') &&
+           (left_high_len == 0))
+        {
+            while((row > (ImageStatus.OFFLine + 2)) &&
+                  (ImageDeal[row].IsLeftFind == 'T'))
+            {
+                left_high_len++;
+                row--;
+            }
+        }
+    }
+
+    for(row = 54; row > (ImageStatus.OFFLine + 2); row--)
+    {
+        if((ImageDeal[row].IsRightFind == 'T') &&
+           (ImageDeal[row - 1].IsRightFind == 'T') &&
+           (right_low_len == 0))
+        {
+            while((row > (ImageStatus.OFFLine + 2)) &&
+                  (ImageDeal[row].IsRightFind == 'T'))
+            {
+                right_low_len++;
+                row--;
+                if((row + 5) < IMAGE_H)
+                {
+                    if(ImageDeal[row].RightBorder > (ImageDeal[row + 5].RightBorder + 2))
+                    {
+                        right_low_len = 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if((row > (ImageStatus.OFFLine + 2)) &&
+           (ImageDeal[row].IsRightFind == 'W') &&
+           (ImageDeal[row - 1].IsRightFind == 'W') &&
+           (right_mid_len == 0))
+        {
+            while((row > (ImageStatus.OFFLine + 2)) &&
+                  (ImageDeal[row].IsRightFind == 'W'))
+            {
+                right_mid_len++;
+                row--;
+            }
+        }
+
+        if((row > (ImageStatus.OFFLine + 2)) &&
+           (ImageDeal[row].IsRightFind == 'T') &&
+           (ImageDeal[row - 1].IsRightFind == 'T') &&
+           (right_high_len == 0))
+        {
+            while((row > (ImageStatus.OFFLine + 2)) &&
+                  (ImageDeal[row].IsRightFind == 'T'))
+            {
+                right_high_len++;
+                row--;
+            }
+        }
+    }
+
+    if((left_low_len > 5) &&
+       (left_mid_len > 5) &&
+       (left_high_len > 4) &&
+       (right_low_len > 5) &&
+       (right_mid_len > 5) &&
+       (right_high_len > 4))
+    {
+        return 1;
+    }
+
+    return 0;
+}
+
 /**
  * @brief  计算右边线的最大偏离度（整数版 ×10）
  * @param  start  起始行
@@ -3215,6 +3353,7 @@ static void image_check_straight(void)
     static uint8 straight_count = 0;
     int16 left_err_x10;     /* 整数版，Straight_Judge 已返回 ×10 */
     int16 right_err_x10;
+    uint8 cross_straight;
 
     /* 计算左右边线的直线度（均方误差 ×10） */
     left_err_x10  = Straight_Judge(1, 25, 45);
@@ -3223,9 +3362,10 @@ static void image_check_straight(void)
     /* 导出误差值到Image结构体（已 ×10，直接赋值） */
     Image.straight_left_error_x10  = left_err_x10;
     Image.straight_right_error_x10 = right_err_x10;
+    cross_straight = image_is_cross_straight_feature();
 
     /* 左右边线均为直线，连续3帧确认 (原 < 1.0f, ×10 后 < 10) */
-    if((left_err_x10 < 10) && (right_err_x10 < 10))
+    if(((left_err_x10 < 10) && (right_err_x10 < 10)) || cross_straight)
     {
         straight_count++;
         if(straight_count >= 3)
@@ -3254,6 +3394,7 @@ static void image_check_long_straight(void)
     float variance_acc;
     int32 sum;
     int16 valid_rows;
+    uint8 cross_straight;
 
     sum = 0;
 
@@ -3276,13 +3417,15 @@ static void image_check_long_straight(void)
 
     /* 导出方差值供UI显示 */
     Image.straight_variance_x10 = (int16)(variance_acc * 10.0f);
+    cross_straight = image_is_cross_straight_feature();
 
     /* 中长直道判断：方差较小 + 可视距离较远 + 少量丢线允许 */
-    if(  variance_acc < variance_acc_threshold      /* 中线够直（放宽到80）*/
-      && ImageStatus.OFFLine <= 12                  /* 可视距离较远（覆盖中、大直道）*/
-      && ImageStatus.Left_Line < 3                  /* 左侧少量丢线允许 */
-      && ImageStatus.Right_Line < 3                 /* 右侧少量丢线允许 */
-      )
+    if((  variance_acc < variance_acc_threshold     /* 中线够直（放宽到80）*/
+        && ImageStatus.OFFLine <= 12                /* 可视距离较远（覆盖中、大直道）*/
+        && ImageStatus.Left_Line < 3                /* 左侧少量丢线允许 */
+        && ImageStatus.Right_Line < 3               /* 右侧少量丢线允许 */
+       ) ||
+       (cross_straight && (variance_acc < 120.0f) && (ImageStatus.OFFLine <= 16)))
     {
         long_straight_count++;
         if(long_straight_count >= 3)  /* 连续3帧确认 */

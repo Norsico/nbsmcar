@@ -486,6 +486,11 @@ static void ui_show_camera_image(void)
     ips200_show_string(144, 204, "Diff");
     ips200_show_string(184, 204, "   ");
     ips200_show_int16(184, 204, ImageDeal[55].Wide - ImageDeal[10].Wide);
+
+    /* 第7行：当前是否判定为直道 */
+    ips200_show_string(0, 220, "Straight");
+    ips200_show_string(88, 220, " ");
+    ips200_show_uint8(88, 220, Image.is_straight);
 }
 
 static void ui_show(void)
