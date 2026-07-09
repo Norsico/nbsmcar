@@ -29,6 +29,7 @@ void para_init(void)
     SmartCar.camera.exposure = CAMERA_EXPOSURE;
     SmartCar.camera.gain = CAMERA_GAIN;
     SmartCar.camera.threshold_offset = CAMERA_THRESHOLD_OFFSET;
+    SmartCar.camera.threshold_tri_delta = CAMERA_THRESHOLD_TRI_DELTA;
     SmartCar.camera.laser_row = CAMERA_LASER_ROW;
     SmartCar.camera.laser_row_st = CAMERA_LASER_ROW_ST;
     SmartCar.camera.target_gap = CAMERA_TARGET_GAP;

@@ -36,6 +36,8 @@ typedef enum
 #define UI_LASER_GAP_INDEX           (8)
 #define UI_LASER_ROW_INDEX           (9)
 #define UI_LASER_ROW_ST_INDEX        (10)
+#define UI_CAMERA_THR_OFF_INDEX      (2)
+#define UI_CAMERA_THR_TRI_INDEX      (3)
 #define UI_OTHER_LAP_INDEX           (0)
 #define UI_OTHER_LAP_MIN             (1)
 #define UI_OTHER_LAP_MAX             (9)
@@ -101,6 +103,7 @@ static const ui_param_t camera_params[] = {
     {"exposure",  &SmartCar.camera.exposure,         VAL_TYPE_INT16, 10},
     {"gain",      &SmartCar.camera.gain,             VAL_TYPE_UINT8,  1},
     {"thr off",   &SmartCar.camera.threshold_offset, VAL_TYPE_UINT8,  1},
+    {"thr tri",   &SmartCar.camera.threshold_tri_delta, VAL_TYPE_UINT8,  1},
 };
 
 static const ui_param_t laser_params[] = {
@@ -299,6 +302,20 @@ static void ui_change_current_value(int8 dir)
             value = (int16)(*(uint8*)p->val_ptr + change);
             if(value < 0) value = 0;
             if(value > (IMAGE_W - 1)) value = (IMAGE_W - 1);
+            *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+    }
+
+    if(UiPage == UI_PAGE_CAMERA)
+    {
+        int16 value;
+
+        if((UiSelect == UI_CAMERA_THR_OFF_INDEX) || (UiSelect == UI_CAMERA_THR_TRI_INDEX))
+        {
+            value = (int16)(*(uint8*)p->val_ptr) + change;
+            if(value < 0) value = 0;
+            if(value > 255) value = 255;
             *(uint8*)p->val_ptr = (uint8)value;
             return;
         }

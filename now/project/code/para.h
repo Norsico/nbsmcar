@@ -39,6 +39,7 @@
 #define CAMERA_LASER_RIGHT2_COL    (55)
 #define CAMERA_LASER_UI_TEST_COL   (39)
 #define CAMERA_THRESHOLD_OFFSET    (0)
+#define CAMERA_THRESHOLD_TRI_DELTA (10)
 
 /*硬件配置，修改设置*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
@@ -169,6 +170,7 @@ typedef struct
     uint16 exposure;
     uint8 gain;
     uint8 threshold_offset;
+    uint8 threshold_tri_delta;
     uint8 laser_row;
     uint8 laser_row_st;
     uint8 target_gap;

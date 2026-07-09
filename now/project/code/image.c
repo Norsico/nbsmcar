@@ -25,7 +25,7 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 /* 图像压缩设置 */
 #define IMAGE_COMPRESS_CUT_COL         (1)     /* 左右各裁剪1列 */
 #define IMAGE_COMPRESS_CUT_ROW_TOP     (0)     /* 上方裁剪行数 */
-#define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (1)     /* 下方裁剪1行 */
+#define IMAGE_COMPRESS_CUT_ROW_BOTTOM  (0)     /* 下方裁剪1行 */
 #define IMAGE_COMPRESS_SRC_H           (MT9V03X_H - IMAGE_COMPRESS_CUT_ROW_TOP - IMAGE_COMPRESS_CUT_ROW_BOTTOM)
 #define IMAGE_COMPRESS_SRC_W           (MT9V03X_W - (IMAGE_COMPRESS_CUT_COL * 2))
 
@@ -1273,13 +1273,16 @@ static uint8 image_otsu(void)
 /**
  * @brief  二值化处理：将灰度图转换为黑白图
  * @param  threshold  大津法计算出的阈值
- * @note   边缘区域降低阈值，增强边线检测
+ * @note   底部暗角三角区域降低阈值，增强边线检测
  */
 static void image_binarize(uint8 threshold)
 {
     uint8 row;
     uint8 col;
     uint8 thre;
+    uint8 tri_active;
+    uint8 tri_left_limit;
+    uint8 tri_right_limit;
     uint16 threshold_value;
 
     /* 应用阈值偏移 */
@@ -1301,15 +1304,31 @@ static void image_binarize(uint8 threshold)
     ImageStatus.Threshold = threshold;
     Image.white_count = 0;
 
-    /* 二值化：边缘区域用更低的阈值 */
+    /* 二值化：底部暗角三角区域用更低的阈值 */
     for(row = 0; row < IMAGE_H; row++)
     {
+        tri_active = 0;
+        tri_left_limit = 0;
+        tri_right_limit = IMAGE_W;
+        if(row >= 40)
+        {
+            tri_active = 1;
+            tri_left_limit = (uint8)(((uint16)(row - 40) * 20) / 19);
+            tri_right_limit = (uint8)(119 - row);
+        }
+
         for(col = 0; col < IMAGE_W; col++)
         {
-            /* 左右边缘区域阈值降低10，增强边线检测 */
-            if((col <= 15) || ((col > 70) && (col <= 75)) || (col >= 65))
+            if((tri_active != 0) && ((col <= tri_left_limit) || (col >= tri_right_limit)))
             {
-                thre = (uint8)(threshold - 10);
+                if(threshold > SmartCar.camera.threshold_tri_delta)
+                {
+                    thre = (uint8)(threshold - SmartCar.camera.threshold_tri_delta);
+                }
+                else
+                {
+                    thre = 0;
+                }
             }
             else
             {
@@ -1809,7 +1828,6 @@ static void image_draw_lines(void)
     float D_R;
     int16 ytemp_W_L;
     int16 ytemp_W_R;
-    int16 ysite;
     uint8 L_found_point;
     uint8 R_found_point;
     image_jump JumpPoint[2];

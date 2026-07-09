@@ -62,9 +62,9 @@ void main(void)
         {
             case CAR_MODE_UI:
             {
-                image_update();
                 if(ui_is_debug())
                 {
+                    image_update();
                     servo_update();
                 }
                 else
