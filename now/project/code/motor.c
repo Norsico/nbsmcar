@@ -116,10 +116,14 @@ void motor_update_fan(void)
         return;
     }
 
-    /* 根据长直道检测选择风扇档位 */
-    if(Image.is_long_straight && (Image.ring == 0))
+    /* 环岛期间不使用直道风扇档位 */
+    if(Image.ring != 0)
     {
-        fan_target = SmartCar.motor.fan_straight_duty;  /* 长直道：降低下压力 */
+        fan_target = SmartCar.motor.fan_duty;
+    }
+    else if(Image.is_straight)
+    {
+        fan_target = SmartCar.motor.fan_straight_duty;  /* 直道：降低下压力 */
     }
     else
     {

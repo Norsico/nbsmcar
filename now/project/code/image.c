@@ -1095,8 +1095,6 @@ void image_init(void)
     Image.is_straight = 0;
     Image.straight_left_error_x10 = 0;
     Image.straight_right_error_x10 = 0;
-    Image.is_long_straight = 0;
-    Image.straight_variance_x10 = 0;
     Image.is_ramp = 0;
     Image.ramp_count = 0;
     ImageRawThreshold = 0;
@@ -1924,6 +1922,7 @@ static void image_draw_lines(void)
             }
         }
 
+#if 0
         if((ImageDeal[Ysite].IsRightFind == 'W') && (Ysite > 10) && (Ysite < 50))
         {
             if(Get_R_line == 'F')
@@ -2007,6 +2006,7 @@ static void image_draw_lines(void)
             LimitL(ImageDeal[Ysite].LeftBorder);
             LimitH(ImageDeal[Ysite].LeftBorder);
         }
+#endif
 
         if((ImageDeal[Ysite].IsLeftFind == 'W') && (ImageDeal[Ysite].IsRightFind == 'W'))
         {
@@ -3386,66 +3386,6 @@ static void image_check_straight(void)
 }
 
 /**
- * @brief  长直道加速检测（改进版：覆盖中、大等级直道）
- * @note   使用中线方差 + 可视距离 + 丢线判断，区分长短直道
- *         - 中线方差：衡量中线的平直程度，比边线拟合更稳定
- *         - OFFLine <= 12：可视距离较远（覆盖中、大等级直道）
- *         - Left_Line/Right_Line < 3：允许少量丢线（放宽条件）
- */
-static void image_check_long_straight(void)
-{
-    static uint8 long_straight_count = 0;
-    static float variance_acc_threshold = 80.0f;  /* 方差阈值（放宽到80） */
-    float variance_acc;
-    int32 sum;
-    int16 valid_rows;
-    uint8 cross_straight;
-
-    sum = 0;
-
-    /* 计算中线方差（衡量中线偏离中心的程度） */
-    for(Ysite = 55; Ysite > (ImageStatus.OFFLine + 1); Ysite--)
-    {
-        sum += (ImageDeal[Ysite].Center - IMAGE_MID) *
-               (ImageDeal[Ysite].Center - IMAGE_MID);
-    }
-
-    valid_rows = 54 - ImageStatus.OFFLine;
-    if(valid_rows > 0)
-    {
-        variance_acc = (float)sum / (float)valid_rows;
-    }
-    else
-    {
-        variance_acc = 9999.0f;  /* 无效值 */
-    }
-
-    /* 导出方差值供UI显示 */
-    Image.straight_variance_x10 = (int16)(variance_acc * 10.0f);
-    cross_straight = image_is_cross_straight_feature();
-
-    /* 中长直道判断：方差较小 + 可视距离较远 + 少量丢线允许 */
-    if((  variance_acc < variance_acc_threshold     /* 中线够直（放宽到80）*/
-        && ImageStatus.OFFLine <= 12                /* 可视距离较远（覆盖中、大直道）*/
-        && ImageStatus.Left_Line < 3                /* 左侧少量丢线允许 */
-        && ImageStatus.Right_Line < 3               /* 右侧少量丢线允许 */
-       ) ||
-       (cross_straight && (variance_acc < 120.0f) && (ImageStatus.OFFLine <= 16)))
-    {
-        long_straight_count++;
-        if(long_straight_count >= 3)  /* 连续3帧确认 */
-        {
-            Image.is_long_straight = 1;
-        }
-    }
-    else
-    {
-        long_straight_count = 0;
-        Image.is_long_straight = 0;
-    }
-}
-
-/**
  * @brief  坡道检测（参考时光-贺兰一号算法）
  * @note   坡道特征：可视距离很近（OFFLine=2）+ 赛道很宽且居中
  *         检测到坡道后将 Road_type 设为 ROAD_RAMP，触发降速
@@ -3640,11 +3580,10 @@ static void image_process(void)
     image_element_handle();        /* 10. 元素处理（环岛补线） */
     image_check_zebra();           /* 11. 斑马线检测 */
     image_check_ramp();            /* 12. 坡道检测 */
-    image_check_straight();        /* 13. 直道检测（环岛用） */
-    image_check_long_straight();   /* 14. 长直道加速检测 */
-    image_target_check();          /* 15. 打靶检测 + 激光触发 */
-    image_get_det(image_tow_point()); /* 16. 计算加权中心 */
-    image_export_result();         /* 17. 导出结果 */
+    image_check_straight();        /* 13. 直道检测（含十字直行特征） */
+    image_target_check();          /* 14. 打靶检测 + 激光触发 */
+    image_get_det(image_tow_point()); /* 15. 计算加权中心 */
+    image_export_result();         /* 16. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }

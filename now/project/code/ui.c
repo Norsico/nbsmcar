@@ -472,25 +472,11 @@ static void ui_show_camera_image(void)
     /* 第5行：坡道检测 */
     ips200_show_string(0, 188, "Ramp");
     ips200_show_string(88, 188, Image.is_ramp ? "YES" : "NO ");
-    ips200_show_string(144, 188, "Cnt");
-    ips200_show_string(184, 188, "  ");
-    ips200_show_uint8(184, 188, Image.ramp_count);
 
-    /* 第6行：宽度差（底部-顶部）*/
-    ips200_show_string(0, 204, "WB");
-    ips200_show_string(32, 204, "   ");
-    ips200_show_uint8(32, 204, (uint8)ImageDeal[55].Wide);
-    ips200_show_string(72, 204, "WT");
-    ips200_show_string(104, 204, "   ");
-    ips200_show_uint8(104, 204, (uint8)ImageDeal[10].Wide);
-    ips200_show_string(144, 204, "Diff");
-    ips200_show_string(184, 204, "   ");
-    ips200_show_int16(184, 204, ImageDeal[55].Wide - ImageDeal[10].Wide);
-
-    /* 第7行：当前是否判定为直道 */
-    ips200_show_string(0, 220, "Straight");
-    ips200_show_string(88, 220, " ");
-    ips200_show_uint8(88, 220, Image.is_straight);
+    /* 第6行：当前是否判定为直道 */
+    ips200_show_string(0, 204, "Straight");
+    ips200_show_string(88, 204, " ");
+    ips200_show_uint8(88, 204, Image.is_straight);
 }
 
 static void ui_show(void)
