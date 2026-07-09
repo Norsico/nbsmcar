@@ -67,7 +67,8 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
 #define IMAGE_LASER_COUNT              (5)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
-#define IMAGE_LASER_TEST_ALL           (6)           /* 激光测试全开 */
+#define IMAGE_LASER_TEST_ALL_FIRST     (1)           /* 激光测试全开（快捷位） */
+#define IMAGE_LASER_TEST_ALL_LAST      (7)           /* 激光测试全开（保留原顺序后的末位） */
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -266,9 +267,9 @@ static uint8 image_target_laser_test_mode(void)
     }
 
     mode = SmartCar.camera.laser_test;
-    if(mode > IMAGE_LASER_TEST_ALL)
+    if(mode > IMAGE_LASER_TEST_ALL_LAST)
     {
-        mode = IMAGE_LASER_TEST_ALL;
+        mode = IMAGE_LASER_TEST_ALL_LAST;
     }
 
     return mode;
@@ -285,17 +286,19 @@ static void image_laser_apply_test_mode(uint8 mode)
         return;
     }
 
-    if(mode == IMAGE_LASER_TEST_ALL)
+    if((mode == IMAGE_LASER_TEST_ALL_FIRST) ||
+       (mode == IMAGE_LASER_TEST_ALL_LAST))
     {
         image_laser_all_on();
         return;
     }
 
-    if((mode >= 1) && (mode <= IMAGE_LASER_COUNT))
+    /* 2~6 依次对应单颗激光，7 保留原末位测试序号 */
+    if((mode >= 2) && (mode <= (IMAGE_LASER_COUNT + 1)))
     {
         for(i = 0; i < IMAGE_LASER_COUNT; i++)
         {
-            gpio_set_level(ImageLaserPins[i], (i == (uint8)(mode - 1)) ? GPIO_HIGH : GPIO_LOW);
+            gpio_set_level(ImageLaserPins[i], (i == (uint8)(mode - 2)) ? GPIO_HIGH : GPIO_LOW);
         }
     }
 }
@@ -330,9 +333,9 @@ static uint8 image_target_normalize_gap(int16 gap)
 
 static uint8 image_target_normalize_laser_test(uint8 laser_test)
 {
-    if(laser_test > IMAGE_LASER_TEST_ALL)
+    if(laser_test > IMAGE_LASER_TEST_ALL_LAST)
     {
-        return IMAGE_LASER_TEST_ALL;
+        return IMAGE_LASER_TEST_ALL_LAST;
     }
 
     return laser_test;

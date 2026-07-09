@@ -27,7 +27,7 @@ typedef enum
 #define UI_ROW_H                     (16)  //控制每行 y 间距
 #define UI_NAME_X                    (16)  //控制名字 x 位置
 #define UI_VALUE_X                   (144) //控制数据 x 位置
-#define UI_LASER_TEST_MAX            (6)
+#define UI_LASER_TEST_MAX            (7)
 #define UI_LASER_FIRE_US_MIN         (200)
 #define UI_LASER_FIRE_US_MAX         (20000)
 #define UI_LASER_TEST_INDEX          (0)
@@ -262,7 +262,7 @@ static void ui_change_current_value(int8 dir)
         {
             value = (int16)SmartCar.camera.laser_test + change;
             if(value < 0) value = 0;
-            if(value > UI_LASER_TEST_MAX) value = UI_LASER_TEST_MAX;
+            if(value > UI_LASER_TEST_MAX) value = 0;
             SmartCar.camera.laser_test = (uint8)value;
             return;
         }
