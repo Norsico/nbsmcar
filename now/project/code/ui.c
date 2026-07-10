@@ -11,7 +11,9 @@ typedef enum
     UI_PAGE_CAMERA,
     UI_PAGE_LASER,
     UI_PAGE_OTHER,
-    UI_PAGE_DEBUG
+    UI_PAGE_DEBUG,
+    UI_PAGE_SERVO_PARAM,
+    UI_PAGE_SERVO_ST_PARAM
 } ui_page;
 
 typedef enum
@@ -71,17 +73,27 @@ typedef struct {
 // 3. 菜单数据配置表 (修改参数只改这里)
 // ==========================================
 
-// Servo 菜单配置
-static const ui_param_t servo_params[] = {
+// Servo 普通参数配置
+static const ui_param_t servo_param_params[] = {
     {"kp",       &SmartCar.servo.kp,            VAL_TYPE_INT16, 2},
     {"kd",       &SmartCar.servo.kd,            VAL_TYPE_INT16, 2},
     {"err2",     &SmartCar.servo.err2_k,        VAL_TYPE_INT16, 1},
     {"imu d",    &SmartCar.servo.imu_d,         VAL_TYPE_INT16, 1},
     {"ackerman", &SmartCar.servo.ackerman,      VAL_TYPE_INT16, 10},
     {"point",    &SmartCar.servo.tow_point,     VAL_TYPE_INT16, 1},
-    {"in r point",  &SmartCar.servo.in_ring_point,  VAL_TYPE_INT16, 1},
-    {"out r point", &SmartCar.servo.out_ring_point, VAL_TYPE_INT16, 1},
 };
+
+// Servo 直道参数配置
+static const ui_param_t servo_st_param_params[] = {
+    {"st kp",       &SmartCar.servo.st_kp,        VAL_TYPE_INT16, 2},
+    {"st kd",       &SmartCar.servo.st_kd,        VAL_TYPE_INT16, 2},
+    {"st err2",     &SmartCar.servo.st_err2_k,    VAL_TYPE_INT16, 1},
+    {"st imu d",    &SmartCar.servo.st_imu_d,     VAL_TYPE_INT16, 1},
+    {"st ackerman", &SmartCar.servo.st_ackerman,  VAL_TYPE_INT16, 10},
+    {"st point",    &SmartCar.servo.st_tow_point, VAL_TYPE_INT16, 1},
+};
+
+static const char* servo_menu_names[] = {"param", "st param", "in r point", "out r point"};
 
 // Motor 菜单配置
 static const ui_param_t motor_params[] = {
@@ -124,9 +136,14 @@ static const ui_param_t other_params[] = {
     {"lap count", &SmartCar.other.lap_count,          VAL_TYPE_UINT8,  1},
 };
 	
+// Servo 参数子页面
+static const ui_menu_t servo_menu_pages[] = {
+    {"Param",    servo_param_params,    (uint8)(sizeof(servo_param_params) / sizeof(servo_param_params[0]))},
+    {"St Param", servo_st_param_params, (uint8)(sizeof(servo_st_param_params) / sizeof(servo_st_param_params[0]))},
+};
+
 // 页面路由汇总表
 static const ui_menu_t menu_pages[] = {
-    {"Servo",  servo_params,  (uint8)(sizeof(servo_params) / sizeof(servo_params[0]))},
     {"Motor",  motor_params,  (uint8)(sizeof(motor_params) / sizeof(motor_params[0]))},
     {"Camera", camera_params, (uint8)(sizeof(camera_params) / sizeof(camera_params[0]))},
     {"Laser",  laser_params,  (uint8)(sizeof(laser_params) / sizeof(laser_params[0]))},
@@ -146,6 +163,17 @@ static uint8 UiEdit = 0;//编辑状态
 static uint8 UiDebugGray = 0;//显示二值化还是灰度
 static uint8 UiPowerPercent;//电池百分比
 static uint8 KeyLast[4] = {1, 1, 1, 1};
+
+static const ui_menu_t *ui_get_param_menu(ui_page page)
+{
+    if((page >= UI_PAGE_SERVO_PARAM) && (page <= UI_PAGE_SERVO_ST_PARAM)) {
+        return &servo_menu_pages[page - UI_PAGE_SERVO_PARAM];
+    }
+    if((page >= UI_PAGE_MOTOR) && (page <= UI_PAGE_OTHER)) {
+        return &menu_pages[page - UI_PAGE_MOTOR];
+    }
+    return 0;
+}
 
 uint8 ui_is_debug(void)
 {
@@ -236,25 +264,40 @@ static ui_key_event ui_key_scan(void)
 // ==========================================
 static uint8 get_current_page_item_count(void)
 {
+    const ui_menu_t *menu;
+
     if(UiPage == UI_PAGE_MAIN) {
         return (uint8)MAIN_MENU_COUNT;
     }
-    if((UiPage >= UI_PAGE_SERVO) && (UiPage <= UI_PAGE_OTHER)) {
-        return menu_pages[UiPage - UI_PAGE_SERVO].param_count;
+    if(UiPage == UI_PAGE_SERVO) {
+        return 4;
+    }
+    menu = ui_get_param_menu(UiPage);
+    if(menu != 0) {
+        return menu->param_count;
     }
     return 0;
 }
 
 static void ui_change_current_value(int8 dir)
 {
+    const ui_menu_t *menu;
     const ui_param_t *p;
     int16 change;
 
-    if((UiPage < UI_PAGE_SERVO) || (UiPage > UI_PAGE_OTHER)) {
+    if(UiPage == UI_PAGE_SERVO) {
+        if(UiSelect == 2) {
+            SmartCar.servo.in_ring_point = (int16)(SmartCar.servo.in_ring_point + dir);
+        } else if(UiSelect == 3) {
+            SmartCar.servo.out_ring_point = (int16)(SmartCar.servo.out_ring_point + dir);
+        }
         return;
     }
 
-    p = &menu_pages[UiPage - UI_PAGE_SERVO].params[UiSelect];
+    menu = ui_get_param_menu(UiPage);
+    if(menu == 0) return;
+
+    p = &menu->params[UiSelect];
     change = (int16)(p->step * dir);
 
     if(UiPage == UI_PAGE_LASER)
@@ -410,6 +453,27 @@ static void ui_show_main(void)
     }
 }
 
+static void ui_show_servo(void)
+{
+    uint8 i;
+    uint16 y;
+
+    ui_show_title("Servo");
+
+    for(i = 0; i < 4; i++) {
+        y = (uint16)((i + 1) * UI_ROW_H);
+        ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_PINK,
+                         (i == UiSelect) ? RGB565_PINK : RGB565_WHITE);
+        ips200_show_string(0, y, (i == UiSelect) ? (UiEdit ? "*" : ">") : " ");
+        ips200_show_string(UI_NAME_X, y, servo_menu_names[i]);
+        if(i == 2) {
+            ips200_show_int16(UI_VALUE_X, y, SmartCar.servo.in_ring_point);
+        } else if(i == 3) {
+            ips200_show_int16(UI_VALUE_X, y, SmartCar.servo.out_ring_point);
+        }
+    }
+}
+
 // 通用的参数页面渲染函数 
 static void ui_show_generic_page(ui_page page)
 {
@@ -418,7 +482,8 @@ static void ui_show_generic_page(ui_page page)
     uint8 i;
     uint16 y;
 
-    menu = &menu_pages[page - UI_PAGE_SERVO];
+    menu = ui_get_param_menu(page);
+    if(menu == 0) return;
     ui_show_title(menu->title);
 
     for(i = 0; i < menu->param_count; i++) {
@@ -506,10 +571,14 @@ static void ui_show(void)
     ips200_clear(RGB565_WHITE);
     if (UiPage == UI_PAGE_MAIN) {
         ui_show_main();
-    } 
-    else if (UiPage >= UI_PAGE_SERVO && UiPage <= UI_PAGE_OTHER) {
+    }
+    else if(UiPage == UI_PAGE_SERVO) {
+        ui_show_servo();
+    }
+    else if(((UiPage >= UI_PAGE_MOTOR) && (UiPage <= UI_PAGE_OTHER)) ||
+            ((UiPage >= UI_PAGE_SERVO_PARAM) && (UiPage <= UI_PAGE_SERVO_ST_PARAM))) {
         ui_show_generic_page(UiPage);
-    } 
+    }
 }
 
 // ==========================================
@@ -525,6 +594,12 @@ static void ui_handle_key(ui_key_event event)
             UiEdit = 0;
             flash_save_para();
             if(UiPage == UI_PAGE_CAMERA) image_apply_camera();
+        } else if(UiPage == UI_PAGE_SERVO_PARAM) {
+            UiPage = UI_PAGE_SERVO;
+            UiSelect = 0;
+        } else if(UiPage == UI_PAGE_SERVO_ST_PARAM) {
+            UiPage = UI_PAGE_SERVO;
+            UiSelect = 1;
         } else if(UiPage != UI_PAGE_MAIN) {
             UiPage = UI_PAGE_MAIN;
             UiSelect = 0;
@@ -546,6 +621,19 @@ static void ui_handle_key(ui_key_event event)
             // 通过主菜单的选择索引直接映射到子页面枚举
             UiPage = (ui_page)(UiSelect + 1); 
             UiSelect = 0;
+        } else if(UiPage == UI_PAGE_SERVO) {
+            if(UiSelect == 0) {
+                UiPage = UI_PAGE_SERVO_PARAM;
+                UiSelect = 0;
+            } else if(UiSelect == 1) {
+                UiPage = UI_PAGE_SERVO_ST_PARAM;
+                UiSelect = 0;
+            } else if(UiEdit) {
+                UiEdit = 0;
+                flash_save_para();
+            } else {
+                UiEdit = 1;
+            }
         } else {
             if(UiEdit) {
                 UiEdit = 0;

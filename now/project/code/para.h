@@ -10,6 +10,12 @@
 #define SERVO_IMU_D                (28)
 #define SERVO_ACKERMAN             (1400)
 #define SERVO_POINT                (24)
+#define SERVO_ST_KP                (SERVO_KP)
+#define SERVO_ST_KD                (SERVO_KD)
+#define SERVO_ST_ERR2_K            (SERVO_ERR2_K)
+#define SERVO_ST_IMU_D             (SERVO_IMU_D)
+#define SERVO_ST_ACKERMAN          (SERVO_ACKERMAN)
+#define SERVO_ST_POINT             (SERVO_POINT)
 #define SERVO_IN_RING_POINT        (22)
 #define SERVO_OUT_RING_POINT       (24)
 
@@ -151,6 +157,12 @@ typedef struct
     int16 imu_d;
 	  int16 ackerman;
     int16 tow_point;
+    int16 st_kp;
+    int16 st_kd;
+    int16 st_err2_k;
+    int16 st_imu_d;
+    int16 st_ackerman;
+    int16 st_tow_point;
     int16 in_ring_point;
     int16 out_ring_point;
 } servo_para;

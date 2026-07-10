@@ -748,6 +748,11 @@ static uint8 image_tow_point(void)
     {
         tow_point = SmartCar.servo.out_ring_point;
     }
+    /* 纯直道使用独立瞄点，坡道仍使用普通参数 */
+    else if((Image.is_straight != 0) && (Image.is_ramp == 0))
+    {
+        tow_point = SmartCar.servo.st_tow_point;
+    }
     /* 正常巡线使用配置的瞄点 */
     else
     {

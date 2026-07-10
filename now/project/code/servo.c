@@ -26,6 +26,7 @@ static void servo_update_motor_target(void)
     int16 steer_angle;
     int16 tan_value;
     int16 speed_delta;
+    int16 ackerman;
     int32 diff_scale;
 
     /* 速度选择：坡道降速 > 环岛减速 > 直道加速 > 正常速度 */
@@ -48,7 +49,15 @@ static void servo_update_motor_target(void)
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
     tan_value = (int16)(((int32)steer_angle * 175) / 1000);
-    diff_scale = ((int32)SmartCar.servo.ackerman * tan_value) / 100;
+    if((Image.is_straight != 0) && (Image.ring == 0) && (Image.is_ramp == 0))
+    {
+        ackerman = SmartCar.servo.st_ackerman;
+    }
+    else
+    {
+        ackerman = SmartCar.servo.ackerman;
+    }
+    diff_scale = ((int32)ackerman * tan_value) / 100;
     speed_delta = (int16)(((int32)speed * diff_scale) / 10000);
 
     if(speed_delta <= 0)
@@ -83,6 +92,10 @@ void servo_update(void)
     int16 error;
     int16 error_d;
     int16 control;
+    int16 kp;
+    int16 kd;
+    int16 err2_k;
+    int16 imu_d;
 
     if((Image.ready == 0) || (Image.result_ready == 0))
     {
@@ -96,18 +109,34 @@ void servo_update(void)
 
     error = Image.error;
     error_d = error - ServoLastError;
-	imu660ra_get_gyro();
-    if(error >= 0)
+
+    if((Image.is_straight != 0) && (Image.ring == 0) && (Image.is_ramp == 0))
     {
-        control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-							+(int32)SmartCar.servo.err2_k * error * error / 10
-							-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
+        kp = SmartCar.servo.st_kp;
+        kd = SmartCar.servo.st_kd;
+        err2_k = SmartCar.servo.st_err2_k;
+        imu_d = SmartCar.servo.st_imu_d;
     }
     else
     {
-        control = (int16)(SmartCar.servo.kp * error+SmartCar.servo.kd * error_d
-							-(int32)SmartCar.servo.err2_k * error * error / 10
-							-(int32)SmartCar.servo.imu_d * imu660ra_gyro_z / 100);
+        kp = SmartCar.servo.kp;
+        kd = SmartCar.servo.kd;
+        err2_k = SmartCar.servo.err2_k;
+        imu_d = SmartCar.servo.imu_d;
+    }
+
+    	imu660ra_get_gyro();
+    if(error >= 0)
+    {
+        control = (int16)(kp * error + kd * error_d
+							+ (int32)err2_k * error * error / 10
+							- (int32)imu_d * imu660ra_gyro_z / 100);
+    }
+    else
+    {
+        control = (int16)(kp * error + kd * error_d
+							- (int32)err2_k * error * error / 10
+							- (int32)imu_d * imu660ra_gyro_z / 100);
     }
     ServoLastError = error;
 
