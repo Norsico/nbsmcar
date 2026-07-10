@@ -2614,7 +2614,7 @@ static void image_judge_left_ring(void)
     }
 
     /* 第二确认路径：除了边线形状外，还要求左侧原始边界出现真实贴边丢边。 */
-    if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
+    if((Left_RingsFlag_Point2_Ysite >= (Left_RingsFlag_Point1_Ysite + 1)) &&
        (Ring_Help_Flag == 0))
     {
         if(ImageStatus.WhiteLine_L >= IMAGE_RING_EDGE_LOSS_ROWS)
@@ -2624,7 +2624,7 @@ static void image_judge_left_ring(void)
     }
 
     /* 确认左环岛：必须已经出现左侧真实贴边丢边。 */
-    if((Left_RingsFlag_Point2_Ysite > (Left_RingsFlag_Point1_Ysite + 3)) &&
+    if((Left_RingsFlag_Point2_Ysite >= (Left_RingsFlag_Point1_Ysite + 1)) &&
        (Ring_Help_Flag == 1) &&
        (ImageStatus.WhiteLine_L >= IMAGE_RING_EDGE_LOSS_ROWS) &&
        (ImageFlag.image_element_rings_flag == 0))
@@ -2821,7 +2821,7 @@ static void image_handle_left_ring(void)
     {
         ImageFlag.image_element_rings_flag = 6;
     }
-    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 3))
+    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 4))
     {
         ImageFlag.image_element_rings_flag = 7;
         buzzer_short();
@@ -2844,7 +2844,7 @@ static void image_handle_left_ring(void)
                 break;
             }
         }
-        if(Point_Ysite > 24)
+        if(Point_Ysite > 22)
         {
             ImageFlag.image_element_rings_flag = 8;
         }
@@ -3681,4 +3681,10 @@ void image_update(void)
     {
         ImageLostCount = 0;
     }
+}
+
+void image_update_laser_test(void)
+{
+    image_target_normalize_config();
+    image_target_update_laser_mode();
 }

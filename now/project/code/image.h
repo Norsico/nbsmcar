@@ -107,6 +107,7 @@ extern uint8 ImageBin[IMAGE_H][IMAGE_W];
 void image_init(void);
 void image_apply_camera(void);
 void image_update(void);
+void image_update_laser_test(void);
 void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h);
 
 #endif

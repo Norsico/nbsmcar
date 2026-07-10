@@ -4,42 +4,42 @@
 #include "headfile.h"
 
 /*软件参数，修改设置*/
-#define SERVO_KP                   (116)
-#define SERVO_KD                   (270)
-#define SERVO_ERR2_K               (28)
-#define SERVO_IMU_D                (18)
+#define SERVO_KP                   (128)
+#define SERVO_KD                   (78)
+#define SERVO_ERR2_K               (30)
+#define SERVO_IMU_D                (28)
 #define SERVO_ACKERMAN             (1400)
-#define SERVO_POINT                (28)
-#define SERVO_IN_RING_POINT        (25)
-#define SERVO_OUT_RING_POINT       (25)
+#define SERVO_POINT                (24)
+#define SERVO_IN_RING_POINT        (22)
+#define SERVO_OUT_RING_POINT       (24)
 
 #define MOTOR_TARGET_SPEED         (230)
-#define MOTOR_STRAIGHT_SPEED       (230)
+#define MOTOR_STRAIGHT_SPEED       (330)
 #define MOTOR_RING_SPEED           (210)
-#define MOTOR_RAMP_SPEED           (150)
-#define MOTOR_LEFT_KP              (50)
-#define MOTOR_LEFT_KI              (5)
-#define MOTOR_RIGHT_KP             (50)
-#define MOTOR_RIGHT_KI             (5)
-#define FAN_DUTY                   (85)
-#define FAN_STRAIGHT_DUTY          (85)  /* 直道风扇档位（降低下压力） */
+#define MOTOR_RAMP_SPEED           (180)
+#define MOTOR_LEFT_KP              (55)
+#define MOTOR_LEFT_KI              (6)
+#define MOTOR_RIGHT_KP             (55)
+#define MOTOR_RIGHT_KI             (6)
+#define FAN_DUTY                   (90)
+#define FAN_STRAIGHT_DUTY          (90)  /* 直道风扇档位（降低下压力） */
 #define FAN_ENABLE                 (1)   /* 0=关闭风扇，1=开启风扇 */
 
 #define OTHER_LAP_COUNT            (1)
 
-#define CAMERA_LASER_ROW           (52)
-#define CAMERA_LASER_ROW_ST        (55)
+#define CAMERA_LASER_ROW           (57)
+#define CAMERA_LASER_ROW_ST        (51)
 #define CAMERA_TARGET_GAP          (1)
 #define CAMERA_LASER_TEST          (0)
-#define CAMERA_LASER_FIRE_US       (4500)
+#define CAMERA_LASER_FIRE_US       (3900)
 #define CAMERA_LASER_LEFT2_COL     (23)
 #define CAMERA_LASER_LEFT1_COL     (31)
 #define CAMERA_LASER_CENTER_COL    (39)
 #define CAMERA_LASER_RIGHT1_COL    (47)
 #define CAMERA_LASER_RIGHT2_COL    (55)
 #define CAMERA_LASER_UI_TEST_COL   (39)
-#define CAMERA_THRESHOLD_OFFSET    (0)
-#define CAMERA_THRESHOLD_TRI_DELTA (10)
+#define CAMERA_THRESHOLD_OFFSET    (12)
+#define CAMERA_THRESHOLD_TRI_DELTA (6)
 
 /*硬件配置，修改设置*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
@@ -56,8 +56,8 @@
 #define FAN_ESC_DUTY_MAX           (6000)
 #define FAN_ESC_DUTY_STEP          (30)
 
-#define CAMERA_EXPOSURE            (130)
-#define CAMERA_GAIN                (31)
+#define CAMERA_EXPOSURE            (100)
+#define CAMERA_GAIN                (25)
 #define CAMERA_INIT_RETRY          (5)
 #define CAMERA_INIT_DELAY_MS       (100)
 

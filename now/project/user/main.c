@@ -37,7 +37,7 @@
 
 void main(void)
 {
-    clock_init(SYSTEM_CLOCK_96M); 				// 时钟配置及系统初始化<务必保留>
+    clock_init(SYSTEM_CLOCK_114M); 				// 时钟配置及系统初始化<务必保留>
 
     debug_init();
     para_init();
@@ -69,6 +69,7 @@ void main(void)
                 }
                 else
                 {
+                    image_update_laser_test();
                     pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
                 }
                 ui_update();
