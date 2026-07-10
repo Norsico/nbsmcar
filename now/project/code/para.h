@@ -43,6 +43,11 @@
 
 /*硬件配置，修改设置*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
+#define MOTOR_STRAIGHT_DELAY_MS    (2000)  /* 电机控制启动后延迟启用直道功能 */
+#define MOTOR_IMAGE_FRAME_TIMEOUT_MS (250) /* 连续无新图像帧时停车 */
+#define MOTOR_START_IMAGE_CHECK_MS (2000)  /* 启动图像静止检查时长 */
+#define MOTOR_IMAGE_FRAME_TIMEOUT_TICKS \
+    ((MOTOR_IMAGE_FRAME_TIMEOUT_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS)
 #define MOTOR_PWM_FREQ             (17000)
 #define MOTOR_DUTY_LIMIT           (9000)
 

@@ -4,6 +4,77 @@ motor_data Motor;
 
 static int16 last_error_left = 0;
 static int16 last_error_right = 0;
+static volatile uint16 MotorStraightDelayTicks = 0;
+static uint16 MotorImageFrameTimeoutTicks = 0;
+static uint16 MotorStartImageCheckTicks = 0;
+static uint16 MotorLastImageSequence = 0;
+static uint16 MotorStartWhiteCount = 0;
+static int16 MotorStartImageError = 0;
+static int16 MotorStartLeftErrorX10 = 0;
+static int16 MotorStartRightErrorX10 = 0;
+static uint8 MotorStartThreshold = 0;
+static uint8 MotorStartValidCount = 0;
+static uint8 MotorStartImageSeen = 0;
+static uint8 MotorStartImageChanged = 0;
+
+static uint8 motor_image_watchdog(void)
+{
+    if(Image.sequence == MotorLastImageSequence)
+    {
+        if(MotorImageFrameTimeoutTicks < MOTOR_IMAGE_FRAME_TIMEOUT_TICKS)
+        {
+            MotorImageFrameTimeoutTicks++;
+        }
+        if(MotorImageFrameTimeoutTicks >= MOTOR_IMAGE_FRAME_TIMEOUT_TICKS)
+        {
+            CarMode = CAR_MODE_STOP;
+            motor_output(0, 0);
+            return 0;
+        }
+    }
+    else
+    {
+        MotorLastImageSequence = Image.sequence;
+        MotorImageFrameTimeoutTicks = 0;
+
+        if(MotorStartImageCheckTicks > 0)
+        {
+            if(MotorStartImageSeen == 0)
+            {
+                MotorStartImageSeen = 1;
+                MotorStartWhiteCount = Image.white_count;
+                MotorStartImageError = Image.error;
+                MotorStartLeftErrorX10 = Image.straight_left_error_x10;
+                MotorStartRightErrorX10 = Image.straight_right_error_x10;
+                MotorStartThreshold = Image.threshold;
+                MotorStartValidCount = Image.valid_count;
+            }
+            else if((Image.white_count != MotorStartWhiteCount) ||
+                    (Image.error != MotorStartImageError) ||
+                    (Image.straight_left_error_x10 != MotorStartLeftErrorX10) ||
+                    (Image.straight_right_error_x10 != MotorStartRightErrorX10) ||
+                    (Image.threshold != MotorStartThreshold) ||
+                    (Image.valid_count != MotorStartValidCount))
+            {
+                MotorStartImageChanged = 1;
+            }
+        }
+    }
+
+    if(MotorStartImageCheckTicks > 0)
+    {
+        MotorStartImageCheckTicks--;
+        if((MotorStartImageCheckTicks == 0) &&
+           ((MotorStartImageSeen == 0) || (MotorStartImageChanged == 0)))
+        {
+            CarMode = CAR_MODE_STOP;
+            motor_output(0, 0);
+            return 0;
+        }
+    }
+
+    return 1;
+}
 
 static int16 motor_limit(int16 value)
 {
@@ -81,6 +152,16 @@ static void motor_timer(void)
     if(CarMode != CAR_MODE_RUN)
     {
         return;
+    }
+
+    if(motor_image_watchdog() == 0)
+    {
+        return;
+    }
+
+    if(MotorStraightDelayTicks > 0)
+    {
+        MotorStraightDelayTicks--;
     }
 
     error_left = Motor.target_left - Motor.read_left;
@@ -171,6 +252,27 @@ void motor_init(void)
 
 void motor_start_control(void)
 {
+    if(CarMode == CAR_MODE_RUN)
+    {
+        MotorStraightDelayTicks =
+            (MOTOR_STRAIGHT_DELAY_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS;
+        MotorImageFrameTimeoutTicks = 0;
+        MotorStartImageCheckTicks =
+            (MOTOR_START_IMAGE_CHECK_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS;
+        MotorLastImageSequence = Image.sequence;
+        MotorStartImageSeen = 0;
+        MotorStartImageChanged = 0;
+    }
+    else
+    {
+        MotorStraightDelayTicks = 0;
+        MotorImageFrameTimeoutTicks = 0;
+        MotorStartImageCheckTicks = 0;
+        MotorLastImageSequence = 0;
+        MotorStartImageSeen = 0;
+        MotorStartImageChanged = 0;
+    }
+
     /* 风扇初始化 + 爬坡 */
     pwm_init(FAN_LEFT_PWM, FAN_PWM_FREQ, 3000);
     pwm_init(FAN_RIGHT_PWM, FAN_PWM_FREQ, 3000);
@@ -178,13 +280,24 @@ void motor_start_control(void)
     {
         if(SmartCar.motor.fan_en != 0)
         {
-            fan_start_ramp(SmartCar.motor.fan_straight_duty);
+            fan_start_ramp(SmartCar.motor.fan_duty);
         }
     }
 
     /* 启动电机控制中断（所有外设初始化完成后才启动） */
     pit_ms_init(TIM1_PIT, MOTOR_CTRL_PERIOD_MS, motor_timer);
     interrupt_set_priority(TIMER1_IRQn, IRQ_PRIORITY_MOTOR);
+}
+
+uint8 motor_is_straight_enabled(void)
+{
+    uint8 enabled;
+
+    interrupt_global_disable();
+    enabled = (MotorStraightDelayTicks == 0) ? 1 : 0;
+    interrupt_global_enable();
+
+    return enabled;
 }
 
 void motor_output(int16 left_duty, int16 right_duty)

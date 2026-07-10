@@ -74,7 +74,7 @@ typedef struct
 {
     uint8 ready;              /* 摄像头初始化完成 */
     uint8 result_ready;       /* 本帧结果可供舵机使用 */
-    uint16 sequence;          /* 已处理帧计数器 */
+    volatile uint16 sequence; /* 已处理帧计数器 */
     uint8 threshold;          /* 最终二值化阈值 */
     uint16 white_count;       /* 二值图中白点数量 */
     uint8 tow_row;            /* 实际使用的前瞻点行号 */

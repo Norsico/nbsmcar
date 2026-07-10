@@ -2821,7 +2821,7 @@ static void image_handle_left_ring(void)
     {
         ImageFlag.image_element_rings_flag = 6;
     }
-    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 4))
+    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 3))
     {
         ImageFlag.image_element_rings_flag = 7;
         buzzer_short();
@@ -2883,7 +2883,7 @@ static void image_handle_left_ring(void)
     {
         for(Ysite = 57; Ysite > ImageStatus.OFFLine; Ysite--)
         {
-            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 5;
+            ImageDeal[Ysite].Center = ImageDeal[Ysite].RightBorder - Half_Road_Wide[Ysite] - 3;
         }
     }
     if((ImageFlag.image_element_rings_flag == 5) ||
@@ -3385,6 +3385,14 @@ static void image_check_straight(void)
     /* 导出误差值到Image结构体（已 ×10，直接赋值） */
     Image.straight_left_error_x10  = left_err_x10;
     Image.straight_right_error_x10 = right_err_x10;
+
+    if(motor_is_straight_enabled() == 0)
+    {
+        straight_count = 0;
+        Image.is_straight = 0;
+        return;
+    }
+
     cross_straight = image_is_cross_straight_feature();
 
     /* 左右边线较直即可，连续2帧确认。适当放松，便于更早进入直道状态。 */
@@ -3629,7 +3637,9 @@ void image_update(void)
     }
 
     image_process();
+    interrupt_global_disable();
     Image.sequence++;
+    interrupt_global_enable();
 
     /* 非运行模式不检测丢线停车 */
     if(CarMode != CAR_MODE_RUN)
