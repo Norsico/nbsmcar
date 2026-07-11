@@ -29,15 +29,15 @@ typedef enum
 #define UI_ROW_H                     (16)  //控制每行 y 间距
 #define UI_NAME_X                    (16)  //控制名字 x 位置
 #define UI_VALUE_X                   (144) //控制数据 x 位置
-#define UI_LASER_TEST_MAX            (7)
+#define UI_LASER_TEST_MAX            (9)
 #define UI_LASER_FIRE_US_MIN         (200)
 #define UI_LASER_FIRE_US_MAX         (20000)
 #define UI_LASER_TEST_INDEX          (0)
 #define UI_LASER_FIRE_US_INDEX       (1)
-#define UI_LASER_UI_TEST_INDEX       (7)
-#define UI_LASER_GAP_INDEX           (8)
-#define UI_LASER_ROW_INDEX           (9)
-#define UI_LASER_ROW_ST_INDEX        (10)
+#define UI_LASER_UI_TEST_INDEX       (9)
+#define UI_LASER_GAP_INDEX           (10)
+#define UI_LASER_ROW_INDEX           (11)
+#define UI_LASER_ROW_ST_INDEX        (12)
 #define UI_CAMERA_THR_OFF_INDEX      (2)
 #define UI_CAMERA_THR_TRI_INDEX      (3)
 #define UI_OTHER_LAP_INDEX           (0)
@@ -121,11 +121,13 @@ static const ui_param_t camera_params[] = {
 static const ui_param_t laser_params[] = {
     {"laser test",&SmartCar.camera.laser_test,       VAL_TYPE_UINT8,  1},
     {"laser us",  &SmartCar.camera.laser_fire_us,    VAL_TYPE_UINT16, 200},
+    {"left3",     &SmartCar.camera.laser_left3_col,  VAL_TYPE_UINT8,  1},
     {"left2",     &SmartCar.camera.laser_left2_col,  VAL_TYPE_UINT8,  1},
     {"left1",     &SmartCar.camera.laser_left1_col,  VAL_TYPE_UINT8,  1},
     {"center",    &SmartCar.camera.laser_center_col, VAL_TYPE_UINT8,  1},
     {"right1",    &SmartCar.camera.laser_right1_col, VAL_TYPE_UINT8,  1},
     {"right2",    &SmartCar.camera.laser_right2_col, VAL_TYPE_UINT8,  1},
+    {"right3",    &SmartCar.camera.laser_right3_col, VAL_TYPE_UINT8,  1},
     {"laser ui",  &SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
     {"gap num",   &SmartCar.camera.target_gap,       VAL_TYPE_UINT8,  1},
     {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},

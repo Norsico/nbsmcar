@@ -65,10 +65,10 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
 #define IMAGE_TARGET_MIN_HIT_ROWS      (2)           /* 至少命中几条扫描线才开火，减少急弯单行误触发 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
-#define IMAGE_LASER_COUNT              (5)           /* 激光数量 */
+#define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
 #define IMAGE_LASER_TEST_ALL_FIRST     (1)           /* 激光测试全开（快捷位） */
-#define IMAGE_LASER_TEST_ALL_LAST      (7)           /* 激光测试全开（保留原顺序后的末位） */
+#define IMAGE_LASER_TEST_ALL_LAST      (9)           /* 激光测试全开（保留原顺序后的末位） */
 
 /* 边界限幅宏（有效列范围 1~78） */
 #define LimitL(L)                      (L = ((L < 1) ? 1 : L))
@@ -230,29 +230,35 @@ static int16 Repair_Point_Ysite = 0;
 
 static void image_laser_all_off(void)
 {
+    gpio_set_level(LASER_LEFT_3, GPIO_LOW);
     gpio_set_level(LASER_LEFT_2, GPIO_LOW);
     gpio_set_level(LASER_LEFT_1, GPIO_LOW);
     gpio_set_level(LASER_CENTER, GPIO_LOW);
     gpio_set_level(LASER_RIGHT_1, GPIO_LOW);
     gpio_set_level(LASER_RIGHT_2, GPIO_LOW);
+    gpio_set_level(LASER_RIGHT_3, GPIO_LOW);
 }
 
 static void image_laser_all_on(void)
 {
+    gpio_set_level(LASER_LEFT_3, GPIO_HIGH);
     gpio_set_level(LASER_LEFT_2, GPIO_HIGH);
     gpio_set_level(LASER_LEFT_1, GPIO_HIGH);
     gpio_set_level(LASER_CENTER, GPIO_HIGH);
     gpio_set_level(LASER_RIGHT_1, GPIO_HIGH);
     gpio_set_level(LASER_RIGHT_2, GPIO_HIGH);
+    gpio_set_level(LASER_RIGHT_3, GPIO_HIGH);
 }
 
 static const gpio_pin_enum ImageLaserPins[IMAGE_LASER_COUNT] =
 {
+    LASER_LEFT_3,
     LASER_LEFT_2,
     LASER_LEFT_1,
     LASER_CENTER,
     LASER_RIGHT_1,
-    LASER_RIGHT_2
+    LASER_RIGHT_2,
+    LASER_RIGHT_3
 };
 
 static gpio_pin_enum image_laser_pick_pin(uint8 center_x);
@@ -293,7 +299,7 @@ static void image_laser_apply_test_mode(uint8 mode)
         return;
     }
 
-    /* 2~6 依次对应单颗激光，7 保留原末位测试序号 */
+    /* 2~8 依次对应单颗激光，9 保留末位全开测试 */
     if((mode >= 2) && (mode <= (IMAGE_LASER_COUNT + 1)))
     {
         for(i = 0; i < IMAGE_LASER_COUNT; i++)
@@ -361,11 +367,13 @@ static void image_target_normalize_config(void)
     SmartCar.camera.laser_row_st = image_target_normalize_row(SmartCar.camera.laser_row_st);
     SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
     SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
+    SmartCar.camera.laser_left3_col = image_target_normalize_col(SmartCar.camera.laser_left3_col);
     SmartCar.camera.laser_left2_col = image_target_normalize_col(SmartCar.camera.laser_left2_col);
     SmartCar.camera.laser_left1_col = image_target_normalize_col(SmartCar.camera.laser_left1_col);
     SmartCar.camera.laser_center_col = image_target_normalize_col(SmartCar.camera.laser_center_col);
     SmartCar.camera.laser_right1_col = image_target_normalize_col(SmartCar.camera.laser_right1_col);
     SmartCar.camera.laser_right2_col = image_target_normalize_col(SmartCar.camera.laser_right2_col);
+    SmartCar.camera.laser_right3_col = image_target_normalize_col(SmartCar.camera.laser_right3_col);
     SmartCar.camera.laser_ui_test_col = image_target_normalize_col(SmartCar.camera.laser_ui_test_col);
 }
 
@@ -373,11 +381,22 @@ static uint8 image_laser_get_aim_col(uint8 index)
 {
     switch(index)
     {
-        case 0: return SmartCar.camera.laser_left2_col;
-        case 1: return SmartCar.camera.laser_left1_col;
-        case 2: return SmartCar.camera.laser_center_col;
-        case 3: return SmartCar.camera.laser_right1_col;
-        default: return SmartCar.camera.laser_right2_col;
+        case 0:
+            return SmartCar.camera.laser_left3_col;
+        case 1:
+            return SmartCar.camera.laser_left2_col;
+        case 2:
+            return SmartCar.camera.laser_left1_col;
+        case 3:
+            return SmartCar.camera.laser_center_col;
+        case 4:
+            return SmartCar.camera.laser_right1_col;
+        case 5:
+            return SmartCar.camera.laser_right2_col;
+        case 6:
+            return SmartCar.camera.laser_right3_col;
+        default:
+            return SmartCar.camera.laser_center_col;
     }
 }
 
@@ -1119,11 +1138,13 @@ void image_init(void)
     image_target_normalize_config();
 
     gpio_init(LED_DEBUG, GPO, GPIO_HIGH, GPO_PUSH_PULL);
+    gpio_init(LASER_LEFT_3, GPO, GPIO_LOW, GPO_PUSH_PULL);
     gpio_init(LASER_LEFT_2, GPO, GPIO_LOW, GPO_PUSH_PULL);
     gpio_init(LASER_LEFT_1, GPO, GPIO_LOW, GPO_PUSH_PULL);
     gpio_init(LASER_CENTER, GPO, GPIO_LOW, GPO_PUSH_PULL);
     gpio_init(LASER_RIGHT_1, GPO, GPIO_LOW, GPO_PUSH_PULL);
     gpio_init(LASER_RIGHT_2, GPO, GPIO_LOW, GPO_PUSH_PULL);
+    gpio_init(LASER_RIGHT_3, GPO, GPIO_LOW, GPO_PUSH_PULL);
     image_laser_all_off();
 
     retry = 0;

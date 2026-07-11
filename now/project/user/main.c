@@ -62,6 +62,7 @@ void main(void)
         {
             case CAR_MODE_UI:
             {
+                buzzer_stop_alarm_enable(0);
                 if(ui_is_debug())
                 {
                     image_update();
@@ -77,6 +78,7 @@ void main(void)
 
             case CAR_MODE_RUN:
             {
+                buzzer_stop_alarm_enable(0);
                 image_update();
                 servo_update();
                 motor_update_fan();  /* 动态调整风扇 */
@@ -84,10 +86,10 @@ void main(void)
 
             case CAR_MODE_STOP:
             {
-								pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
+				buzzer_stop_alarm_enable(1);
+				pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
                 motor_output(0, 0);
-                pwm_set_duty(FAN_LEFT_PWM, 3000);
-								pwm_set_duty(FAN_RIGHT_PWM, 3000);
+                pwm_set_duty(FAN_PWM, 3000);
             } break;
         }
     }

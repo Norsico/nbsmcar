@@ -38,11 +38,13 @@
 #define CAMERA_TARGET_GAP          (1)
 #define CAMERA_LASER_TEST          (0)
 #define CAMERA_LASER_FIRE_US       (3900)
+#define CAMERA_LASER_LEFT3_COL     (16)
 #define CAMERA_LASER_LEFT2_COL     (23)
 #define CAMERA_LASER_LEFT1_COL     (31)
 #define CAMERA_LASER_CENTER_COL    (39)
 #define CAMERA_LASER_RIGHT1_COL    (47)
 #define CAMERA_LASER_RIGHT2_COL    (55)
+#define CAMERA_LASER_RIGHT3_COL    (62)
 #define CAMERA_LASER_UI_TEST_COL   (39)
 #define CAMERA_THRESHOLD_OFFSET    (12)
 #define CAMERA_THRESHOLD_TRI_DELTA (6)
@@ -50,10 +52,6 @@
 /*硬件配置，修改设置*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
 #define MOTOR_STRAIGHT_DELAY_MS    (2000)  /* 电机控制启动后延迟启用直道功能 */
-#define MOTOR_IMAGE_FRAME_TIMEOUT_MS (250) /* 连续无新图像帧时停车 */
-#define MOTOR_START_IMAGE_CHECK_MS (2000)  /* 启动图像静止检查时长 */
-#define MOTOR_IMAGE_FRAME_TIMEOUT_TICKS \
-    ((MOTOR_IMAGE_FRAME_TIMEOUT_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS)
 #define MOTOR_PWM_FREQ             (17000)
 #define MOTOR_DUTY_LIMIT           (9000)
 
@@ -77,6 +75,8 @@
 #define BATTERY_SAMPLE_COUNT       (3)
 
 #define BUZZER_SHORT_MS            (80)
+#define BUZZER_STOP_ALARM_ON_MS    (300)
+#define BUZZER_STOP_ALARM_OFF_MS   (1000)
 
 #define IRQ_PRIORITY_MOTOR         (2)
 #define IRQ_PRIORITY_NORMAL        (0)
@@ -84,15 +84,17 @@
 /*硬件，引脚定义，不用动*/
 #define LED_DEBUG                  (IO_P52)                 // 核心板LED
 
-#define BUZZER                     (IO_P96)                 // 蜂鸣器
+#define BUZZER                     (IO_PA1)                 // Buzzer 蜂鸣器
 
 #define BATTERY_ADC                (ADC1_CH0_P10)           // 电池电压采样
 
-#define LASER_LEFT_2               (IO_P95)                 // 5个激光
-#define LASER_LEFT_1               (IO_P94)
-#define LASER_CENTER               (IO_P92)
-#define LASER_RIGHT_1              (IO_P93)
-#define LASER_RIGHT_2              (IO_P91)
+#define LASER_LEFT_3               (IO_P97)                 // Laser left to right: 9.7 9.6 9.5 9.4 9.2 9.3 9.1
+#define LASER_LEFT_2               (IO_P96)
+#define LASER_LEFT_1               (IO_P95)
+#define LASER_CENTER               (IO_P94)
+#define LASER_RIGHT_1              (IO_P92)
+#define LASER_RIGHT_2              (IO_P93)
+#define LASER_RIGHT_3              (IO_P91)
 
 #define SWITCH_MODE1               (IO_PB0)                 // 拨码开关
 #define SWITCH_MODE2               (IO_PB1)
@@ -104,8 +106,7 @@
 
 #define SERVO_PWM                  (PWME_CH3P_PA4)          // 舵机
 
-#define FAN_LEFT_PWM               (PWMF_CH1_PA1)           // 负压风扇
-#define FAN_RIGHT_PWM              (PWMF_CH2_PA3)
+#define FAN_PWM                    (PWMF_CH2_PA3)           // Brushless fan 无刷
 
 #define MOTOR_RIGHT_DIR            (IO_P75)                 // 左右电机
 #define MOTOR_RIGHT_PWM            (PWMB_CH1_P74)
@@ -193,11 +194,13 @@ typedef struct
     uint8 target_gap;
     uint8 laser_test;
     uint16 laser_fire_us;
+    uint8 laser_left3_col;
     uint8 laser_left2_col;
     uint8 laser_left1_col;
     uint8 laser_center_col;
     uint8 laser_right1_col;
     uint8 laser_right2_col;
+    uint8 laser_right3_col;
     uint8 laser_ui_test_col;
 } camera_para;
 

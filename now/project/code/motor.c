@@ -5,76 +5,6 @@ motor_data Motor;
 static int16 last_error_left = 0;
 static int16 last_error_right = 0;
 static volatile uint16 MotorStraightDelayTicks = 0;
-static uint16 MotorImageFrameTimeoutTicks = 0;
-static uint16 MotorStartImageCheckTicks = 0;
-static uint16 MotorLastImageSequence = 0;
-static uint16 MotorStartWhiteCount = 0;
-static int16 MotorStartImageError = 0;
-static int16 MotorStartLeftErrorX10 = 0;
-static int16 MotorStartRightErrorX10 = 0;
-static uint8 MotorStartThreshold = 0;
-static uint8 MotorStartValidCount = 0;
-static uint8 MotorStartImageSeen = 0;
-static uint8 MotorStartImageChanged = 0;
-
-static uint8 motor_image_watchdog(void)
-{
-    if(Image.sequence == MotorLastImageSequence)
-    {
-        if(MotorImageFrameTimeoutTicks < MOTOR_IMAGE_FRAME_TIMEOUT_TICKS)
-        {
-            MotorImageFrameTimeoutTicks++;
-        }
-        if(MotorImageFrameTimeoutTicks >= MOTOR_IMAGE_FRAME_TIMEOUT_TICKS)
-        {
-            CarMode = CAR_MODE_STOP;
-            motor_output(0, 0);
-            return 0;
-        }
-    }
-    else
-    {
-        MotorLastImageSequence = Image.sequence;
-        MotorImageFrameTimeoutTicks = 0;
-
-        if(MotorStartImageCheckTicks > 0)
-        {
-            if(MotorStartImageSeen == 0)
-            {
-                MotorStartImageSeen = 1;
-                MotorStartWhiteCount = Image.white_count;
-                MotorStartImageError = Image.error;
-                MotorStartLeftErrorX10 = Image.straight_left_error_x10;
-                MotorStartRightErrorX10 = Image.straight_right_error_x10;
-                MotorStartThreshold = Image.threshold;
-                MotorStartValidCount = Image.valid_count;
-            }
-            else if((Image.white_count != MotorStartWhiteCount) ||
-                    (Image.error != MotorStartImageError) ||
-                    (Image.straight_left_error_x10 != MotorStartLeftErrorX10) ||
-                    (Image.straight_right_error_x10 != MotorStartRightErrorX10) ||
-                    (Image.threshold != MotorStartThreshold) ||
-                    (Image.valid_count != MotorStartValidCount))
-            {
-                MotorStartImageChanged = 1;
-            }
-        }
-    }
-
-    if(MotorStartImageCheckTicks > 0)
-    {
-        MotorStartImageCheckTicks--;
-        if((MotorStartImageCheckTicks == 0) &&
-           ((MotorStartImageSeen == 0) || (MotorStartImageChanged == 0)))
-        {
-            CarMode = CAR_MODE_STOP;
-            motor_output(0, 0);
-            return 0;
-        }
-    }
-
-    return 1;
-}
 
 static int16 motor_limit(int16 value)
 {
@@ -112,8 +42,7 @@ static void fan_write_percent(int16 duty)
     int16 pwm_duty;
 
     pwm_duty = fan_transform_percent_to_duty(duty);
-    pwm_set_duty(FAN_LEFT_PWM, pwm_duty);
-    pwm_set_duty(FAN_RIGHT_PWM, pwm_duty);
+    pwm_set_duty(FAN_PWM, pwm_duty);
 }
 
 static void fan_start_ramp(int16 target_duty)
@@ -150,11 +79,6 @@ static void motor_timer(void)
     encoder_clear_count(ENCODER_RIGHT);
 
     if(CarMode != CAR_MODE_RUN)
-    {
-        return;
-    }
-
-    if(motor_image_watchdog() == 0)
     {
         return;
     }
@@ -256,26 +180,14 @@ void motor_start_control(void)
     {
         MotorStraightDelayTicks =
             (MOTOR_STRAIGHT_DELAY_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS;
-        MotorImageFrameTimeoutTicks = 0;
-        MotorStartImageCheckTicks =
-            (MOTOR_START_IMAGE_CHECK_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS;
-        MotorLastImageSequence = Image.sequence;
-        MotorStartImageSeen = 0;
-        MotorStartImageChanged = 0;
     }
     else
     {
         MotorStraightDelayTicks = 0;
-        MotorImageFrameTimeoutTicks = 0;
-        MotorStartImageCheckTicks = 0;
-        MotorLastImageSequence = 0;
-        MotorStartImageSeen = 0;
-        MotorStartImageChanged = 0;
     }
 
     /* 风扇初始化 + 爬坡 */
-    pwm_init(FAN_LEFT_PWM, FAN_PWM_FREQ, 3000);
-    pwm_init(FAN_RIGHT_PWM, FAN_PWM_FREQ, 3000);
+    pwm_init(FAN_PWM, FAN_PWM_FREQ, 3000);
     if(CarMode == CAR_MODE_RUN)
     {
         if(SmartCar.motor.fan_en != 0)

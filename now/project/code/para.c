@@ -41,11 +41,13 @@ void para_init(void)
     SmartCar.camera.target_gap = CAMERA_TARGET_GAP;
     SmartCar.camera.laser_test = CAMERA_LASER_TEST;
     SmartCar.camera.laser_fire_us = CAMERA_LASER_FIRE_US;
+    SmartCar.camera.laser_left3_col = CAMERA_LASER_LEFT3_COL;
     SmartCar.camera.laser_left2_col = CAMERA_LASER_LEFT2_COL;
     SmartCar.camera.laser_left1_col = CAMERA_LASER_LEFT1_COL;
     SmartCar.camera.laser_center_col = CAMERA_LASER_CENTER_COL;
     SmartCar.camera.laser_right1_col = CAMERA_LASER_RIGHT1_COL;
     SmartCar.camera.laser_right2_col = CAMERA_LASER_RIGHT2_COL;
+    SmartCar.camera.laser_right3_col = CAMERA_LASER_RIGHT3_COL;
     SmartCar.camera.laser_ui_test_col = CAMERA_LASER_UI_TEST_COL;
 
     SmartCar.other.lap_count = OTHER_LAP_COUNT;
