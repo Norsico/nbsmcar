@@ -63,7 +63,7 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_PERIOD_US   (500)         /* 激光关闭定时器周期，单位 us */
 #define IMAGE_TARGET_FIRE_INTERVAL     (10)          /* 两次自动打靶之间至少间隔的图像帧数 */
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
-#define IMAGE_TARGET_MIN_HIT_ROWS      (2)           /* 至少命中几条扫描线才开火，减少急弯单行误触发 */
+#define IMAGE_TARGET_MIN_HIT_ROWS      (1)           /* 三条扫描线中至少一条命中才开火 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
@@ -633,7 +633,7 @@ static void image_target_check(void)
         }
     }
 
-    /* 急弯里单行边界容易误触发，至少两行命中才认为靶子成立。 */
+    /* 三条扫描线中至少一条命中即认为靶子成立。 */
     if(hit_count < IMAGE_TARGET_MIN_HIT_ROWS)
     {
         if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
