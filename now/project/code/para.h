@@ -88,12 +88,12 @@
 
 #define BATTERY_ADC                (ADC1_CH0_P10)           // 电池电压采样
 
-#define LASER_LEFT_3               (IO_P97)                 // Laser left to right: 9.7 9.6 9.5 9.4 9.2 9.3 9.1
+#define LASER_LEFT_3               (IO_P93)                 // Laser 1 and 6 swapped: left to right 9.3 9.6 9.5 9.4 9.2 9.7 9.1
 #define LASER_LEFT_2               (IO_P96)
 #define LASER_LEFT_1               (IO_P95)
 #define LASER_CENTER               (IO_P94)
 #define LASER_RIGHT_1              (IO_P92)
-#define LASER_RIGHT_2              (IO_P93)
+#define LASER_RIGHT_2              (IO_P97)
 #define LASER_RIGHT_3              (IO_P91)
 
 #define SWITCH_MODE1               (IO_PB0)                 // 拨码开关
