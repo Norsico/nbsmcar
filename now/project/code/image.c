@@ -2848,7 +2848,7 @@ static void image_handle_left_ring(void)
     {
         ImageFlag.image_element_rings_flag = 6;
     }
-    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 4))
+    if((ImageFlag.image_element_rings_flag == 6) && (ImageStatus.Right_Line < 6))
     {
         ImageFlag.image_element_rings_flag = 7;
         buzzer_short();
