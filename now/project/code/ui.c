@@ -13,7 +13,9 @@ typedef enum
     UI_PAGE_OTHER,
     UI_PAGE_DEBUG,
     UI_PAGE_SERVO_PARAM,
-    UI_PAGE_SERVO_ST_PARAM
+    UI_PAGE_SERVO_ST_PARAM,
+    UI_PAGE_LASER_COL,
+    UI_PAGE_LASER_ST_COL
 } ui_page;
 
 typedef enum
@@ -32,12 +34,18 @@ typedef enum
 #define UI_LASER_TEST_MAX            (9)
 #define UI_LASER_FIRE_US_MIN         (200)
 #define UI_LASER_FIRE_US_MAX         (20000)
+#define UI_LASER_INTERVAL_MAX        (30)
 #define UI_LASER_TEST_INDEX          (0)
 #define UI_LASER_FIRE_US_INDEX       (1)
-#define UI_LASER_UI_TEST_INDEX       (9)
-#define UI_LASER_GAP_INDEX           (10)
-#define UI_LASER_ROW_INDEX           (11)
-#define UI_LASER_ROW_ST_INDEX        (12)
+#define UI_LASER_INTERVAL_INDEX      (2)
+#define UI_LASER_UI_TEST_INDEX       (3)
+#define UI_LASER_COL_INDEX           (4)
+#define UI_LASER_ST_COL_INDEX        (5)
+#define UI_LASER_MAIN_COUNT          (6)
+#define UI_LASER_COL_ROW1_INDEX      (7)
+#define UI_LASER_COL_ROW2_INDEX      (8)
+#define UI_LASER_COL_ROW3_INDEX      (9)
+#define UI_LASER_COL_OK_INDEX        (10)
 #define UI_CAMERA_THR_OFF_INDEX      (2)
 #define UI_CAMERA_THR_TRI_INDEX      (3)
 #define UI_OTHER_LAP_INDEX           (0)
@@ -94,6 +102,7 @@ static const ui_param_t servo_st_param_params[] = {
 };
 
 static const char* servo_menu_names[] = {"param", "st param", "in r point", "out r point"};
+static const char* laser_menu_names[] = {"laser test", "laser us", "interval", "laser ui", "laser col", "laser st col"};
 
 // Motor 菜单配置
 static const ui_param_t motor_params[] = {
@@ -121,17 +130,36 @@ static const ui_param_t camera_params[] = {
 static const ui_param_t laser_params[] = {
     {"laser test",&SmartCar.camera.laser_test,       VAL_TYPE_UINT8,  1},
     {"laser us",  &SmartCar.camera.laser_fire_us,    VAL_TYPE_UINT16, 200},
-    {"left3",     &SmartCar.camera.laser_left3_col,  VAL_TYPE_UINT8,  1},
-    {"left2",     &SmartCar.camera.laser_left2_col,  VAL_TYPE_UINT8,  1},
-    {"left1",     &SmartCar.camera.laser_left1_col,  VAL_TYPE_UINT8,  1},
-    {"center",    &SmartCar.camera.laser_center_col, VAL_TYPE_UINT8,  1},
-    {"right1",    &SmartCar.camera.laser_right1_col, VAL_TYPE_UINT8,  1},
-    {"right2",    &SmartCar.camera.laser_right2_col, VAL_TYPE_UINT8,  1},
-    {"right3",    &SmartCar.camera.laser_right3_col, VAL_TYPE_UINT8,  1},
+    {"interval",  &SmartCar.camera.laser_interval,   VAL_TYPE_UINT8,  1},
     {"laser ui",  &SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
-    {"gap num",   &SmartCar.camera.target_gap,       VAL_TYPE_UINT8,  1},
-    {"laser row", &SmartCar.camera.laser_row,        VAL_TYPE_UINT8,  1},
-    {"laser row st",&SmartCar.camera.laser_row_st,   VAL_TYPE_UINT8,  1},
+};
+
+static const ui_param_t laser_col_params[] = {
+    {"left3",        &SmartCar.camera.laser_left3_col,  VAL_TYPE_UINT8,  1},
+    {"left2",        &SmartCar.camera.laser_left2_col,  VAL_TYPE_UINT8,  1},
+    {"left1",        &SmartCar.camera.laser_left1_col,  VAL_TYPE_UINT8,  1},
+    {"center",       &SmartCar.camera.laser_center_col, VAL_TYPE_UINT8,  1},
+    {"right1",       &SmartCar.camera.laser_right1_col, VAL_TYPE_UINT8,  1},
+    {"right2",       &SmartCar.camera.laser_right2_col, VAL_TYPE_UINT8,  1},
+    {"right3",       &SmartCar.camera.laser_right3_col, VAL_TYPE_UINT8,  1},
+    {"laser row1",   &SmartCar.camera.laser_row1,       VAL_TYPE_UINT8,  1},
+    {"laser row2",   &SmartCar.camera.laser_row2,       VAL_TYPE_UINT8,  1},
+    {"laser row3",   &SmartCar.camera.laser_row3,       VAL_TYPE_UINT8,  1},
+    {"laser ok num", &SmartCar.camera.laser_ok_num,     VAL_TYPE_UINT8,  1},
+};
+
+static const ui_param_t laser_st_col_params[] = {
+    {"left3",           &SmartCar.camera.laser_st_left3_col,  VAL_TYPE_UINT8,  1},
+    {"left2",           &SmartCar.camera.laser_st_left2_col,  VAL_TYPE_UINT8,  1},
+    {"left1",           &SmartCar.camera.laser_st_left1_col,  VAL_TYPE_UINT8,  1},
+    {"center",          &SmartCar.camera.laser_st_center_col, VAL_TYPE_UINT8,  1},
+    {"right1",          &SmartCar.camera.laser_st_right1_col, VAL_TYPE_UINT8,  1},
+    {"right2",          &SmartCar.camera.laser_st_right2_col, VAL_TYPE_UINT8,  1},
+    {"right3",          &SmartCar.camera.laser_st_right3_col, VAL_TYPE_UINT8,  1},
+    {"laser st row1",   &SmartCar.camera.laser_st_row1,       VAL_TYPE_UINT8,  1},
+    {"laser st row2",   &SmartCar.camera.laser_st_row2,       VAL_TYPE_UINT8,  1},
+    {"laser st row3",   &SmartCar.camera.laser_st_row3,       VAL_TYPE_UINT8,  1},
+    {"laser st ok num", &SmartCar.camera.laser_st_ok_num,     VAL_TYPE_UINT8,  1},
 };
 
 static const ui_param_t other_params[] = {
@@ -144,11 +172,15 @@ static const ui_menu_t servo_menu_pages[] = {
     {"St Param", servo_st_param_params, (uint8)(sizeof(servo_st_param_params) / sizeof(servo_st_param_params[0]))},
 };
 
+static const ui_menu_t laser_menu_pages[] = {
+    {"laser col",    laser_col_params,    (uint8)(sizeof(laser_col_params) / sizeof(laser_col_params[0]))},
+    {"laser st col", laser_st_col_params, (uint8)(sizeof(laser_st_col_params) / sizeof(laser_st_col_params[0]))},
+};
+
 // 页面路由汇总表
 static const ui_menu_t menu_pages[] = {
     {"Motor",  motor_params,  (uint8)(sizeof(motor_params) / sizeof(motor_params[0]))},
     {"Camera", camera_params, (uint8)(sizeof(camera_params) / sizeof(camera_params[0]))},
-    {"Laser",  laser_params,  (uint8)(sizeof(laser_params) / sizeof(laser_params[0]))},
     {"Other",  other_params,  (uint8)(sizeof(other_params) / sizeof(other_params[0]))},
 };
 	
@@ -171,8 +203,17 @@ static const ui_menu_t *ui_get_param_menu(ui_page page)
     if((page >= UI_PAGE_SERVO_PARAM) && (page <= UI_PAGE_SERVO_ST_PARAM)) {
         return &servo_menu_pages[page - UI_PAGE_SERVO_PARAM];
     }
-    if((page >= UI_PAGE_MOTOR) && (page <= UI_PAGE_OTHER)) {
-        return &menu_pages[page - UI_PAGE_MOTOR];
+    if((page >= UI_PAGE_LASER_COL) && (page <= UI_PAGE_LASER_ST_COL)) {
+        return &laser_menu_pages[page - UI_PAGE_LASER_COL];
+    }
+    if(page == UI_PAGE_MOTOR) {
+        return &menu_pages[0];
+    }
+    if(page == UI_PAGE_CAMERA) {
+        return &menu_pages[1];
+    }
+    if(page == UI_PAGE_OTHER) {
+        return &menu_pages[2];
     }
     return 0;
 }
@@ -184,7 +225,13 @@ uint8 ui_is_debug(void)
 
 uint8 ui_is_laser_test_active(void)
 {
-    return (UiPage == UI_PAGE_LASER) ? 1 : 0;
+    if((UiPage == UI_PAGE_LASER) ||
+       (UiPage == UI_PAGE_LASER_COL) ||
+       (UiPage == UI_PAGE_LASER_ST_COL))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 // ==========================================
@@ -274,6 +321,9 @@ static uint8 get_current_page_item_count(void)
     if(UiPage == UI_PAGE_SERVO) {
         return 4;
     }
+    if(UiPage == UI_PAGE_LASER) {
+        return UI_LASER_MAIN_COUNT;
+    }
     menu = ui_get_param_menu(UiPage);
     if(menu != 0) {
         return menu->param_count;
@@ -296,15 +346,17 @@ static void ui_change_current_value(int8 dir)
         return;
     }
 
-    menu = ui_get_param_menu(UiPage);
-    if(menu == 0) return;
-
-    p = &menu->params[UiSelect];
-    change = (int16)(p->step * dir);
-
     if(UiPage == UI_PAGE_LASER)
     {
         int16 value;
+
+        if(UiSelect >= (uint8)(sizeof(laser_params) / sizeof(laser_params[0])))
+        {
+            return;
+        }
+
+        p = &laser_params[UiSelect];
+        change = (int16)(p->step * dir);
 
         if(UiSelect == UI_LASER_TEST_INDEX)
         {
@@ -324,29 +376,54 @@ static void ui_change_current_value(int8 dir)
             return;
         }
 
-        if((UiSelect == UI_LASER_ROW_INDEX) || (UiSelect == UI_LASER_ROW_ST_INDEX))
+        if(UiSelect == UI_LASER_INTERVAL_INDEX)
         {
-            value = (int16)(*(uint8*)p->val_ptr) + change;
+            value = (int16)SmartCar.camera.laser_interval + change;
+            if(value < 0) value = 0;
+            if(value > UI_LASER_INTERVAL_MAX) value = UI_LASER_INTERVAL_MAX;
+            SmartCar.camera.laser_interval = (uint8)value;
+            return;
+        }
+
+        if(UiSelect == UI_LASER_UI_TEST_INDEX)
+        {
+            value = (int16)SmartCar.camera.laser_ui_test_col + change;
+            if(value < 0) value = 0;
+            if(value > (IMAGE_W - 1)) value = (IMAGE_W - 1);
+            SmartCar.camera.laser_ui_test_col = (uint8)value;
+            return;
+        }
+    }
+
+    menu = ui_get_param_menu(UiPage);
+    if(menu == 0) return;
+
+    p = &menu->params[UiSelect];
+    change = (int16)(p->step * dir);
+
+    if((UiPage == UI_PAGE_LASER_COL) || (UiPage == UI_PAGE_LASER_ST_COL))
+    {
+        int16 value;
+
+        value = (int16)(*(uint8*)p->val_ptr) + change;
+        if(UiSelect <= 6)
+        {
+            if(value < 0) value = 0;
+            if(value > (IMAGE_W - 1)) value = (IMAGE_W - 1);
+            *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+        if((UiSelect >= UI_LASER_COL_ROW1_INDEX) && (UiSelect <= UI_LASER_COL_ROW3_INDEX))
+        {
             if(value < 1) value = 1;
             if(value > (IMAGE_H - 2)) value = (IMAGE_H - 2);
             *(uint8*)p->val_ptr = (uint8)value;
             return;
         }
-
-        if(UiSelect == UI_LASER_GAP_INDEX)
+        if(UiSelect == UI_LASER_COL_OK_INDEX)
         {
-            value = (int16)SmartCar.camera.target_gap + change;
-            if(value < 0) value = 0;
-            if(value > 8) value = 8;
-            SmartCar.camera.target_gap = (uint8)value;
-            return;
-        }
-
-        if((UiSelect >= 2) && (UiSelect <= UI_LASER_UI_TEST_INDEX))
-        {
-            value = (int16)(*(uint8*)p->val_ptr + change);
-            if(value < 0) value = 0;
-            if(value > (IMAGE_W - 1)) value = (IMAGE_W - 1);
+            if(value < 1) value = 1;
+            if(value > 3) value = 3;
             *(uint8*)p->val_ptr = (uint8)value;
             return;
         }
@@ -476,6 +553,27 @@ static void ui_show_servo(void)
     }
 }
 
+static void ui_show_laser(void)
+{
+    uint8 i;
+    uint16 y;
+    const ui_param_t *p;
+
+    ui_show_title("Laser");
+
+    for(i = 0; i < UI_LASER_MAIN_COUNT; i++) {
+        y = (uint16)((i + 1) * UI_ROW_H);
+        ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_PINK,
+                         (i == UiSelect) ? RGB565_PINK : RGB565_WHITE);
+        ips200_show_string(0, y, (i == UiSelect) ? (UiEdit ? "*" : ">") : " ");
+        ips200_show_string(UI_NAME_X, y, laser_menu_names[i]);
+        if(i < (uint8)(sizeof(laser_params) / sizeof(laser_params[0]))) {
+            p = &laser_params[i];
+            ui_show_current_value(p, y);
+        }
+    }
+}
+
 // 通用的参数页面渲染函数 
 static void ui_show_generic_page(ui_page page)
 {
@@ -582,8 +680,14 @@ static void ui_show(void)
     else if(UiPage == UI_PAGE_SERVO) {
         ui_show_servo();
     }
-    else if(((UiPage >= UI_PAGE_MOTOR) && (UiPage <= UI_PAGE_OTHER)) ||
-            ((UiPage >= UI_PAGE_SERVO_PARAM) && (UiPage <= UI_PAGE_SERVO_ST_PARAM))) {
+    else if(UiPage == UI_PAGE_LASER) {
+        ui_show_laser();
+    }
+    else if((UiPage == UI_PAGE_MOTOR) ||
+            (UiPage == UI_PAGE_CAMERA) ||
+            (UiPage == UI_PAGE_OTHER) ||
+            ((UiPage >= UI_PAGE_SERVO_PARAM) && (UiPage <= UI_PAGE_SERVO_ST_PARAM)) ||
+            ((UiPage >= UI_PAGE_LASER_COL) && (UiPage <= UI_PAGE_LASER_ST_COL))) {
         ui_show_generic_page(UiPage);
     }
 }
@@ -607,6 +711,12 @@ static void ui_handle_key(ui_key_event event)
         } else if(UiPage == UI_PAGE_SERVO_ST_PARAM) {
             UiPage = UI_PAGE_SERVO;
             UiSelect = 1;
+        } else if(UiPage == UI_PAGE_LASER_COL) {
+            UiPage = UI_PAGE_LASER;
+            UiSelect = UI_LASER_COL_INDEX;
+        } else if(UiPage == UI_PAGE_LASER_ST_COL) {
+            UiPage = UI_PAGE_LASER;
+            UiSelect = UI_LASER_ST_COL_INDEX;
         } else if(UiPage != UI_PAGE_MAIN) {
             UiPage = UI_PAGE_MAIN;
             UiSelect = 0;
@@ -634,6 +744,19 @@ static void ui_handle_key(ui_key_event event)
                 UiSelect = 0;
             } else if(UiSelect == 1) {
                 UiPage = UI_PAGE_SERVO_ST_PARAM;
+                UiSelect = 0;
+            } else if(UiEdit) {
+                UiEdit = 0;
+                flash_save_para();
+            } else {
+                UiEdit = 1;
+            }
+        } else if(UiPage == UI_PAGE_LASER) {
+            if(UiSelect == UI_LASER_COL_INDEX) {
+                UiPage = UI_PAGE_LASER_COL;
+                UiSelect = 0;
+            } else if(UiSelect == UI_LASER_ST_COL_INDEX) {
+                UiPage = UI_PAGE_LASER_ST_COL;
                 UiSelect = 0;
             } else if(UiEdit) {
                 UiEdit = 0;

@@ -63,7 +63,6 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_PERIOD_US   (500)         /* 激光关闭定时器周期，单位 us */
 #define IMAGE_TARGET_FIRE_INTERVAL     (10)          /* 两次自动打靶之间至少间隔的图像帧数 */
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
-#define IMAGE_TARGET_MIN_HIT_ROWS      (1)           /* 三条扫描线中至少一条命中才开火 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
@@ -191,6 +190,9 @@ static uint8 TargetLeftX = 0;
 static uint8 TargetRightX = 0;
 static uint8 TargetTopY = 0;
 static uint8 TargetBottomY = 0;
+static uint8 TargetDelayActive = 0;
+static uint8 TargetDelayCount = 0;
+static uint8 TargetDelayFirstCenterX = IMAGE_MID;
 static uint8 LaserBusy = 0;
 static uint8 LaserTestLast = 0;
 static uint8 LaserPitInit = 0;
@@ -323,18 +325,32 @@ static uint8 image_target_normalize_row(int16 row)
     return (uint8)row;
 }
 
-static uint8 image_target_normalize_gap(int16 gap)
+static uint8 image_target_normalize_interval(int16 interval)
 {
-    if(gap < 0)
+    if(interval < 0)
     {
         return 0;
     }
-    if(gap > 8)
+    if(interval > 30)
     {
-        return 8;
+        return 30;
     }
 
-    return (uint8)gap;
+    return (uint8)interval;
+}
+
+static uint8 image_target_normalize_ok_num(int16 ok_num)
+{
+    if(ok_num < 1)
+    {
+        return 1;
+    }
+    if(ok_num > IMAGE_TARGET_SCAN_ROWS)
+    {
+        return IMAGE_TARGET_SCAN_ROWS;
+    }
+
+    return (uint8)ok_num;
 }
 
 static uint8 image_target_normalize_laser_test(uint8 laser_test)
@@ -363,10 +379,8 @@ static uint8 image_target_normalize_col(int16 col)
 
 static void image_target_normalize_config(void)
 {
-    SmartCar.camera.laser_row = image_target_normalize_row(SmartCar.camera.laser_row);
-    SmartCar.camera.laser_row_st = image_target_normalize_row(SmartCar.camera.laser_row_st);
-    SmartCar.camera.target_gap = image_target_normalize_gap(SmartCar.camera.target_gap);
     SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
+    SmartCar.camera.laser_interval = image_target_normalize_interval(SmartCar.camera.laser_interval);
     SmartCar.camera.laser_left3_col = image_target_normalize_col(SmartCar.camera.laser_left3_col);
     SmartCar.camera.laser_left2_col = image_target_normalize_col(SmartCar.camera.laser_left2_col);
     SmartCar.camera.laser_left1_col = image_target_normalize_col(SmartCar.camera.laser_left1_col);
@@ -374,30 +388,81 @@ static void image_target_normalize_config(void)
     SmartCar.camera.laser_right1_col = image_target_normalize_col(SmartCar.camera.laser_right1_col);
     SmartCar.camera.laser_right2_col = image_target_normalize_col(SmartCar.camera.laser_right2_col);
     SmartCar.camera.laser_right3_col = image_target_normalize_col(SmartCar.camera.laser_right3_col);
+    SmartCar.camera.laser_row1 = image_target_normalize_row(SmartCar.camera.laser_row1);
+    SmartCar.camera.laser_row2 = image_target_normalize_row(SmartCar.camera.laser_row2);
+    SmartCar.camera.laser_row3 = image_target_normalize_row(SmartCar.camera.laser_row3);
+    SmartCar.camera.laser_ok_num = image_target_normalize_ok_num(SmartCar.camera.laser_ok_num);
+    SmartCar.camera.laser_st_left3_col = image_target_normalize_col(SmartCar.camera.laser_st_left3_col);
+    SmartCar.camera.laser_st_left2_col = image_target_normalize_col(SmartCar.camera.laser_st_left2_col);
+    SmartCar.camera.laser_st_left1_col = image_target_normalize_col(SmartCar.camera.laser_st_left1_col);
+    SmartCar.camera.laser_st_center_col = image_target_normalize_col(SmartCar.camera.laser_st_center_col);
+    SmartCar.camera.laser_st_right1_col = image_target_normalize_col(SmartCar.camera.laser_st_right1_col);
+    SmartCar.camera.laser_st_right2_col = image_target_normalize_col(SmartCar.camera.laser_st_right2_col);
+    SmartCar.camera.laser_st_right3_col = image_target_normalize_col(SmartCar.camera.laser_st_right3_col);
+    SmartCar.camera.laser_st_row1 = image_target_normalize_row(SmartCar.camera.laser_st_row1);
+    SmartCar.camera.laser_st_row2 = image_target_normalize_row(SmartCar.camera.laser_st_row2);
+    SmartCar.camera.laser_st_row3 = image_target_normalize_row(SmartCar.camera.laser_st_row3);
+    SmartCar.camera.laser_st_ok_num = image_target_normalize_ok_num(SmartCar.camera.laser_st_ok_num);
     SmartCar.camera.laser_ui_test_col = image_target_normalize_col(SmartCar.camera.laser_ui_test_col);
 }
 
 static uint8 image_laser_get_aim_col(uint8 index)
 {
+    uint8 use_st;
+
+    use_st = ((Image.param_st != 0) && (Image.is_ramp == 0)) ? 1 : 0;
+
     switch(index)
     {
         case 0:
+            if(use_st) { return SmartCar.camera.laser_st_left3_col; }
             return SmartCar.camera.laser_left3_col;
         case 1:
+            if(use_st) { return SmartCar.camera.laser_st_left2_col; }
             return SmartCar.camera.laser_left2_col;
         case 2:
+            if(use_st) { return SmartCar.camera.laser_st_left1_col; }
             return SmartCar.camera.laser_left1_col;
         case 3:
+            if(use_st) { return SmartCar.camera.laser_st_center_col; }
             return SmartCar.camera.laser_center_col;
         case 4:
+            if(use_st) { return SmartCar.camera.laser_st_right1_col; }
             return SmartCar.camera.laser_right1_col;
         case 5:
+            if(use_st) { return SmartCar.camera.laser_st_right2_col; }
             return SmartCar.camera.laser_right2_col;
         case 6:
+            if(use_st) { return SmartCar.camera.laser_st_right3_col; }
             return SmartCar.camera.laser_right3_col;
         default:
+            if(use_st) { return SmartCar.camera.laser_st_center_col; }
             return SmartCar.camera.laser_center_col;
     }
+}
+
+static uint8 image_target_get_scan_row(uint8 index)
+{
+    if((Image.param_st != 0) && (Image.is_ramp == 0))
+    {
+        if(index == 0) { return SmartCar.camera.laser_st_row1; }
+        if(index == 1) { return SmartCar.camera.laser_st_row2; }
+        return SmartCar.camera.laser_st_row3;
+    }
+
+    if(index == 0) { return SmartCar.camera.laser_row1; }
+    if(index == 1) { return SmartCar.camera.laser_row2; }
+    return SmartCar.camera.laser_row3;
+}
+
+static uint8 image_target_get_ok_num(void)
+{
+    if((Image.param_st != 0) && (Image.is_ramp == 0))
+    {
+        return SmartCar.camera.laser_st_ok_num;
+    }
+
+    return SmartCar.camera.laser_ok_num;
 }
 
 static void image_target_reset_result(void)
@@ -543,11 +608,24 @@ static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x, uint
     return 0;
 }
 
-static void image_target_check(void)
+static void image_target_delay_reset(void)
 {
-    uint8 base_row;
-    uint8 gap;
-    uint8 scan_step;
+    TargetDelayActive = 0;
+    TargetDelayCount = 0;
+    TargetDelayFirstCenterX = IMAGE_MID;
+}
+
+static void image_target_fire(uint8 center_x)
+{
+    image_target_laser_start(center_x);
+    buzzer_short();
+    TargetFrameGap = 0;
+    image_target_delay_reset();
+}
+
+static uint8 image_target_find(void)
+{
+    uint8 ok_num;
     uint8 row;
     uint8 hit_count;
     uint8 first_hit_row;
@@ -563,41 +641,28 @@ static void image_target_check(void)
 
     if((CarMode != CAR_MODE_RUN) && (ui_is_debug() == 0))
     {
-        return;
+        return 0;
     }
 
     if(ZebraHit)
     {
-        return;
+        return 0;
     }
 
-    gap = image_target_normalize_gap(SmartCar.camera.target_gap);
-    SmartCar.camera.target_gap = gap;
-    scan_step = (uint8)(gap + 1);
-    if(Image.is_straight)
-    {
-        base_row = image_target_normalize_row(SmartCar.camera.laser_row_st);
-        SmartCar.camera.laser_row_st = base_row;
-    }
-    else
-    {
-        base_row = image_target_normalize_row(SmartCar.camera.laser_row);
-        SmartCar.camera.laser_row = base_row;
-    }
+    ok_num = image_target_normalize_ok_num(image_target_get_ok_num());
 
     hit_count = 0;
-    first_hit_row = base_row;
-    last_hit_row = base_row;
-    left_x = ImageDeal[base_row].LeftBoundary;
-    right_x = ImageDeal[base_row].RightBoundary;
+    first_hit_row = image_target_get_scan_row(0);
+    last_hit_row = first_hit_row;
+    left_x = ImageDeal[first_hit_row].LeftBoundary;
+    right_x = ImageDeal[first_hit_row].RightBoundary;
 
-    /* target gap 表示两条扫描线之间隔几行，所以实际步距 = gap + 1。 */
     for(row = 0; row < IMAGE_TARGET_SCAN_ROWS; row++)
     {
-        scan_row = (int16)base_row - (int16)row * (int16)scan_step;
+        scan_row = image_target_get_scan_row(row);
         if(scan_row < 1)
         {
-            break;
+            continue;
         }
 
         if(ImageDeal[scan_row].LeftBoundary >= ImageDeal[scan_row].RightBoundary)
@@ -633,24 +698,19 @@ static void image_target_check(void)
         }
     }
 
-    /* 三条扫描线中至少一条命中即认为靶子成立。 */
-    if(hit_count < IMAGE_TARGET_MIN_HIT_ROWS)
+    if(hit_count < ok_num)
     {
-        if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
-        {
-            TargetFrameGap++;
-        }
-        return;
+        return 0;
     }
 
     if(left_x >= right_x)
     {
-        return;
+        return 0;
     }
 
     if((right_x - left_x) < IMAGE_TARGET_MIN_OVERLAP)
     {
-        return;
+        return 0;
     }
 
     center_x = (left_x + right_x) / 2;
@@ -663,8 +723,27 @@ static void image_target_check(void)
     TargetTopY = last_hit_row;
     TargetBottomY = first_hit_row;
 
+    return 1;
+}
+
+static void image_target_check(void)
+{
+    uint8 target_found;
+    uint8 interval;
+    uint8 fire_center;
+
+    if(((CarMode != CAR_MODE_RUN) && (ui_is_debug() == 0)) || ZebraHit)
+    {
+        image_target_reset_result();
+        image_target_delay_reset();
+        return;
+    }
+
+    target_found = image_target_find();
+
     if(image_target_laser_test_mode() != IMAGE_LASER_TEST_OFF)
     {
+        image_target_delay_reset();
         return;
     }
 
@@ -677,12 +756,42 @@ static void image_target_check(void)
     if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
     {
         TargetFrameGap++;
+        image_target_delay_reset();
         return;
     }
 
-    image_target_laser_start(TargetCenterX);
-    buzzer_short();
-    TargetFrameGap = 0;
+    interval = image_target_normalize_interval(SmartCar.camera.laser_interval);
+    SmartCar.camera.laser_interval = interval;
+
+    if(TargetDelayActive)
+    {
+        if(TargetDelayCount < interval)
+        {
+            TargetDelayCount++;
+        }
+
+        if(TargetDelayCount >= interval)
+        {
+            fire_center = target_found ? TargetCenterX : TargetDelayFirstCenterX;
+            image_target_fire(fire_center);
+        }
+        return;
+    }
+
+    if(target_found == 0)
+    {
+        return;
+    }
+
+    if(interval == 0)
+    {
+        image_target_fire(TargetCenterX);
+        return;
+    }
+
+    TargetDelayActive = 1;
+    TargetDelayCount = 0;
+    TargetDelayFirstCenterX = TargetCenterX;
 }
 /* =============================================================================
  * 查找表
@@ -981,9 +1090,6 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
 {
     uint8 row;
     uint8 scan_idx;
-    uint8 base_row;
-    uint8 gap;
-    uint8 scan_step;
     uint8 ui_test_col;
     int16 scan_row;
     uint16 draw_x;
@@ -1034,12 +1140,9 @@ void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h)
         ips200_draw_point(draw_x, draw_y, RGB565_PINK);
     }
 
-    base_row = image_target_normalize_row(SmartCar.camera.laser_row);
-    gap = image_target_normalize_gap(SmartCar.camera.target_gap);
-    scan_step = (uint8)(gap + 1);
     for(scan_idx = 0; scan_idx < IMAGE_TARGET_SCAN_ROWS; scan_idx++)
     {
-        scan_row = (int16)base_row - (int16)scan_idx * (int16)scan_step;
+        scan_row = image_target_get_scan_row(scan_idx);
         if(scan_row < 0)
         {
             break;
@@ -1137,6 +1240,9 @@ void image_init(void)
     ImageRunFrameCount = 0;
     TargetFrameGap = IMAGE_TARGET_FIRE_INTERVAL;
     TargetFound = 0;
+    TargetDelayActive = 0;
+    TargetDelayCount = 0;
+    TargetDelayFirstCenterX = IMAGE_MID;
     LaserBusy = 0;
     LaserTestLast = 0;
     LaserPitInit = 0;
@@ -3685,9 +3791,9 @@ static void image_process(void)
     image_check_zebra();           /* 11. 斑马线检测 */
     image_check_ramp();            /* 12. 坡道检测 */
     image_check_straight();        /* 13. 直道检测（含十字直行特征） */
-    image_target_check();          /* 14. 打靶检测 + 激光触发 */
-    image_get_det(image_tow_point()); /* 15. 计算加权中心 */
-    image_check_param_st();        /* 16. 参数直道检测 */
+    image_get_det(image_tow_point()); /* 14. 计算加权中心 */
+    image_check_param_st();        /* 15. 参数直道检测 */
+    image_target_check();          /* 16. 打靶检测 + 激光触发 */
     image_export_result();         /* 17. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);

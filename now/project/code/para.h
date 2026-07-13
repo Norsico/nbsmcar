@@ -5,23 +5,23 @@
 
 /*软件参数，修改设置*/
 #define SERVO_KP                   (144)
-#define SERVO_KD                   (124)
-#define SERVO_ERR2_K               (44)
+#define SERVO_KD                   (128)
+#define SERVO_ERR2_K               (48)
 #define SERVO_IMU_D                (24)
 #define SERVO_ACKERMAN             (1480)
-#define SERVO_POINT                (23)
-#define SERVO_ST_KP                (140)
-#define SERVO_ST_KD                (100)
-#define SERVO_ST_ERR2_K            (0)
-#define SERVO_ST_IMU_D             (24)
-#define SERVO_ST_ACKERMAN          (1250)
-#define SERVO_ST_POINT             (18)
+#define SERVO_POINT                (21)
+#define SERVO_ST_KP                (110)
+#define SERVO_ST_KD                (116)
+#define SERVO_ST_ERR2_K            (40)
+#define SERVO_ST_IMU_D             (30)
+#define SERVO_ST_ACKERMAN          (1000)
+#define SERVO_ST_POINT             (16)
 #define SERVO_IN_RING_POINT        (25)
 #define SERVO_OUT_RING_POINT       (24)
 
 #define MOTOR_TARGET_SPEED         (250)
 #define MOTOR_STRAIGHT_SPEED       (250)
-#define MOTOR_RING_SPEED           (210)
+#define MOTOR_RING_SPEED           (240)
 #define MOTOR_RAMP_SPEED           (180)
 #define MOTOR_LEFT_KP              (55)
 #define MOTOR_LEFT_KI              (6)
@@ -33,21 +33,34 @@
 
 #define OTHER_LAP_COUNT            (1)
 
-#define CAMERA_LASER_ROW           (57)
-#define CAMERA_LASER_ROW_ST        (56)
-#define CAMERA_TARGET_GAP          (1)
 #define CAMERA_LASER_TEST          (0)
-#define CAMERA_LASER_FIRE_US       (3900)
-#define CAMERA_LASER_LEFT3_COL     (16)
-#define CAMERA_LASER_LEFT2_COL     (23)
-#define CAMERA_LASER_LEFT1_COL     (31)
+#define CAMERA_LASER_FIRE_US       (4500)
+#define CAMERA_LASER_INTERVAL      (0)
+#define CAMERA_LASER_LEFT3_COL     (10)
+#define CAMERA_LASER_LEFT2_COL     (19)
+#define CAMERA_LASER_LEFT1_COL     (29)
 #define CAMERA_LASER_CENTER_COL    (39)
-#define CAMERA_LASER_RIGHT1_COL    (47)
-#define CAMERA_LASER_RIGHT2_COL    (55)
-#define CAMERA_LASER_RIGHT3_COL    (62)
+#define CAMERA_LASER_RIGHT1_COL    (49)
+#define CAMERA_LASER_RIGHT2_COL    (58)
+#define CAMERA_LASER_RIGHT3_COL    (69)
+#define CAMERA_LASER_ROW1          (58)
+#define CAMERA_LASER_ROW2          (57)
+#define CAMERA_LASER_ROW3          (56)
+#define CAMERA_LASER_OK_NUM        (1)
+#define CAMERA_LASER_ST_LEFT3_COL  (10)
+#define CAMERA_LASER_ST_LEFT2_COL  (19)
+#define CAMERA_LASER_ST_LEFT1_COL  (29)
+#define CAMERA_LASER_ST_CENTER_COL (39)
+#define CAMERA_LASER_ST_RIGHT1_COL (49)
+#define CAMERA_LASER_ST_RIGHT2_COL (58)
+#define CAMERA_LASER_ST_RIGHT3_COL (69)
+#define CAMERA_LASER_ST_ROW1       (57)
+#define CAMERA_LASER_ST_ROW2       (56)
+#define CAMERA_LASER_ST_ROW3       (55)
+#define CAMERA_LASER_ST_OK_NUM     (1)
 #define CAMERA_LASER_UI_TEST_COL   (39)
-#define CAMERA_THRESHOLD_OFFSET    (12)
-#define CAMERA_THRESHOLD_TRI_DELTA (6)
+#define CAMERA_THRESHOLD_OFFSET    (6)
+#define CAMERA_THRESHOLD_TRI_DELTA (4)
 
 /*硬件配置，修改设置*/
 #define MOTOR_CTRL_PERIOD_MS       (5)
@@ -66,7 +79,7 @@
 #define FAN_ESC_DUTY_STEP          (30)
 
 #define CAMERA_EXPOSURE            (100)
-#define CAMERA_GAIN                (25)
+#define CAMERA_GAIN                (24)
 #define CAMERA_INIT_RETRY          (5)
 #define CAMERA_INIT_DELAY_MS       (100)
 
@@ -189,11 +202,9 @@ typedef struct
     uint8 gain;
     uint8 threshold_offset;
     uint8 threshold_tri_delta;
-    uint8 laser_row;
-    uint8 laser_row_st;
-    uint8 target_gap;
     uint8 laser_test;
     uint16 laser_fire_us;
+    uint8 laser_interval;
     uint8 laser_left3_col;
     uint8 laser_left2_col;
     uint8 laser_left1_col;
@@ -201,6 +212,21 @@ typedef struct
     uint8 laser_right1_col;
     uint8 laser_right2_col;
     uint8 laser_right3_col;
+    uint8 laser_row1;
+    uint8 laser_row2;
+    uint8 laser_row3;
+    uint8 laser_ok_num;
+    uint8 laser_st_left3_col;
+    uint8 laser_st_left2_col;
+    uint8 laser_st_left1_col;
+    uint8 laser_st_center_col;
+    uint8 laser_st_right1_col;
+    uint8 laser_st_right2_col;
+    uint8 laser_st_right3_col;
+    uint8 laser_st_row1;
+    uint8 laser_st_row2;
+    uint8 laser_st_row3;
+    uint8 laser_st_ok_num;
     uint8 laser_ui_test_col;
 } camera_para;
 

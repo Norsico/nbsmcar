@@ -36,11 +36,9 @@ void para_init(void)
     SmartCar.camera.gain = CAMERA_GAIN;
     SmartCar.camera.threshold_offset = CAMERA_THRESHOLD_OFFSET;
     SmartCar.camera.threshold_tri_delta = CAMERA_THRESHOLD_TRI_DELTA;
-    SmartCar.camera.laser_row = CAMERA_LASER_ROW;
-    SmartCar.camera.laser_row_st = CAMERA_LASER_ROW_ST;
-    SmartCar.camera.target_gap = CAMERA_TARGET_GAP;
     SmartCar.camera.laser_test = CAMERA_LASER_TEST;
     SmartCar.camera.laser_fire_us = CAMERA_LASER_FIRE_US;
+    SmartCar.camera.laser_interval = CAMERA_LASER_INTERVAL;
     SmartCar.camera.laser_left3_col = CAMERA_LASER_LEFT3_COL;
     SmartCar.camera.laser_left2_col = CAMERA_LASER_LEFT2_COL;
     SmartCar.camera.laser_left1_col = CAMERA_LASER_LEFT1_COL;
@@ -48,6 +46,21 @@ void para_init(void)
     SmartCar.camera.laser_right1_col = CAMERA_LASER_RIGHT1_COL;
     SmartCar.camera.laser_right2_col = CAMERA_LASER_RIGHT2_COL;
     SmartCar.camera.laser_right3_col = CAMERA_LASER_RIGHT3_COL;
+    SmartCar.camera.laser_row1 = CAMERA_LASER_ROW1;
+    SmartCar.camera.laser_row2 = CAMERA_LASER_ROW2;
+    SmartCar.camera.laser_row3 = CAMERA_LASER_ROW3;
+    SmartCar.camera.laser_ok_num = CAMERA_LASER_OK_NUM;
+    SmartCar.camera.laser_st_left3_col = CAMERA_LASER_ST_LEFT3_COL;
+    SmartCar.camera.laser_st_left2_col = CAMERA_LASER_ST_LEFT2_COL;
+    SmartCar.camera.laser_st_left1_col = CAMERA_LASER_ST_LEFT1_COL;
+    SmartCar.camera.laser_st_center_col = CAMERA_LASER_ST_CENTER_COL;
+    SmartCar.camera.laser_st_right1_col = CAMERA_LASER_ST_RIGHT1_COL;
+    SmartCar.camera.laser_st_right2_col = CAMERA_LASER_ST_RIGHT2_COL;
+    SmartCar.camera.laser_st_right3_col = CAMERA_LASER_ST_RIGHT3_COL;
+    SmartCar.camera.laser_st_row1 = CAMERA_LASER_ST_ROW1;
+    SmartCar.camera.laser_st_row2 = CAMERA_LASER_ST_ROW2;
+    SmartCar.camera.laser_st_row3 = CAMERA_LASER_ST_ROW3;
+    SmartCar.camera.laser_st_ok_num = CAMERA_LASER_ST_OK_NUM;
     SmartCar.camera.laser_ui_test_col = CAMERA_LASER_UI_TEST_COL;
 
     SmartCar.other.lap_count = OTHER_LAP_COUNT;
