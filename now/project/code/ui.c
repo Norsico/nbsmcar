@@ -37,15 +37,16 @@ typedef enum
 #define UI_LASER_INTERVAL_MAX        (30)
 #define UI_LASER_TEST_INDEX          (0)
 #define UI_LASER_FIRE_US_INDEX       (1)
-#define UI_LASER_INTERVAL_INDEX      (2)
-#define UI_LASER_UI_TEST_INDEX       (3)
-#define UI_LASER_COL_INDEX           (4)
-#define UI_LASER_ST_COL_INDEX        (5)
-#define UI_LASER_MAIN_COUNT          (6)
+#define UI_LASER_UI_TEST_INDEX       (2)
+#define UI_LASER_COL_INDEX           (3)
+#define UI_LASER_ST_COL_INDEX        (4)
+#define UI_LASER_MAIN_COUNT          (5)
 #define UI_LASER_COL_ROW1_INDEX      (7)
 #define UI_LASER_COL_ROW2_INDEX      (8)
 #define UI_LASER_COL_ROW3_INDEX      (9)
 #define UI_LASER_COL_OK_INDEX        (10)
+#define UI_LASER_COL_INTERVAL_INDEX  (11)
+#define UI_LASER_COL_FIRE_INTERVAL_INDEX (12)
 #define UI_CAMERA_THR_OFF_INDEX      (2)
 #define UI_CAMERA_THR_TRI_INDEX      (3)
 #define UI_OTHER_LAP_INDEX           (0)
@@ -102,7 +103,7 @@ static const ui_param_t servo_st_param_params[] = {
 };
 
 static const char* servo_menu_names[] = {"param", "st param", "in r point", "out r point"};
-static const char* laser_menu_names[] = {"laser test", "laser us", "interval", "laser ui", "laser col", "laser st col"};
+static const char* laser_menu_names[] = {"laser test", "laser us", "laser ui", "laser col", "laser st col"};
 
 // Motor 菜单配置
 static const ui_param_t motor_params[] = {
@@ -130,7 +131,6 @@ static const ui_param_t camera_params[] = {
 static const ui_param_t laser_params[] = {
     {"laser test",&SmartCar.camera.laser_test,       VAL_TYPE_UINT8,  1},
     {"laser us",  &SmartCar.camera.laser_fire_us,    VAL_TYPE_UINT16, 200},
-    {"interval",  &SmartCar.camera.laser_interval,   VAL_TYPE_UINT8,  1},
     {"laser ui",  &SmartCar.camera.laser_ui_test_col,VAL_TYPE_UINT8,  1},
 };
 
@@ -146,6 +146,8 @@ static const ui_param_t laser_col_params[] = {
     {"laser row2",   &SmartCar.camera.laser_row2,       VAL_TYPE_UINT8,  1},
     {"laser row3",   &SmartCar.camera.laser_row3,       VAL_TYPE_UINT8,  1},
     {"laser ok num", &SmartCar.camera.laser_ok_num,     VAL_TYPE_UINT8,  1},
+    {"interval",     &SmartCar.camera.laser_interval,   VAL_TYPE_UINT8,  1},
+    {"fire gap",     &SmartCar.camera.laser_fire_interval, VAL_TYPE_UINT8, 1},
 };
 
 static const ui_param_t laser_st_col_params[] = {
@@ -160,6 +162,8 @@ static const ui_param_t laser_st_col_params[] = {
     {"laser st row2",   &SmartCar.camera.laser_st_row2,       VAL_TYPE_UINT8,  1},
     {"laser st row3",   &SmartCar.camera.laser_st_row3,       VAL_TYPE_UINT8,  1},
     {"laser st ok num", &SmartCar.camera.laser_st_ok_num,     VAL_TYPE_UINT8,  1},
+    {"st interval",     &SmartCar.camera.laser_st_interval,   VAL_TYPE_UINT8,  1},
+    {"st fire gap",     &SmartCar.camera.laser_st_fire_interval, VAL_TYPE_UINT8, 1},
 };
 
 static const ui_param_t other_params[] = {
@@ -376,15 +380,6 @@ static void ui_change_current_value(int8 dir)
             return;
         }
 
-        if(UiSelect == UI_LASER_INTERVAL_INDEX)
-        {
-            value = (int16)SmartCar.camera.laser_interval + change;
-            if(value < 0) value = 0;
-            if(value > UI_LASER_INTERVAL_MAX) value = UI_LASER_INTERVAL_MAX;
-            SmartCar.camera.laser_interval = (uint8)value;
-            return;
-        }
-
         if(UiSelect == UI_LASER_UI_TEST_INDEX)
         {
             value = (int16)SmartCar.camera.laser_ui_test_col + change;
@@ -424,6 +419,20 @@ static void ui_change_current_value(int8 dir)
         {
             if(value < 1) value = 1;
             if(value > 3) value = 3;
+            *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+        if(UiSelect == UI_LASER_COL_INTERVAL_INDEX)
+        {
+            if(value < 0) value = 0;
+            if(value > UI_LASER_INTERVAL_MAX) value = UI_LASER_INTERVAL_MAX;
+            *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+        if(UiSelect == UI_LASER_COL_FIRE_INTERVAL_INDEX)
+        {
+            if(value < 0) value = 0;
+            if(value > UI_LASER_INTERVAL_MAX) value = UI_LASER_INTERVAL_MAX;
             *(uint8*)p->val_ptr = (uint8)value;
             return;
         }

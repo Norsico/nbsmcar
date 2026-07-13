@@ -61,7 +61,6 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_IRQ         (TIMER0_IRQn) /* 激光关闭定时器中断号 */
 #define IMAGE_TARGET_LASER_PRIORITY    (0)           /* 激光关闭定时器中断优先级 */
 #define IMAGE_TARGET_LASER_PERIOD_US   (500)         /* 激光关闭定时器周期，单位 us */
-#define IMAGE_TARGET_FIRE_INTERVAL     (10)          /* 两次自动打靶之间至少间隔的图像帧数 */
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
@@ -183,7 +182,7 @@ static uint8 ImageRunFrameCount = 0;
 
 /* 打靶检测和激光控制 */
 static uint8 TargetFound = 0;
-static uint8 TargetFrameGap = IMAGE_TARGET_FIRE_INTERVAL;
+static uint8 TargetFrameGap = 255;
 static uint8 TargetCenterX = IMAGE_MID;
 static uint8 TargetCenterY = 0;
 static uint8 TargetLeftX = 0;
@@ -392,6 +391,7 @@ static void image_target_normalize_config(void)
     SmartCar.camera.laser_row2 = image_target_normalize_row(SmartCar.camera.laser_row2);
     SmartCar.camera.laser_row3 = image_target_normalize_row(SmartCar.camera.laser_row3);
     SmartCar.camera.laser_ok_num = image_target_normalize_ok_num(SmartCar.camera.laser_ok_num);
+    SmartCar.camera.laser_st_interval = image_target_normalize_interval(SmartCar.camera.laser_st_interval);
     SmartCar.camera.laser_st_left3_col = image_target_normalize_col(SmartCar.camera.laser_st_left3_col);
     SmartCar.camera.laser_st_left2_col = image_target_normalize_col(SmartCar.camera.laser_st_left2_col);
     SmartCar.camera.laser_st_left1_col = image_target_normalize_col(SmartCar.camera.laser_st_left1_col);
@@ -730,6 +730,7 @@ static void image_target_check(void)
 {
     uint8 target_found;
     uint8 interval;
+    uint8 fire_interval;
     uint8 fire_center;
 
     if(((CarMode != CAR_MODE_RUN) && (ui_is_debug() == 0)) || ZebraHit)
@@ -752,16 +753,26 @@ static void image_target_check(void)
         return;
     }
 
-    /* 同一个靶子触发后，至少间隔 10 帧再允许下一次开火。 */
-    if(TargetFrameGap < IMAGE_TARGET_FIRE_INTERVAL)
+    if((Image.param_st != 0) && (Image.is_ramp == 0))
+    {
+        interval = image_target_normalize_interval(SmartCar.camera.laser_st_interval);
+        SmartCar.camera.laser_st_interval = interval;
+        fire_interval = SmartCar.camera.laser_st_fire_interval;
+    }
+    else
+    {
+        interval = image_target_normalize_interval(SmartCar.camera.laser_interval);
+        SmartCar.camera.laser_interval = interval;
+        fire_interval = SmartCar.camera.laser_fire_interval;
+    }
+
+    /* 两次自动打靶之间使用当前道路类型对应的最小帧距。 */
+    if(TargetFrameGap < fire_interval)
     {
         TargetFrameGap++;
         image_target_delay_reset();
         return;
     }
-
-    interval = image_target_normalize_interval(SmartCar.camera.laser_interval);
-    SmartCar.camera.laser_interval = interval;
 
     if(TargetDelayActive)
     {
@@ -1238,7 +1249,7 @@ void image_init(void)
     ZebraCooldownFrames = 0;
     ImageLostCount = 0;
     ImageRunFrameCount = 0;
-    TargetFrameGap = IMAGE_TARGET_FIRE_INTERVAL;
+    TargetFrameGap = 255;
     TargetFound = 0;
     TargetDelayActive = 0;
     TargetDelayCount = 0;
