@@ -767,8 +767,8 @@ static uint8 image_tow_point(void)
     {
         tow_point = SmartCar.servo.out_ring_point;
     }
-    /* 纯直道使用独立瞄点，坡道仍使用普通参数 */
-    else if((Image.is_straight != 0) && (Image.is_ramp == 0))
+    /* 参数直道使用独立瞄点，坡道仍使用普通参数 */
+    else if((Image.param_st != 0) && (Image.is_ramp == 0))
     {
         tow_point = SmartCar.servo.st_tow_point;
     }
@@ -910,6 +910,7 @@ static void image_export_result(void)
     Image.tow_row = (uint8)ImageStatus.TowPoint_True;
     Image.center = ImageStatus.Det_True;
     Image.error = (int16)(Image.center - IMAGE_MID);
+    Image.param_st = Image.param_st ? 1 : 0;
     Image.valid_count = (uint8)((ImageStatus.OFFLine < IMAGE_H) ? (IMAGE_H - ImageStatus.OFFLine) : 0);
     Image.lost = 0;
     Image.left_ring_right_deviation_x10 = Left_Ring_Right_Deviation_X10;
@@ -924,6 +925,10 @@ static void image_export_result(void)
     if(ImageStatus.OFFLine > 50)
     {
         Image.lost = 1;
+    }
+    if(Image.lost)
+    {
+        Image.param_st = 0;
     }
 
     Image.result_ready = Image.lost ? 0 : 1;
@@ -1117,6 +1122,7 @@ void image_init(void)
     Image.zebra = 0;
     Image.zebra_count = 0;
     Image.is_straight = 0;
+    Image.param_st = 0;
     Image.straight_left_error_x10 = 0;
     Image.straight_right_error_x10 = 0;
     Image.is_ramp = 0;
@@ -3441,6 +3447,49 @@ static void image_check_straight(void)
 }
 
 /**
+ * @brief  参数直道检测
+ * @note   仅用于直道/弯道参数切换，比 image_check_straight 更严格
+ */
+static void image_check_param_st(void)
+{
+    static uint8 param_st_count = 0;
+    int16 center_err;
+
+    if(motor_is_straight_enabled() == 0)
+    {
+        param_st_count = 0;
+        Image.param_st = 0;
+        return;
+    }
+
+    if((ImageStatus.Road_type != ROAD_NORMAL) ||
+       (ImageStatus.OFFLine > 7))
+    {
+        param_st_count = 0;
+        Image.param_st = 0;
+        return;
+    }
+
+    center_err = IMAGE_ABS(ImageStatus.Det_True - IMAGE_MID);
+
+    if((Image.straight_left_error_x10 < 10) &&
+       (Image.straight_right_error_x10 < 10) &&
+       (center_err < 8))
+    {
+        param_st_count++;
+        if(param_st_count >= 2)
+        {
+            Image.param_st = 1;
+        }
+    }
+    else
+    {
+        param_st_count = 0;
+        Image.param_st = 0;
+    }
+}
+
+/**
  * @brief  坡道检测（参考时光-贺兰一号算法）
  * @note   坡道特征：可视距离很近（OFFLine=2）+ 赛道很宽且居中
  *         检测到坡道后将 Road_type 设为 ROAD_RAMP，触发降速
@@ -3638,7 +3687,8 @@ static void image_process(void)
     image_check_straight();        /* 13. 直道检测（含十字直行特征） */
     image_target_check();          /* 14. 打靶检测 + 激光触发 */
     image_get_det(image_tow_point()); /* 15. 计算加权中心 */
-    image_export_result();         /* 16. 导出结果 */
+    image_check_param_st();        /* 16. 参数直道检测 */
+    image_export_result();         /* 17. 导出结果 */
 
     gpio_set_level(LED_DEBUG, GPIO_HIGH);
 }

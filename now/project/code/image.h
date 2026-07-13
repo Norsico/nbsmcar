@@ -89,6 +89,7 @@ typedef struct
     uint8 zebra;              /* 本帧检测到斑马线 */
     uint8 zebra_count;        /* 确认检测到的斑马线次数 */
     uint8 is_straight;        /* 直道检测标志（连续2帧确认，含十字直行特征）*/
+    uint8 param_st;           /* 参数直道标志（用于直道/弯道参数切换） */
     int16 straight_left_error_x10;  /* 左边线拟合误差 x10 */
     int16 straight_right_error_x10; /* 右边线拟合误差 x10 */
     uint8 is_ramp;            /* 坡道检测标志 */

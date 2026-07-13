@@ -126,7 +126,7 @@ void motor_update_fan(void)
     {
         fan_target = SmartCar.motor.fan_duty;
     }
-    else if(Image.is_straight)
+    else if(Image.param_st)
     {
         fan_target = SmartCar.motor.fan_straight_duty;  /* 直道：降低下压力 */
     }

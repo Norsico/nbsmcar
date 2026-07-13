@@ -561,6 +561,11 @@ static void ui_show_camera_image(void)
     ips200_show_string(0, 204, "Straight");
     ips200_show_string(88, 204, " ");
     ips200_show_uint8(88, 204, Image.is_straight);
+
+    /* 第7行：参数直道 */
+    ips200_show_string(0, 220, "ParamSt");
+    ips200_show_string(88, 220, " ");
+    ips200_show_uint8(88, 220, Image.param_st);
 }
 
 static void ui_show(void)

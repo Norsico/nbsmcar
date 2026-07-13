@@ -38,7 +38,7 @@ static void servo_update_motor_target(void)
     {
         speed = SmartCar.motor.ring_speed;
     }
-    else if(Image.is_straight)
+    else if(Image.param_st)
     {
         speed = SmartCar.motor.straight_speed;
     }
@@ -49,7 +49,7 @@ static void servo_update_motor_target(void)
 
     steer_angle = (int16)(SERVO_ANGLE_CENTER - ServoAngle);
     tan_value = (int16)(((int32)steer_angle * 175) / 1000);
-    if((Image.is_straight != 0) && (Image.ring == 0) && (Image.is_ramp == 0))
+    if((Image.param_st != 0) && (Image.ring == 0) && (Image.is_ramp == 0))
     {
         ackerman = SmartCar.servo.st_ackerman;
     }
@@ -110,7 +110,7 @@ void servo_update(void)
     error = Image.error;
     error_d = error - ServoLastError;
 
-    if((Image.is_straight != 0) && (Image.ring == 0) && (Image.is_ramp == 0))
+    if((Image.param_st != 0) && (Image.ring == 0) && (Image.is_ramp == 0))
     {
         kp = SmartCar.servo.st_kp;
         kd = SmartCar.servo.st_kd;
