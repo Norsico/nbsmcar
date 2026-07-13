@@ -189,9 +189,6 @@ static uint8 TargetLeftX = 0;
 static uint8 TargetRightX = 0;
 static uint8 TargetTopY = 0;
 static uint8 TargetBottomY = 0;
-static uint8 TargetDelayActive = 0;
-static uint8 TargetDelayCount = 0;
-static uint8 TargetDelayFirstCenterX = IMAGE_MID;
 static uint8 LaserBusy = 0;
 static uint8 LaserTestLast = 0;
 static uint8 LaserPitInit = 0;
@@ -316,26 +313,12 @@ static uint8 image_target_normalize_row(int16 row)
     {
         return 1;
     }
-    if(row > (IMAGE_H - 2))
+    if(row > (IMAGE_H - 1))
     {
-        return (IMAGE_H - 2);
+        return (IMAGE_H - 1);
     }
 
     return (uint8)row;
-}
-
-static uint8 image_target_normalize_interval(int16 interval)
-{
-    if(interval < 0)
-    {
-        return 0;
-    }
-    if(interval > 30)
-    {
-        return 30;
-    }
-
-    return (uint8)interval;
 }
 
 static uint8 image_target_normalize_ok_num(int16 ok_num)
@@ -379,7 +362,6 @@ static uint8 image_target_normalize_col(int16 col)
 static void image_target_normalize_config(void)
 {
     SmartCar.camera.laser_test = image_target_normalize_laser_test(SmartCar.camera.laser_test);
-    SmartCar.camera.laser_interval = image_target_normalize_interval(SmartCar.camera.laser_interval);
     SmartCar.camera.laser_left3_col = image_target_normalize_col(SmartCar.camera.laser_left3_col);
     SmartCar.camera.laser_left2_col = image_target_normalize_col(SmartCar.camera.laser_left2_col);
     SmartCar.camera.laser_left1_col = image_target_normalize_col(SmartCar.camera.laser_left1_col);
@@ -391,7 +373,6 @@ static void image_target_normalize_config(void)
     SmartCar.camera.laser_row2 = image_target_normalize_row(SmartCar.camera.laser_row2);
     SmartCar.camera.laser_row3 = image_target_normalize_row(SmartCar.camera.laser_row3);
     SmartCar.camera.laser_ok_num = image_target_normalize_ok_num(SmartCar.camera.laser_ok_num);
-    SmartCar.camera.laser_st_interval = image_target_normalize_interval(SmartCar.camera.laser_st_interval);
     SmartCar.camera.laser_st_left3_col = image_target_normalize_col(SmartCar.camera.laser_st_left3_col);
     SmartCar.camera.laser_st_left2_col = image_target_normalize_col(SmartCar.camera.laser_st_left2_col);
     SmartCar.camera.laser_st_left1_col = image_target_normalize_col(SmartCar.camera.laser_st_left1_col);
@@ -608,19 +589,11 @@ static uint8 image_target_match_row(uint8 row, uint8 left_x, uint8 right_x, uint
     return 0;
 }
 
-static void image_target_delay_reset(void)
-{
-    TargetDelayActive = 0;
-    TargetDelayCount = 0;
-    TargetDelayFirstCenterX = IMAGE_MID;
-}
-
 static void image_target_fire(uint8 center_x)
 {
     image_target_laser_start(center_x);
     buzzer_short();
     TargetFrameGap = 0;
-    image_target_delay_reset();
 }
 
 static uint8 image_target_find(void)
@@ -729,14 +702,11 @@ static uint8 image_target_find(void)
 static void image_target_check(void)
 {
     uint8 target_found;
-    uint8 interval;
     uint8 fire_interval;
-    uint8 fire_center;
 
     if(((CarMode != CAR_MODE_RUN) && (ui_is_debug() == 0)) || ZebraHit)
     {
         image_target_reset_result();
-        image_target_delay_reset();
         return;
     }
 
@@ -744,7 +714,6 @@ static void image_target_check(void)
 
     if(image_target_laser_test_mode() != IMAGE_LASER_TEST_OFF)
     {
-        image_target_delay_reset();
         return;
     }
 
@@ -755,14 +724,10 @@ static void image_target_check(void)
 
     if((Image.param_st != 0) && (Image.is_ramp == 0))
     {
-        interval = image_target_normalize_interval(SmartCar.camera.laser_st_interval);
-        SmartCar.camera.laser_st_interval = interval;
         fire_interval = SmartCar.camera.laser_st_fire_interval;
     }
     else
     {
-        interval = image_target_normalize_interval(SmartCar.camera.laser_interval);
-        SmartCar.camera.laser_interval = interval;
         fire_interval = SmartCar.camera.laser_fire_interval;
     }
 
@@ -770,22 +735,6 @@ static void image_target_check(void)
     if(TargetFrameGap < fire_interval)
     {
         TargetFrameGap++;
-        image_target_delay_reset();
-        return;
-    }
-
-    if(TargetDelayActive)
-    {
-        if(TargetDelayCount < interval)
-        {
-            TargetDelayCount++;
-        }
-
-        if(TargetDelayCount >= interval)
-        {
-            fire_center = target_found ? TargetCenterX : TargetDelayFirstCenterX;
-            image_target_fire(fire_center);
-        }
         return;
     }
 
@@ -794,15 +743,7 @@ static void image_target_check(void)
         return;
     }
 
-    if(interval == 0)
-    {
-        image_target_fire(TargetCenterX);
-        return;
-    }
-
-    TargetDelayActive = 1;
-    TargetDelayCount = 0;
-    TargetDelayFirstCenterX = TargetCenterX;
+    image_target_fire(TargetCenterX);
 }
 /* =============================================================================
  * 查找表
@@ -1251,9 +1192,6 @@ void image_init(void)
     ImageRunFrameCount = 0;
     TargetFrameGap = 255;
     TargetFound = 0;
-    TargetDelayActive = 0;
-    TargetDelayCount = 0;
-    TargetDelayFirstCenterX = IMAGE_MID;
     LaserBusy = 0;
     LaserTestLast = 0;
     LaserPitInit = 0;

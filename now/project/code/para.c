@@ -38,7 +38,6 @@ void para_init(void)
     SmartCar.camera.threshold_tri_delta = CAMERA_THRESHOLD_TRI_DELTA;
     SmartCar.camera.laser_test = CAMERA_LASER_TEST;
     SmartCar.camera.laser_fire_us = CAMERA_LASER_FIRE_US;
-    SmartCar.camera.laser_interval = CAMERA_LASER_INTERVAL;
     SmartCar.camera.laser_fire_interval = CAMERA_LASER_FIRE_INTERVAL;
     SmartCar.camera.laser_left3_col = CAMERA_LASER_LEFT3_COL;
     SmartCar.camera.laser_left2_col = CAMERA_LASER_LEFT2_COL;
@@ -51,7 +50,6 @@ void para_init(void)
     SmartCar.camera.laser_row2 = CAMERA_LASER_ROW2;
     SmartCar.camera.laser_row3 = CAMERA_LASER_ROW3;
     SmartCar.camera.laser_ok_num = CAMERA_LASER_OK_NUM;
-    SmartCar.camera.laser_st_interval = CAMERA_LASER_ST_INTERVAL;
     SmartCar.camera.laser_st_fire_interval = CAMERA_LASER_ST_FIRE_INTERVAL;
     SmartCar.camera.laser_st_left3_col = CAMERA_LASER_ST_LEFT3_COL;
     SmartCar.camera.laser_st_left2_col = CAMERA_LASER_ST_LEFT2_COL;

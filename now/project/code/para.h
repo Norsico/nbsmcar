@@ -41,7 +41,6 @@
 #define CAMERA_LASER_TEST          (0)
 #define CAMERA_LASER_FIRE_US       (4500)
 
-#define CAMERA_LASER_INTERVAL      (2)
 #define CAMERA_LASER_FIRE_INTERVAL (5)
 #define CAMERA_LASER_LEFT3_COL     (10)
 #define CAMERA_LASER_LEFT2_COL     (19)
@@ -55,7 +54,6 @@
 #define CAMERA_LASER_ROW3          (51)
 #define CAMERA_LASER_OK_NUM        (1)
 
-#define CAMERA_LASER_ST_INTERVAL   (2)
 #define CAMERA_LASER_ST_FIRE_INTERVAL (5)
 #define CAMERA_LASER_ST_LEFT3_COL  (10)
 #define CAMERA_LASER_ST_LEFT2_COL  (19)
@@ -213,7 +211,6 @@ typedef struct
     uint8 threshold_tri_delta;
     uint8 laser_test;
     uint16 laser_fire_us;
-    uint8 laser_interval;
     uint8 laser_fire_interval;
     uint8 laser_left3_col;
     uint8 laser_left2_col;
@@ -226,7 +223,6 @@ typedef struct
     uint8 laser_row2;
     uint8 laser_row3;
     uint8 laser_ok_num;
-    uint8 laser_st_interval;
     uint8 laser_st_fire_interval;
     uint8 laser_st_left3_col;
     uint8 laser_st_left2_col;
