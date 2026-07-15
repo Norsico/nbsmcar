@@ -56,6 +56,34 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_START_ROAD_CENTER_TOL    (10)    /* 中心容差 */
 #define IMAGE_START_ROAD_WIDTH_DIFF    (16)    /* 近处宽度至少比远处大多少 */
 
+/* 小坡道检测参数：边线在中段内凸，远端赛道重新出现 */
+#define IMAGE_SMALL_RAMP_TOP_ROW        (10)
+#define IMAGE_SMALL_RAMP_MIN_END_ROW    (38)
+#define IMAGE_SMALL_RAMP_BOTTOM_ROW     (55)
+#define IMAGE_SMALL_RAMP_MIN_ROW        (17)
+#define IMAGE_SMALL_RAMP_MAX_ROW        (34)
+#define IMAGE_SMALL_RAMP_MIN_BOTTOM     (48)
+#define IMAGE_SMALL_RAMP_BOTTOM_RISE    (15)
+#define IMAGE_SMALL_RAMP_REOPEN         (5)
+#define IMAGE_SMALL_RAMP_SIDE_REOPEN    (2)
+#define IMAGE_SMALL_RAMP_MIN_VALID      (46)
+#define IMAGE_SMALL_RAMP_CENTER_TOL     (7)
+#define IMAGE_SMALL_RAMP_MAX_IMG_ERR    (3)
+#define IMAGE_SMALL_RAMP_MIN_DIFF       (30)
+#define IMAGE_SMALL_RAMP_CURVE_START    (14)
+#define IMAGE_SMALL_RAMP_CURVE_END      (34)
+#define IMAGE_SMALL_RAMP_MIN_CURVE      (3)
+#define IMAGE_SMALL_RAMP_CURVE_MAX_DIFF (35)
+#define IMAGE_SMALL_RAMP_CONFIRM        (2)
+#define IMAGE_SMALL_RAMP_EARLY_BOTTOM   (59)
+#define IMAGE_SMALL_RAMP_EARLY_DIFF_MIN (30)
+#define IMAGE_SMALL_RAMP_EARLY_DIFF_MAX (33)
+#define IMAGE_SMALL_RAMP_EARLY_VALID    (46)
+
+/* 坡道速度固定保持时间，由 5ms 电机控制中断计时 */
+#define IMAGE_RAMP_HOLD_MS               (500)
+#define IMAGE_RAMP_HOLD_TICKS            ((IMAGE_RAMP_HOLD_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS)
+
 /* 打靶检测参数 */
 #define IMAGE_TARGET_LASER_PIT         (TIM0_PIT)    /* 激光关闭定时器 */
 #define IMAGE_TARGET_LASER_IRQ         (TIMER0_IRQn) /* 激光关闭定时器中断号 */
@@ -179,6 +207,7 @@ static uint8 ZebraCooldownFrames = 0;
 /* 丢线检测和运行状态 */
 static uint8 ImageLostCount = 0;
 static uint8 ImageRunFrameCount = 0;
+static volatile uint8 RampHoldTicks = 0;
 
 /* 打靶检测和激光控制 */
 static uint8 TargetFound = 0;
@@ -833,6 +862,10 @@ static uint8 image_tow_point(void)
     {
         tow_point = SmartCar.servo.st_tow_point;
     }
+    else if(Image.error < 0)
+    {
+        tow_point = SmartCar.servo.left_tow_point;
+    }
     /* 正常巡线使用配置的瞄点 */
     else
     {
@@ -1182,6 +1215,16 @@ void image_init(void)
     Image.straight_right_error_x10 = 0;
     Image.is_ramp = 0;
     Image.ramp_count = 0;
+    Image.ramp_small_hit = 0;
+    Image.ramp_small_bottom = 0;
+    Image.ramp_small_top = 0;
+    Image.ramp_small_diff = 0;
+    Image.ramp_small_curve = 0;
+    Image.ramp_small_min = 0;
+    Image.ramp_small_min_row = 0;
+    Image.ramp_small_reopen = 0;
+    Image.ramp_small_valid = 0;
+    RampHoldTicks = 0;
     ImageRawThreshold = 0;
     ZebraHit = 0;
     ZebraDetectCount = 0;
@@ -3551,18 +3594,38 @@ static void image_check_param_st(void)
  */
 static void image_check_ramp(void)
 {
-    static uint8 ramp_detected_flag = 0;    /* 已检测到坡道标志 */
-    static uint8 ramp_exit_stable = 0;      /* 退出稳定计数（连续N帧Diff>35才退出）*/
+    static uint8 ramp_detected_flag = 0;    /* 0=可检测，1=保持坡道，2=等待画面离开坡道 */
+    static uint8 ramp_rearm_stable = 0;
+    static uint8 small_ramp_stable = 0;
     int valid_count;
+    int small_valid_count;
     int16 width_bottom;   /* 底部宽度 */
     int16 width_top;      /* 顶部宽度 */
     int16 width_diff;     /* 宽度差 */
+    int16 small_min_width;
+    int16 small_min_row;
+    int16 small_upper_row;
+    int16 small_upper_width;
+    int16 small_reopen;
+    int16 small_curve;
+    int16 expected_left;
+    int16 expected_right;
+    int16 left_curve;
+    int16 right_curve;
+    int16 row;
     ImageDealDatatypedef xdata *p;   /* xdata 指针（2字节，比 generic 3字节省 1 字节加载） */
 
     /* 环岛期间不检测坡道 */
     if((ImageStatus.Road_type == ROAD_LEFT_RING) ||
        (ImageStatus.Road_type == ROAD_RIGHT_RING))
     {
+        if(ramp_detected_flag == 2)
+        {
+            ramp_detected_flag = 0;
+            ramp_rearm_stable = 0;
+        }
+        small_ramp_stable = 0;
+        Image.ramp_small_hit = 0;
         return;
     }
 
@@ -3570,6 +3633,83 @@ static void image_check_ramp(void)
     width_bottom = ImageDeal[55].Wide;
     width_top = ImageDeal[10].Wide;
     width_diff = width_bottom - width_top;
+
+    /* 小坡诊断值每帧刷新，便于根据实车画面微调阈值。 */
+    small_min_width = IMAGE_W - 1;
+    small_min_row = 0;
+    small_valid_count = 0;
+    for(row = IMAGE_SMALL_RAMP_TOP_ROW; row <= IMAGE_SMALL_RAMP_BOTTOM_ROW; row++)
+    {
+        if((ImageDeal[row].IsLeftFind == 'T') &&
+           (ImageDeal[row].IsRightFind == 'T'))
+        {
+            small_valid_count++;
+            if((row <= IMAGE_SMALL_RAMP_MIN_END_ROW) &&
+               (ImageDeal[row].Wide < small_min_width))
+            {
+                small_min_width = ImageDeal[row].Wide;
+                small_min_row = row;
+            }
+        }
+    }
+
+    /* 坡顶距离会变化，在最窄处前方寻找实际展开最宽的一行。 */
+    small_upper_row = 0;
+    small_upper_width = small_min_width;
+    small_reopen = 0;
+    for(row = IMAGE_SMALL_RAMP_TOP_ROW; row <= (small_min_row - 5); row++)
+    {
+        if((ImageDeal[row].IsLeftFind == 'T') &&
+           (ImageDeal[row].IsRightFind == 'T') &&
+           (ImageDeal[row].Wide > small_upper_width))
+        {
+            small_upper_width = ImageDeal[row].Wide;
+            small_upper_row = row;
+        }
+    }
+    small_reopen = small_upper_width - small_min_width;
+
+    /* 小坡的另一种画面：宽度仍持续收窄，但上半段边线外凸后回到远端赛道。 */
+    small_curve = 0;
+    if((ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].IsLeftFind == 'T') &&
+       (ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].IsRightFind == 'T') &&
+       (ImageDeal[IMAGE_SMALL_RAMP_BOTTOM_ROW].IsLeftFind == 'T') &&
+       (ImageDeal[IMAGE_SMALL_RAMP_BOTTOM_ROW].IsRightFind == 'T'))
+    {
+        for(row = IMAGE_SMALL_RAMP_CURVE_START; row <= IMAGE_SMALL_RAMP_CURVE_END; row++)
+        {
+            if((ImageDeal[row].IsLeftFind == 'T') &&
+               (ImageDeal[row].IsRightFind == 'T'))
+            {
+                expected_left = ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].LeftBorder +
+                    (ImageDeal[IMAGE_SMALL_RAMP_BOTTOM_ROW].LeftBorder -
+                     ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].LeftBorder) *
+                    (row - IMAGE_SMALL_RAMP_TOP_ROW) /
+                    (IMAGE_SMALL_RAMP_BOTTOM_ROW - IMAGE_SMALL_RAMP_TOP_ROW);
+                expected_right = ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].RightBorder +
+                    (ImageDeal[IMAGE_SMALL_RAMP_BOTTOM_ROW].RightBorder -
+                     ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].RightBorder) *
+                    (row - IMAGE_SMALL_RAMP_TOP_ROW) /
+                    (IMAGE_SMALL_RAMP_BOTTOM_ROW - IMAGE_SMALL_RAMP_TOP_ROW);
+                left_curve = expected_left - ImageDeal[row].LeftBorder;
+                right_curve = ImageDeal[row].RightBorder - expected_right;
+                if((left_curve >= 0) && (right_curve >= 0) &&
+                   ((left_curve + right_curve) > small_curve))
+                {
+                    small_curve = left_curve + right_curve;
+                }
+            }
+        }
+    }
+
+    Image.ramp_small_bottom = (uint8)width_bottom;
+    Image.ramp_small_top = (uint8)width_top;
+    Image.ramp_small_diff = (uint8)((width_diff > 0) ? width_diff : 0);
+    Image.ramp_small_curve = (uint8)small_curve;
+    Image.ramp_small_min = (uint8)small_min_width;
+    Image.ramp_small_min_row = (uint8)small_min_row;
+    Image.ramp_small_reopen = (uint8)((small_reopen > 0) ? small_reopen : 0);
+    Image.ramp_small_valid = (uint8)small_valid_count;
 
     /* 坡道检测：三角形变钝 + 左右居中 + 边线直度 + 对称性 */
     if(ramp_detected_flag == 0)
@@ -3613,33 +3753,109 @@ static void image_check_ramp(void)
                 Image.is_ramp = 1;
                 Image.ramp_count++;
                 ramp_detected_flag = 1;
-                ramp_exit_stable = 0;  /* 重置退出计数 */
+                RampHoldTicks = (uint8)IMAGE_RAMP_HOLD_TICKS;
+                ramp_rearm_stable = 0;
+                small_ramp_stable = 0;
+                Image.ramp_small_hit = 0;
+                buzzer_short();
+            }
+        }
+
+        /* 小坡道放在普通坡道之后检测。
+         * 摄像头能越过坡顶看到远端赛道时，宽度会先减小，再从左右两边重新展开。
+        */
+        if(ramp_detected_flag == 0)
+        {
+            if((ImageStatus.Road_type == ROAD_NORMAL) &&
+               (ImageStatus.OFFLine <= IMAGE_SMALL_RAMP_TOP_ROW) &&
+               (width_bottom >= IMAGE_SMALL_RAMP_MIN_BOTTOM) &&
+               (small_valid_count >= IMAGE_SMALL_RAMP_MIN_VALID) &&
+               (IMAGE_ABS(Image.error) <= IMAGE_SMALL_RAMP_MAX_IMG_ERR) &&
+               (IMAGE_ABS(ImageDeal[IMAGE_SMALL_RAMP_TOP_ROW].Center - IMAGE_MID) <= IMAGE_SMALL_RAMP_CENTER_TOL) &&
+               (IMAGE_ABS(ImageDeal[IMAGE_SMALL_RAMP_BOTTOM_ROW].Center - IMAGE_MID) <= IMAGE_SMALL_RAMP_CENTER_TOL))
+            {
+                /* 参考画面的接近阶段：B61/T30/D31、V46，当帧进入坡道。 */
+                if((width_bottom >= IMAGE_SMALL_RAMP_EARLY_BOTTOM) &&
+                   (width_diff >= IMAGE_SMALL_RAMP_EARLY_DIFF_MIN) &&
+                   (width_diff <= IMAGE_SMALL_RAMP_EARLY_DIFF_MAX) &&
+                   (small_valid_count >= IMAGE_SMALL_RAMP_EARLY_VALID))
+                {
+                    small_ramp_stable = IMAGE_SMALL_RAMP_CONFIRM;
+                }
+                else if(((small_min_row >= IMAGE_SMALL_RAMP_MIN_ROW) &&
+                         (small_min_row <= IMAGE_SMALL_RAMP_MAX_ROW) &&
+                         (small_upper_row >= IMAGE_SMALL_RAMP_TOP_ROW) &&
+                         ((width_bottom - small_min_width) >= IMAGE_SMALL_RAMP_BOTTOM_RISE) &&
+                         (small_reopen >= IMAGE_SMALL_RAMP_REOPEN) &&
+                         (IMAGE_ABS(ImageDeal[small_min_row].Center - IMAGE_MID) <= IMAGE_SMALL_RAMP_CENTER_TOL) &&
+                         (IMAGE_ABS(ImageDeal[small_upper_row].Center - IMAGE_MID) <= IMAGE_SMALL_RAMP_CENTER_TOL) &&
+                         ((ImageDeal[small_min_row].LeftBorder - ImageDeal[small_upper_row].LeftBorder) >= IMAGE_SMALL_RAMP_SIDE_REOPEN) &&
+                         ((ImageDeal[small_upper_row].RightBorder - ImageDeal[small_min_row].RightBorder) >= IMAGE_SMALL_RAMP_SIDE_REOPEN)) ||
+                        ((width_diff >= IMAGE_SMALL_RAMP_MIN_DIFF) &&
+                         (width_diff <= IMAGE_SMALL_RAMP_CURVE_MAX_DIFF) &&
+                         (small_curve >= IMAGE_SMALL_RAMP_MIN_CURVE)))
+                {
+                    if(small_ramp_stable < IMAGE_SMALL_RAMP_CONFIRM)
+                    {
+                        small_ramp_stable++;
+                    }
+                }
+                else
+                {
+                    small_ramp_stable = 0;
+                }
+            }
+            else
+            {
+                small_ramp_stable = 0;
+            }
+
+            Image.ramp_small_hit = small_ramp_stable;
+            if(small_ramp_stable >= IMAGE_SMALL_RAMP_CONFIRM)
+            {
+                ImageStatus.Road_type = ROAD_RAMP;
+                Image.is_ramp = 1;
+                Image.ramp_count++;
+                ramp_detected_flag = 1;
+                RampHoldTicks = (uint8)IMAGE_RAMP_HOLD_TICKS;
+                ramp_rearm_stable = 0;
+                small_ramp_stable = 0;
                 buzzer_short();
             }
         }
     }
 
-    /* 退出条件：宽度差恢复正常（> 35），且连续稳定10帧 */
-    if(ramp_detected_flag == 1)
+    /* 速度只保持固定500ms，不再根据画面宽度决定退出时间。 */
+    if((ramp_detected_flag == 1) && (RampHoldTicks == 0))
     {
-        /* 宽度差大于35，说明可能离开坡道了 */
+        if(ImageStatus.Road_type == ROAD_RAMP)
+        {
+            ImageStatus.Road_type = ROAD_NORMAL;
+        }
+        Image.is_ramp = 0;
+        ramp_detected_flag = 2;
+        ramp_rearm_stable = 0;
+        Image.ramp_small_hit = 0;
+    }
+
+    /* 离开当前坡道画面后，才允许识别下一处坡道。 */
+    if(ramp_detected_flag == 2)
+    {
         if(width_diff > 35)
         {
-            ramp_exit_stable++;
-
-            /* 连续10帧都满足，确认退出 */
-            if(ramp_exit_stable >= 10)
+            if(ramp_rearm_stable < 10)
             {
-                ImageStatus.Road_type = ROAD_NORMAL;
-                Image.is_ramp = 0;
+                ramp_rearm_stable++;
+            }
+            if(ramp_rearm_stable >= 10)
+            {
                 ramp_detected_flag = 0;
-                ramp_exit_stable = 0;
+                ramp_rearm_stable = 0;
             }
         }
         else
         {
-            /* 如果宽度差又变小了，重置退出计数（还在坡道上）*/
-            ramp_exit_stable = 0;
+            ramp_rearm_stable = 0;
         }
     }
 }
@@ -3824,6 +4040,14 @@ void image_update(void)
     else
     {
         ImageLostCount = 0;
+    }
+}
+
+void image_ramp_tick(void)
+{
+    if(RampHoldTicks > 0)
+    {
+        RampHoldTicks--;
     }
 }
 

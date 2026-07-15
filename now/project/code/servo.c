@@ -53,6 +53,10 @@ static void servo_update_motor_target(void)
     {
         ackerman = SmartCar.servo.st_ackerman;
     }
+    else if(Image.error < 0)
+    {
+        ackerman = SmartCar.servo.left_ackerman;
+    }
     else
     {
         ackerman = SmartCar.servo.ackerman;
@@ -116,6 +120,13 @@ void servo_update(void)
         kd = SmartCar.servo.st_kd;
         err2_k = SmartCar.servo.st_err2_k;
         imu_d = SmartCar.servo.st_imu_d;
+    }
+    else if(error < 0)
+    {
+        kp = SmartCar.servo.left_kp;
+        kd = SmartCar.servo.left_kd;
+        err2_k = SmartCar.servo.left_err2_k;
+        imu_d = SmartCar.servo.left_imu_d;
     }
     else
     {

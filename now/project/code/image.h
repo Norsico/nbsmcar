@@ -94,6 +94,15 @@ typedef struct
     int16 straight_right_error_x10; /* 右边线拟合误差 x10 */
     uint8 is_ramp;            /* 坡道检测标志 */
     uint8 ramp_count;         /* 检测到的坡道次数 */
+    uint8 ramp_small_hit;     /* 小坡条件连续命中帧数 */
+    uint8 ramp_small_bottom;  /* 小坡检测底部宽度 */
+    uint8 ramp_small_top;     /* 小坡检测远端宽度 */
+    uint8 ramp_small_diff;    /* 底部与远端宽度差 */
+    uint8 ramp_small_curve;   /* 上半段边线外凸量 */
+    uint8 ramp_small_min;     /* 小坡检测中段最小宽度 */
+    uint8 ramp_small_min_row; /* 小坡检测中段最窄行 */
+    uint8 ramp_small_reopen;  /* 最小宽度上方重新展开量 */
+    uint8 ramp_small_valid;   /* 小坡检测双边有效行数 */
 } image_data;
 
 extern image_data Image;
@@ -109,6 +118,7 @@ void image_init(void);
 void image_apply_camera(void);
 void image_update(void);
 void image_update_laser_test(void);
+void image_ramp_tick(void);
 void image_show_debug_overlay(uint16 x, uint16 y, uint16 w, uint16 h);
 
 #endif

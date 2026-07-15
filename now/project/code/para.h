@@ -10,6 +10,12 @@
 #define SERVO_IMU_D                (20)
 #define SERVO_ACKERMAN             (1300)
 #define SERVO_POINT                (24)
+#define SERVO_LEFT_KP              (130)
+#define SERVO_LEFT_KD              (180)
+#define SERVO_LEFT_ERR2_K          (19)
+#define SERVO_LEFT_IMU_D           (13)
+#define SERVO_LEFT_ACKERMAN        (500)
+#define SERVO_LEFT_POINT           (30)
 #define SERVO_ST_KP                (110)
 #define SERVO_ST_KD                (116)
 #define SERVO_ST_ERR2_K            (40)
@@ -178,6 +184,12 @@ typedef struct
     int16 imu_d;
 	  int16 ackerman;
     int16 tow_point;
+    int16 left_kp;
+    int16 left_kd;
+    int16 left_err2_k;
+    int16 left_imu_d;
+    int16 left_ackerman;
+    int16 left_tow_point;
     int16 st_kp;
     int16 st_kd;
     int16 st_err2_k;

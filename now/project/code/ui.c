@@ -12,7 +12,8 @@ typedef enum
     UI_PAGE_LASER,
     UI_PAGE_OTHER,
     UI_PAGE_DEBUG,
-    UI_PAGE_SERVO_PARAM,
+    UI_PAGE_SERVO_RIGHT_PARAM,
+    UI_PAGE_SERVO_LEFT_PARAM,
     UI_PAGE_SERVO_ST_PARAM,
     UI_PAGE_LASER_COL,
     UI_PAGE_LASER_ST_COL
@@ -81,14 +82,24 @@ typedef struct {
 // 3. 菜单数据配置表 (修改参数只改这里)
 // ==========================================
 
-// Servo 普通参数配置
-static const ui_param_t servo_param_params[] = {
+// Servo 右转参数配置
+static const ui_param_t servo_right_param_params[] = {
     {"kp",       &SmartCar.servo.kp,            VAL_TYPE_INT16, 2},
     {"kd",       &SmartCar.servo.kd,            VAL_TYPE_INT16, 2},
     {"err2",     &SmartCar.servo.err2_k,        VAL_TYPE_INT16, 1},
     {"imu d",    &SmartCar.servo.imu_d,         VAL_TYPE_INT16, 1},
     {"ackerman", &SmartCar.servo.ackerman,      VAL_TYPE_INT16, 10},
     {"point",    &SmartCar.servo.tow_point,     VAL_TYPE_INT16, 1},
+};
+
+// Servo 左转参数配置
+static const ui_param_t servo_left_param_params[] = {
+    {"kp",       &SmartCar.servo.left_kp,        VAL_TYPE_INT16, 2},
+    {"kd",       &SmartCar.servo.left_kd,        VAL_TYPE_INT16, 2},
+    {"err2",     &SmartCar.servo.left_err2_k,    VAL_TYPE_INT16, 1},
+    {"imu d",    &SmartCar.servo.left_imu_d,     VAL_TYPE_INT16, 1},
+    {"ackerman", &SmartCar.servo.left_ackerman,  VAL_TYPE_INT16, 10},
+    {"point",    &SmartCar.servo.left_tow_point, VAL_TYPE_INT16, 1},
 };
 
 // Servo 直道参数配置
@@ -101,7 +112,7 @@ static const ui_param_t servo_st_param_params[] = {
     {"st point",    &SmartCar.servo.st_tow_point, VAL_TYPE_INT16, 1},
 };
 
-static const char* servo_menu_names[] = {"param", "st param", "in r point", "out r point"};
+static const char* servo_menu_names[] = {"right param", "left param", "st param", "in r point", "out r point"};
 static const char* laser_menu_names[] = {"laser test", "laser us", "laser ui", "laser col", "laser st col"};
 
 // Motor 菜单配置
@@ -169,8 +180,9 @@ static const ui_param_t other_params[] = {
 	
 // Servo 参数子页面
 static const ui_menu_t servo_menu_pages[] = {
-    {"Param",    servo_param_params,    (uint8)(sizeof(servo_param_params) / sizeof(servo_param_params[0]))},
-    {"St Param", servo_st_param_params, (uint8)(sizeof(servo_st_param_params) / sizeof(servo_st_param_params[0]))},
+    {"Right Param", servo_right_param_params, (uint8)(sizeof(servo_right_param_params) / sizeof(servo_right_param_params[0]))},
+    {"Left Param",  servo_left_param_params,  (uint8)(sizeof(servo_left_param_params) / sizeof(servo_left_param_params[0]))},
+    {"St Param",    servo_st_param_params,    (uint8)(sizeof(servo_st_param_params) / sizeof(servo_st_param_params[0]))},
 };
 
 static const ui_menu_t laser_menu_pages[] = {
@@ -201,8 +213,8 @@ static uint8 KeyLast[4] = {1, 1, 1, 1};
 
 static const ui_menu_t *ui_get_param_menu(ui_page page)
 {
-    if((page >= UI_PAGE_SERVO_PARAM) && (page <= UI_PAGE_SERVO_ST_PARAM)) {
-        return &servo_menu_pages[page - UI_PAGE_SERVO_PARAM];
+    if((page >= UI_PAGE_SERVO_RIGHT_PARAM) && (page <= UI_PAGE_SERVO_ST_PARAM)) {
+        return &servo_menu_pages[page - UI_PAGE_SERVO_RIGHT_PARAM];
     }
     if((page >= UI_PAGE_LASER_COL) && (page <= UI_PAGE_LASER_ST_COL)) {
         return &laser_menu_pages[page - UI_PAGE_LASER_COL];
@@ -320,7 +332,7 @@ static uint8 get_current_page_item_count(void)
         return (uint8)MAIN_MENU_COUNT;
     }
     if(UiPage == UI_PAGE_SERVO) {
-        return 4;
+        return 5;
     }
     if(UiPage == UI_PAGE_LASER) {
         return UI_LASER_MAIN_COUNT;
@@ -339,9 +351,9 @@ static void ui_change_current_value(int8 dir)
     int16 change;
 
     if(UiPage == UI_PAGE_SERVO) {
-        if(UiSelect == 2) {
+        if(UiSelect == 3) {
             SmartCar.servo.in_ring_point = (int16)(SmartCar.servo.in_ring_point + dir);
-        } else if(UiSelect == 3) {
+        } else if(UiSelect == 4) {
             SmartCar.servo.out_ring_point = (int16)(SmartCar.servo.out_ring_point + dir);
         }
         return;
@@ -538,15 +550,15 @@ static void ui_show_servo(void)
 
     ui_show_title("Servo");
 
-    for(i = 0; i < 4; i++) {
+    for(i = 0; i < 5; i++) {
         y = (uint16)((i + 1) * UI_ROW_H);
         ips200_set_color((i == UiSelect) ? RGB565_WHITE : RGB565_PINK,
                          (i == UiSelect) ? RGB565_PINK : RGB565_WHITE);
         ips200_show_string(0, y, (i == UiSelect) ? (UiEdit ? "*" : ">") : " ");
         ips200_show_string(UI_NAME_X, y, servo_menu_names[i]);
-        if(i == 2) {
+        if(i == 3) {
             ips200_show_int16(UI_VALUE_X, y, SmartCar.servo.in_ring_point);
-        } else if(i == 3) {
+        } else if(i == 4) {
             ips200_show_int16(UI_VALUE_X, y, SmartCar.servo.out_ring_point);
         }
     }
@@ -650,19 +662,24 @@ static void ui_show_camera_image(void)
     ips200_show_string(176, 172, "      ");
     ips200_show_int16(176, 172, Image.straight_right_error_x10);
 
-    /* 第5行：坡道检测 */
+    /* 第5行：坡道状态和小坡连续命中帧数 */
     ips200_show_string(0, 188, "Ramp");
     ips200_show_string(88, 188, Image.is_ramp ? "YES" : "NO ");
+    ips200_show_string(136, 188, "Sm");
+    ips200_show_string(160, 188, "   ");
+    ips200_show_uint8(160, 188, Image.ramp_small_hit);
 
-    /* 第6行：当前是否判定为直道 */
-    ips200_show_string(0, 204, "Straight");
-    ips200_show_string(88, 204, " ");
-    ips200_show_uint8(88, 204, Image.is_straight);
+    /* 第6行：底部宽度、远端宽度、宽度差 */
+    ips200_show_string(0, 204, "B000 T000 D000");
+    ips200_show_uint8(8, 204, Image.ramp_small_bottom);
+    ips200_show_uint8(48, 204, Image.ramp_small_top);
+    ips200_show_uint8(88, 204, Image.ramp_small_diff);
 
-    /* 第7行：参数直道 */
-    ips200_show_string(0, 220, "ParamSt");
-    ips200_show_string(88, 220, " ");
-    ips200_show_uint8(88, 220, Image.param_st);
+    /* 第7行：边线外凸量、远端展开量、双边有效行数 */
+    ips200_show_string(0, 220, "C000 R000 V000");
+    ips200_show_uint8(8, 220, Image.ramp_small_curve);
+    ips200_show_uint8(48, 220, Image.ramp_small_reopen);
+    ips200_show_uint8(88, 220, Image.ramp_small_valid);
 }
 
 static void ui_show(void)
@@ -685,7 +702,7 @@ static void ui_show(void)
     else if((UiPage == UI_PAGE_MOTOR) ||
             (UiPage == UI_PAGE_CAMERA) ||
             (UiPage == UI_PAGE_OTHER) ||
-            ((UiPage >= UI_PAGE_SERVO_PARAM) && (UiPage <= UI_PAGE_SERVO_ST_PARAM)) ||
+            ((UiPage >= UI_PAGE_SERVO_RIGHT_PARAM) && (UiPage <= UI_PAGE_SERVO_ST_PARAM)) ||
             ((UiPage >= UI_PAGE_LASER_COL) && (UiPage <= UI_PAGE_LASER_ST_COL))) {
         ui_show_generic_page(UiPage);
     }
@@ -704,12 +721,15 @@ static void ui_handle_key(ui_key_event event)
             UiEdit = 0;
             flash_save_para();
             if(UiPage == UI_PAGE_CAMERA) image_apply_camera();
-        } else if(UiPage == UI_PAGE_SERVO_PARAM) {
+        } else if(UiPage == UI_PAGE_SERVO_RIGHT_PARAM) {
             UiPage = UI_PAGE_SERVO;
             UiSelect = 0;
-        } else if(UiPage == UI_PAGE_SERVO_ST_PARAM) {
+        } else if(UiPage == UI_PAGE_SERVO_LEFT_PARAM) {
             UiPage = UI_PAGE_SERVO;
             UiSelect = 1;
+        } else if(UiPage == UI_PAGE_SERVO_ST_PARAM) {
+            UiPage = UI_PAGE_SERVO;
+            UiSelect = 2;
         } else if(UiPage == UI_PAGE_LASER_COL) {
             UiPage = UI_PAGE_LASER;
             UiSelect = UI_LASER_COL_INDEX;
@@ -739,9 +759,12 @@ static void ui_handle_key(ui_key_event event)
             UiSelect = 0;
         } else if(UiPage == UI_PAGE_SERVO) {
             if(UiSelect == 0) {
-                UiPage = UI_PAGE_SERVO_PARAM;
+                UiPage = UI_PAGE_SERVO_RIGHT_PARAM;
                 UiSelect = 0;
             } else if(UiSelect == 1) {
+                UiPage = UI_PAGE_SERVO_LEFT_PARAM;
+                UiSelect = 0;
+            } else if(UiSelect == 2) {
                 UiPage = UI_PAGE_SERVO_ST_PARAM;
                 UiSelect = 0;
             } else if(UiEdit) {
