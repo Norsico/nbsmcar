@@ -3,51 +3,57 @@
 
 #include "headfile.h"
 
-/*软件参数，修改设置*/
+/* Servo */
+// 右转
 #define SERVO_KP                   (144)
 #define SERVO_KD                   (124)
 #define SERVO_ERR2_K               (40)
 #define SERVO_IMU_D                (20)
 #define SERVO_ACKERMAN             (1300)
-#define SERVO_POINT                (24)
-#define SERVO_LEFT_KP              (130)
-#define SERVO_LEFT_KD              (180)
-#define SERVO_LEFT_ERR2_K          (19)
-#define SERVO_LEFT_IMU_D           (13)
-#define SERVO_LEFT_ACKERMAN        (500)
-#define SERVO_LEFT_POINT           (30)
-#define SERVO_ST_KP                (110)
+#define SERVO_POINT                (22)
+// 左转
+#define SERVO_LEFT_KP              (128)
+#define SERVO_LEFT_KD              (148)
+#define SERVO_LEFT_ERR2_K          (40)
+#define SERVO_LEFT_IMU_D           (64)
+#define SERVO_LEFT_ACKERMAN        (1200)
+#define SERVO_LEFT_POINT           (22)
+// 直道
+#define SERVO_ST_KP                (100)
 #define SERVO_ST_KD                (116)
-#define SERVO_ST_ERR2_K            (40)
-#define SERVO_ST_IMU_D             (30)
+#define SERVO_ST_ERR2_K            (36)
+#define SERVO_ST_IMU_D             (20)
 #define SERVO_ST_ACKERMAN          (1000)
 #define SERVO_ST_POINT             (18)
+// 环岛
 #define SERVO_IN_RING_POINT        (25)
-#define SERVO_OUT_RING_POINT       (26)
+#define SERVO_OUT_RING_POINT       (24)
 
-#define MOTOR_TARGET_SPEED         (250)
-#define MOTOR_STRAIGHT_SPEED       (250)
-#define MOTOR_RING_SPEED           (240)
-#define MOTOR_RAMP_SPEED           (180)
+/* Motor */
 #define MOTOR_LEFT_KP              (55)
 #define MOTOR_LEFT_KI              (6)
 #define MOTOR_RIGHT_KP             (55)
 #define MOTOR_RIGHT_KI             (6)
-#define FAN_DUTY                   (95)
-#define FAN_STRAIGHT_DUTY          (95)  /* 直道风扇档位（降低下压力） */
-#define FAN_ENABLE                 (1)   /* 0=关闭风扇，1=开启风扇 */
+#define MOTOR_TARGET_SPEED         (230)
+#define MOTOR_STRAIGHT_SPEED       (230)
+#define MOTOR_RING_SPEED           (220)
+#define MOTOR_RAMP_SPEED           (130)
+#define FAN_DUTY                   (70)
+#define FAN_STRAIGHT_DUTY          (70)
+#define FAN_ENABLE                 (1)
 
-#define OTHER_LAP_COUNT            (1)
+/* Camera */
+#define CAMERA_EXPOSURE            (100)
+#define CAMERA_GAIN                (30)
+#define CAMERA_THRESHOLD_OFFSET    (11)
+#define CAMERA_THRESHOLD_TRI_DELTA (15)
 
-#define CAMERA_EXPOSURE            (60)
-#define CAMERA_GAIN                (28)
-#define CAMERA_THRESHOLD_OFFSET    (9)
-#define CAMERA_THRESHOLD_TRI_DELTA (6)
-
+/* Laser */
 #define CAMERA_LASER_TEST          (0)
 #define CAMERA_LASER_FIRE_US       (4500)
+#define CAMERA_LASER_UI_TEST_COL   (39)
 
-#define CAMERA_LASER_FIRE_INTERVAL (5)
+// 弯道激光
 #define CAMERA_LASER_LEFT3_COL     (10)
 #define CAMERA_LASER_LEFT2_COL     (19)
 #define CAMERA_LASER_LEFT1_COL     (29)
@@ -55,12 +61,12 @@
 #define CAMERA_LASER_RIGHT1_COL    (49)
 #define CAMERA_LASER_RIGHT2_COL    (58)
 #define CAMERA_LASER_RIGHT3_COL    (69)
-#define CAMERA_LASER_ROW1          (57)
-#define CAMERA_LASER_ROW2          (54)
-#define CAMERA_LASER_ROW3          (51)
+#define CAMERA_LASER_ROW1          (58)
+#define CAMERA_LASER_ROW2          (57)
+#define CAMERA_LASER_ROW3          (56)
 #define CAMERA_LASER_OK_NUM        (1)
-
-#define CAMERA_LASER_ST_FIRE_INTERVAL (5)
+#define CAMERA_LASER_FIRE_INTERVAL (5)
+// 直道激光
 #define CAMERA_LASER_ST_LEFT3_COL  (10)
 #define CAMERA_LASER_ST_LEFT2_COL  (19)
 #define CAMERA_LASER_ST_LEFT1_COL  (29)
@@ -68,18 +74,19 @@
 #define CAMERA_LASER_ST_RIGHT1_COL (49)
 #define CAMERA_LASER_ST_RIGHT2_COL (58)
 #define CAMERA_LASER_ST_RIGHT3_COL (69)
-#define CAMERA_LASER_ST_ROW1       (57)
+#define CAMERA_LASER_ST_ROW1       (56)
 #define CAMERA_LASER_ST_ROW2       (55)
-#define CAMERA_LASER_ST_ROW3       (53)
+#define CAMERA_LASER_ST_ROW3       (54)
 #define CAMERA_LASER_ST_OK_NUM     (1)
+#define CAMERA_LASER_ST_FIRE_INTERVAL (5)
 
-// UI显示的中线，测试用
-#define CAMERA_LASER_UI_TEST_COL   (39)
+/* Other */
+// 圈数
+#define OTHER_LAP_COUNT            (1)
 
-
-/*硬件配置，修改设置*/
+/* 硬件配置 */
 #define MOTOR_CTRL_PERIOD_MS       (5)
-#define MOTOR_STRAIGHT_DELAY_MS    (2000)  /* 电机控制启动后延迟启用直道功能 */
+#define MOTOR_STRAIGHT_DELAY_MS    (2000)  /* 电机控制启动后延迟启用直道 */
 #define MOTOR_PWM_FREQ             (17000)
 #define MOTOR_DUTY_LIMIT           (9000)
 
