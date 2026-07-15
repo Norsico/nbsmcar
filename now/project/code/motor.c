@@ -72,6 +72,7 @@ static void motor_timer(void)
 
     buzzer_tick();
     image_ramp_tick();
+    state_tick();
 
     Motor.read_left = encoder_get_count(ENCODER_LEFT);
     Motor.read_right = -encoder_get_count(ENCODER_RIGHT);
@@ -122,8 +123,12 @@ void motor_update_fan(void)
         return;
     }
 
+    if(BlindBoxPhase != BLIND_BOX_OFF)
+    {
+        fan_target = 0;
+    }
     /* 环岛期间不使用直道风扇档位 */
-    if(Image.ring != 0)
+    else if(Image.ring != 0)
     {
         fan_target = SmartCar.motor.fan_duty;
     }

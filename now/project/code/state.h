@@ -10,8 +10,20 @@ typedef enum
     CAR_MODE_STOP
 } car_mode;
 
-extern car_mode CarMode;
+typedef enum
+{
+    BLIND_BOX_OFF = 0,
+    BLIND_BOX_DELAY,
+    BLIND_BOX_SPEED1,
+    BLIND_BOX_SPEED2,
+    BLIND_BOX_STOP
+} blind_box_phase;
+
+extern volatile car_mode CarMode;
+extern volatile blind_box_phase BlindBoxPhase;
 
 void state_init(void);
+void state_start_blind_box_delay(void);
+void state_tick(void);
 
 #endif

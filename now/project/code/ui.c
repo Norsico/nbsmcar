@@ -176,6 +176,8 @@ static const ui_param_t laser_st_col_params[] = {
 
 static const ui_param_t other_params[] = {
     {"lap count", &SmartCar.other.lap_count,          VAL_TYPE_UINT8,  1},
+    {"blind speed1", &SmartCar.other.blind_box_speed, VAL_TYPE_INT16, 10},
+    {"blind speed2", &SmartCar.other.blind_box_slow_speed, VAL_TYPE_INT16, 10},
 };
 	
 // Servo 参数子页面

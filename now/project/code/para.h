@@ -83,6 +83,8 @@
 /* Other */
 // 圈数
 #define OTHER_LAP_COUNT            (1)
+#define OTHER_BLIND_BOX_SPEED      (150)
+#define OTHER_BLIND_BOX_SLOW_SPEED (70)
 
 /* 硬件配置 */
 #define MOTOR_CTRL_PERIOD_MS       (5)
@@ -260,6 +262,8 @@ typedef struct
 typedef struct
 {
     uint8 lap_count;
+    int16 blind_box_speed;
+    int16 blind_box_slow_speed;
 } other_para;
 	
 typedef struct

@@ -71,4 +71,6 @@ void para_init(void)
     SmartCar.camera.laser_ui_test_col = CAMERA_LASER_UI_TEST_COL;
 
     SmartCar.other.lap_count = OTHER_LAP_COUNT;
+    SmartCar.other.blind_box_speed = OTHER_BLIND_BOX_SPEED;
+    SmartCar.other.blind_box_slow_speed = OTHER_BLIND_BOX_SLOW_SPEED;
 }

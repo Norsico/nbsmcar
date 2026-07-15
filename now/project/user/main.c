@@ -78,8 +78,21 @@ void main(void)
 
             case CAR_MODE_RUN:
             {
-                buzzer_stop_alarm_enable(0);
-                image_update();
+                if(BlindBoxPhase != BLIND_BOX_STOP)
+                {
+                    buzzer_stop_alarm_enable(0);
+                    image_update();
+                }
+
+                if(BlindBoxPhase == BLIND_BOX_STOP)
+                {
+                    buzzer_stop_alarm_enable(1);
+                    servo_update_motor_target();
+                    pwm_set_duty(SERVO_PWM, SERVO_ANGLE_CENTER/3+1500);
+                    pwm_set_duty(FAN_PWM, 3000);
+                    break;
+                }
+
                 servo_update();
                 motor_update_fan();  /* 动态调整风扇 */
             } break;

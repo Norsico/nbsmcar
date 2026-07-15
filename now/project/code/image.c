@@ -91,6 +91,11 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_PERIOD_US   (500)         /* 激光关闭定时器周期，单位 us */
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
+#define IMAGE_BLIND_TARGET_CONFIRM     (2)           /* 盲盒靶标需要连续命中的帧数 */
+#define IMAGE_BLIND_TARGET_MISS        (10)          /* 连续未命中多少帧后允许识别下一个靶标 */
+#define IMAGE_BLIND_TARGET_STOP_COUNT  (2)           /* 盲盒圈在第二个靶标处停车 */
+#define IMAGE_BLIND_TARGET_MIN_SPAN    (4)           /* 纵向四次跳变的最小跨度 */
+#define IMAGE_BLIND_TARGET_SCAN_MARGIN (4)           /* 纵向扫描范围附加像素 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
 #define IMAGE_LASER_TEST_ALL_FIRST     (1)           /* 激光测试全开（快捷位） */
@@ -218,6 +223,10 @@ static uint8 TargetLeftX = 0;
 static uint8 TargetRightX = 0;
 static uint8 TargetTopY = 0;
 static uint8 TargetBottomY = 0;
+static uint8 BlindBoxTargetCount = 0;
+static uint8 BlindBoxTargetLatch = 0;
+static uint8 BlindBoxTargetConfirmFrames = 0;
+static uint8 BlindBoxTargetMissFrames = 0;
 static uint8 LaserBusy = 0;
 static uint8 LaserTestLast = 0;
 static uint8 LaserPitInit = 0;
@@ -554,6 +563,19 @@ static void image_target_update_laser_mode(void)
 {
     uint8 laser_test;
 
+    if(BlindBoxPhase != BLIND_BOX_OFF)
+    {
+        if((LaserBusy != 0) || (LaserTestLast != IMAGE_LASER_TEST_OFF))
+        {
+            LaserBusy = 0;
+            LaserTickLeft = 0;
+            LaserTestLast = IMAGE_LASER_TEST_OFF;
+            image_target_laser_pit_stop();
+            image_laser_all_off();
+        }
+        return;
+    }
+
     laser_test = image_target_laser_test_mode();
     if(laser_test != LaserTestLast)
     {
@@ -728,6 +750,153 @@ static uint8 image_target_find(void)
     return 1;
 }
 
+static void image_blind_box_target_reset(void)
+{
+    BlindBoxTargetCount = 0;
+    BlindBoxTargetLatch = 0;
+    BlindBoxTargetConfirmFrames = 0;
+    BlindBoxTargetMissFrames = 0;
+}
+
+static uint8 image_blind_box_match_column(uint8 col,
+                                          uint8 center_y,
+                                          uint8 horizontal_span)
+{
+    int16 row;
+    int16 scan_start;
+    int16 scan_end;
+    int16 scan_radius;
+    uint8 prev_pixel;
+    uint8 transition_count;
+    uint8 transition0;
+    uint8 transition1;
+    uint8 transition2;
+    uint8 transition3;
+
+    if((col >= IMAGE_W) || (center_y >= IMAGE_H))
+    {
+        return 0;
+    }
+
+    scan_radius = (int16)horizontal_span + IMAGE_BLIND_TARGET_SCAN_MARGIN;
+    scan_start = (int16)center_y - scan_radius;
+    scan_end = (int16)center_y + scan_radius;
+    if(scan_start < 0) scan_start = 0;
+    if(scan_end >= IMAGE_H) scan_end = IMAGE_H - 1;
+    if((scan_end - scan_start) < IMAGE_BLIND_TARGET_MIN_SPAN)
+    {
+        return 0;
+    }
+
+    prev_pixel = ImageBin[scan_start][col];
+    transition_count = 0;
+    transition0 = 0;
+    transition1 = 0;
+    transition2 = 0;
+    transition3 = 0;
+
+    for(row = scan_start + 1; row <= scan_end; row++)
+    {
+        if(ImageBin[row][col] == prev_pixel)
+        {
+            continue;
+        }
+
+        prev_pixel = ImageBin[row][col];
+        if(transition_count < 4)
+        {
+            if(transition_count == 0) transition0 = (uint8)row;
+            else if(transition_count == 1) transition1 = (uint8)row;
+            else if(transition_count == 2) transition2 = (uint8)row;
+            else transition3 = (uint8)row;
+            transition_count++;
+        }
+        else
+        {
+            transition0 = transition1;
+            transition1 = transition2;
+            transition2 = transition3;
+            transition3 = (uint8)row;
+        }
+
+        if((transition_count >= 4) &&
+           (prev_pixel == IMAGE_WHITE) &&
+           (transition0 <= center_y) &&
+           (transition3 >= center_y) &&
+           ((transition3 - transition0) >= IMAGE_BLIND_TARGET_MIN_SPAN))
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void image_blind_box_target_check(uint8 horizontal_found)
+{
+    uint8 strict_found;
+    uint8 horizontal_span;
+
+    strict_found = 0;
+    if(horizontal_found && (TargetRightX > TargetLeftX))
+    {
+        horizontal_span = (uint8)(TargetRightX - TargetLeftX);
+        if(horizontal_span >= IMAGE_BLIND_TARGET_MIN_SPAN)
+        {
+            strict_found = image_blind_box_match_column(TargetCenterX,
+                                                        TargetCenterY,
+                                                        horizontal_span);
+        }
+    }
+
+    if(strict_found)
+    {
+        BlindBoxTargetMissFrames = 0;
+        if(BlindBoxTargetLatch == 0)
+        {
+            if(BlindBoxTargetConfirmFrames < IMAGE_BLIND_TARGET_CONFIRM)
+            {
+                BlindBoxTargetConfirmFrames++;
+            }
+            if(BlindBoxTargetConfirmFrames >= IMAGE_BLIND_TARGET_CONFIRM)
+            {
+                BlindBoxTargetLatch = 1;
+                if(BlindBoxTargetCount < IMAGE_BLIND_TARGET_STOP_COUNT)
+                {
+                    BlindBoxTargetCount++;
+                }
+                buzzer_short();
+                if(BlindBoxTargetCount == 1)
+                {
+                    BlindBoxPhase = BLIND_BOX_SPEED2;
+                }
+                else if(BlindBoxTargetCount >= IMAGE_BLIND_TARGET_STOP_COUNT)
+                {
+                    BlindBoxPhase = BLIND_BOX_STOP;
+                    servo_update_motor_target();
+                }
+            }
+        }
+        return;
+    }
+
+    if(BlindBoxTargetLatch == 0)
+    {
+        BlindBoxTargetConfirmFrames = 0;
+        return;
+    }
+
+    if(BlindBoxTargetMissFrames < IMAGE_BLIND_TARGET_MISS)
+    {
+        BlindBoxTargetMissFrames++;
+    }
+    if(BlindBoxTargetMissFrames >= IMAGE_BLIND_TARGET_MISS)
+    {
+        BlindBoxTargetLatch = 0;
+        BlindBoxTargetConfirmFrames = 0;
+    }
+}
+
 static void image_target_check(void)
 {
     uint8 target_found;
@@ -739,7 +908,21 @@ static void image_target_check(void)
         return;
     }
 
+    if((BlindBoxPhase == BLIND_BOX_DELAY) ||
+       (BlindBoxPhase == BLIND_BOX_STOP))
+    {
+        image_target_reset_result();
+        return;
+    }
+
     target_found = image_target_find();
+
+    if((BlindBoxPhase == BLIND_BOX_SPEED1) ||
+       (BlindBoxPhase == BLIND_BOX_SPEED2))
+    {
+        image_blind_box_target_check(target_found);
+        return;
+    }
 
     if(image_target_laser_test_mode() != IMAGE_LASER_TEST_OFF)
     {
@@ -1235,6 +1418,7 @@ void image_init(void)
     ImageRunFrameCount = 0;
     TargetFrameGap = 255;
     TargetFound = 0;
+    image_blind_box_target_reset();
     LaserBusy = 0;
     LaserTestLast = 0;
     LaserPitInit = 0;
@@ -3451,7 +3635,7 @@ static void image_check_zebra(void)
 
     ZebraHit = image_zebra_scan();
 
-    if(CarMode != CAR_MODE_RUN)
+    if((CarMode != CAR_MODE_RUN) || (BlindBoxPhase != BLIND_BOX_OFF))
     {
         return;
     }
@@ -3480,7 +3664,8 @@ static void image_check_zebra(void)
                 buzzer_short();
                 if(ZebraDetectCount >= zebra_stop_count)
                 {
-                    CarMode = CAR_MODE_STOP;
+                    image_blind_box_target_reset();
+                    state_start_blind_box_delay();
                 }
 
                 ZebraCooldownFrames = IMAGE_ZEBRA_COOLDOWN_FRAMES;
@@ -3990,6 +4175,12 @@ void image_update(void)
     interrupt_global_disable();
     Image.sequence++;
     interrupt_global_enable();
+
+    if(BlindBoxPhase == BLIND_BOX_STOP)
+    {
+        ImageLostCount = 0;
+        return;
+    }
 
     /* 非运行模式不检测丢线停车 */
     if(CarMode != CAR_MODE_RUN)

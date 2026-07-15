@@ -303,7 +303,7 @@
             <CClasses></CClasses>
             <UserClasses>EDATA (0X0-0X3FFF), HDATA (0X0-0X3FFF, 0X10000-0X2FFFF), ECODE (0XFC4800-0XFDFFFF), HCONST (0XFE0000-0XFFFFFF)</UserClasses>
             <CSection></CSection>
-            <UserSection></UserSection>
+            <UserSection>?PR?USB_REQ_VENDOR(0xFCFFF3),?PR?USB_REQ_STD(0xFD53F2),?PR?USB(0xFD5E3E),?PR?USB_REQ_CLASS(0xFD7D98),?PR?ZF_DRIVER_USB_CDC(0xFD7ECD)</UserSection>
             <CodeBaseAddress></CodeBaseAddress>
             <XDataBaseAddress></XDataBaseAddress>
             <PDataBaseAddress></PDataBaseAddress>

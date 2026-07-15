@@ -5,5 +5,6 @@
 
 void servo_init(void);
 void servo_update(void);
+void servo_update_motor_target(void);
 
 #endif
