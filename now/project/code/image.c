@@ -771,6 +771,12 @@ static void image_blind_box_target_reset(void)
     BlindBoxTargetMissFrames = 0;
 }
 
+static void image_blind_box_stop(void)
+{
+    BlindBoxPhase = BLIND_BOX_STOP;
+    servo_update_motor_target();
+}
+
 static void image_blind_box_target_check(uint8 target_found)
 {
     if(target_found)
@@ -796,8 +802,7 @@ static void image_blind_box_target_check(uint8 target_found)
                 }
                 else if(BlindBoxTargetCount >= IMAGE_BLIND_TARGET_STOP_COUNT)
                 {
-                    BlindBoxPhase = BLIND_BOX_STOP;
-                    servo_update_motor_target();
+                    image_blind_box_stop();
                 }
             }
         }
@@ -3559,7 +3564,7 @@ static void image_check_zebra(void)
 
     ZebraHit = image_zebra_scan();
 
-    if((CarMode != CAR_MODE_RUN) || (BlindBoxPhase != BLIND_BOX_OFF))
+    if(CarMode != CAR_MODE_RUN)
     {
         return;
     }
@@ -3576,6 +3581,14 @@ static void image_check_zebra(void)
         if(ZebraFrameLatch == 0)
         {
             ZebraFrameLatch = 1;
+            if(BlindBoxPhase != BLIND_BOX_OFF)
+            {
+                if(BlindBoxPhase != BLIND_BOX_STOP)
+                {
+                    image_blind_box_stop();
+                }
+                return;
+            }
             if(ZebraCooldownFrames == 0)
             {
                 zebra_stop_count = (uint8)(SmartCar.other.lap_count + 1);
