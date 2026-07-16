@@ -85,6 +85,11 @@
 #define OTHER_LAP_COUNT            (1)
 #define OTHER_BLIND_BOX_SPEED      (150)
 #define OTHER_BLIND_BOX_SLOW_SPEED (70)
+#define OTHER_BOX_LASER_ROW1       (56)
+#define OTHER_BOX_LASER_ROW2       (55)
+#define OTHER_BOX_LASER_ROW3       (54)
+#define OTHER_BOX_LASER_OK_NUM     (1)
+#define OTHER_BOX_LASER_GAP        (10)
 
 /* 硬件配置 */
 #define MOTOR_CTRL_PERIOD_MS       (5)
@@ -264,6 +269,11 @@ typedef struct
     uint8 lap_count;
     int16 blind_box_speed;
     int16 blind_box_slow_speed;
+    uint8 box_laser_row1;
+    uint8 box_laser_row2;
+    uint8 box_laser_row3;
+    uint8 box_laser_ok_num;
+    uint8 box_laser_gap;
 } other_para;
 	
 typedef struct

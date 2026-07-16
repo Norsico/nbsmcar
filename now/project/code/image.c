@@ -92,7 +92,6 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
 #define IMAGE_BLIND_TARGET_CONFIRM     (2)           /* 盲盒靶标需要连续命中的帧数 */
-#define IMAGE_BLIND_TARGET_MISS        (10)          /* 连续未命中多少帧后允许识别下一个靶标 */
 #define IMAGE_BLIND_TARGET_STOP_COUNT  (2)           /* 盲盒圈在第二个靶标处停车 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
@@ -421,6 +420,10 @@ static void image_target_normalize_config(void)
     SmartCar.camera.laser_st_row3 = image_target_normalize_row(SmartCar.camera.laser_st_row3);
     SmartCar.camera.laser_st_ok_num = image_target_normalize_ok_num(SmartCar.camera.laser_st_ok_num);
     SmartCar.camera.laser_ui_test_col = image_target_normalize_col(SmartCar.camera.laser_ui_test_col);
+    SmartCar.other.box_laser_row1 = image_target_normalize_row(SmartCar.other.box_laser_row1);
+    SmartCar.other.box_laser_row2 = image_target_normalize_row(SmartCar.other.box_laser_row2);
+    SmartCar.other.box_laser_row3 = image_target_normalize_row(SmartCar.other.box_laser_row3);
+    SmartCar.other.box_laser_ok_num = image_target_normalize_ok_num(SmartCar.other.box_laser_ok_num);
 }
 
 static uint8 image_laser_get_aim_col(uint8 index)
@@ -460,6 +463,13 @@ static uint8 image_laser_get_aim_col(uint8 index)
 
 static uint8 image_target_get_scan_row(uint8 index)
 {
+    if((BlindBoxPhase == BLIND_BOX_SPEED1) || (BlindBoxPhase == BLIND_BOX_SPEED2))
+    {
+        if(index == 0) { return SmartCar.other.box_laser_row1; }
+        if(index == 1) { return SmartCar.other.box_laser_row2; }
+        return SmartCar.other.box_laser_row3;
+    }
+
     if((Image.param_st != 0) && (Image.is_ramp == 0))
     {
         if(index == 0) { return SmartCar.camera.laser_st_row1; }
@@ -474,6 +484,11 @@ static uint8 image_target_get_scan_row(uint8 index)
 
 static uint8 image_target_get_ok_num(void)
 {
+    if((BlindBoxPhase == BLIND_BOX_SPEED1) || (BlindBoxPhase == BLIND_BOX_SPEED2))
+    {
+        return SmartCar.other.box_laser_ok_num;
+    }
+
     if((Image.param_st != 0) && (Image.is_ramp == 0))
     {
         return SmartCar.camera.laser_st_ok_num;
@@ -795,11 +810,11 @@ static void image_blind_box_target_check(uint8 target_found)
         return;
     }
 
-    if(BlindBoxTargetMissFrames < IMAGE_BLIND_TARGET_MISS)
+    if(BlindBoxTargetMissFrames < SmartCar.other.box_laser_gap)
     {
         BlindBoxTargetMissFrames++;
     }
-    if(BlindBoxTargetMissFrames >= IMAGE_BLIND_TARGET_MISS)
+    if(BlindBoxTargetMissFrames >= SmartCar.other.box_laser_gap)
     {
         BlindBoxTargetLatch = 0;
         BlindBoxTargetConfirmFrames = 0;

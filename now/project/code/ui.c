@@ -50,6 +50,10 @@ typedef enum
 #define UI_CAMERA_THR_OFF_INDEX      (2)
 #define UI_CAMERA_THR_TRI_INDEX      (3)
 #define UI_OTHER_LAP_INDEX           (0)
+#define UI_OTHER_BOX_ROW1_INDEX      (3)
+#define UI_OTHER_BOX_ROW3_INDEX      (5)
+#define UI_OTHER_BOX_OK_INDEX        (6)
+#define UI_OTHER_BOX_GAP_INDEX       (7)
 #define UI_OTHER_LAP_MIN             (1)
 #define UI_OTHER_LAP_MAX             (9)
 
@@ -178,6 +182,11 @@ static const ui_param_t other_params[] = {
     {"lap count", &SmartCar.other.lap_count,          VAL_TYPE_UINT8,  1},
     {"blind speed1", &SmartCar.other.blind_box_speed, VAL_TYPE_INT16, 10},
     {"blind speed2", &SmartCar.other.blind_box_slow_speed, VAL_TYPE_INT16, 10},
+    {"box laser row 1", &SmartCar.other.box_laser_row1, VAL_TYPE_UINT8, 1},
+    {"box laser row 2", &SmartCar.other.box_laser_row2, VAL_TYPE_UINT8, 1},
+    {"box laser row 3", &SmartCar.other.box_laser_row3, VAL_TYPE_UINT8, 1},
+    {"box ok num", &SmartCar.other.box_laser_ok_num, VAL_TYPE_UINT8, 1},
+    {"box laser gap", &SmartCar.other.box_laser_gap, VAL_TYPE_UINT8, 1},
 };
 	
 // Servo 参数子页面
@@ -466,6 +475,30 @@ static void ui_change_current_value(int8 dir)
             if(value < UI_OTHER_LAP_MIN) value = UI_OTHER_LAP_MIN;
             if(value > UI_OTHER_LAP_MAX) value = UI_OTHER_LAP_MAX;
             SmartCar.other.lap_count = (uint8)value;
+            return;
+        }
+        if((UiSelect >= UI_OTHER_BOX_ROW1_INDEX) && (UiSelect <= UI_OTHER_BOX_ROW3_INDEX))
+        {
+            value = (int16)(*(uint8*)p->val_ptr) + change;
+            if(value < 1) value = 1;
+            if(value > (IMAGE_H - 1)) value = (IMAGE_H - 1);
+            *(uint8*)p->val_ptr = (uint8)value;
+            return;
+        }
+        if(UiSelect == UI_OTHER_BOX_OK_INDEX)
+        {
+            value = (int16)SmartCar.other.box_laser_ok_num + change;
+            if(value < 1) value = 1;
+            if(value > 3) value = 3;
+            SmartCar.other.box_laser_ok_num = (uint8)value;
+            return;
+        }
+        if(UiSelect == UI_OTHER_BOX_GAP_INDEX)
+        {
+            value = (int16)SmartCar.other.box_laser_gap + change;
+            if(value < 0) value = 0;
+            if(value > UI_LASER_FIRE_INTERVAL_MAX) value = UI_LASER_FIRE_INTERVAL_MAX;
+            SmartCar.other.box_laser_gap = (uint8)value;
             return;
         }
     }
