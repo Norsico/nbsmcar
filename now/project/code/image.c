@@ -3583,7 +3583,8 @@ static void image_check_zebra(void)
             ZebraFrameLatch = 1;
             if(BlindBoxPhase != BLIND_BOX_OFF)
             {
-                if(BlindBoxPhase != BLIND_BOX_STOP)
+                if((BlindBoxPhase == BLIND_BOX_SPEED1) ||
+                   (BlindBoxPhase == BLIND_BOX_SPEED2))
                 {
                     image_blind_box_stop();
                 }

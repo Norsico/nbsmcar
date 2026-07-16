@@ -1,6 +1,6 @@
 #include "headfile.h"
 
-#define STATE_BLIND_BOX_DELAY_MS     (1000)
+#define STATE_BLIND_BOX_DELAY_MS     (100)
 #define STATE_BLIND_BOX_DELAY_TICKS  ((STATE_BLIND_BOX_DELAY_MS + MOTOR_CTRL_PERIOD_MS - 1) / MOTOR_CTRL_PERIOD_MS)
 
 volatile car_mode CarMode = CAR_MODE_STOP;
