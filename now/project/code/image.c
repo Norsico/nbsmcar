@@ -94,8 +94,6 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_BLIND_TARGET_CONFIRM     (2)           /* 盲盒靶标需要连续命中的帧数 */
 #define IMAGE_BLIND_TARGET_MISS        (10)          /* 连续未命中多少帧后允许识别下一个靶标 */
 #define IMAGE_BLIND_TARGET_STOP_COUNT  (2)           /* 盲盒圈在第二个靶标处停车 */
-#define IMAGE_BLIND_TARGET_MIN_SPAN    (4)           /* 纵向四次跳变的最小跨度 */
-#define IMAGE_BLIND_TARGET_SCAN_MARGIN (4)           /* 纵向扫描范围附加像素 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
 #define IMAGE_LASER_TEST_ALL_FIRST     (1)           /* 激光测试全开（快捷位） */
@@ -758,98 +756,9 @@ static void image_blind_box_target_reset(void)
     BlindBoxTargetMissFrames = 0;
 }
 
-static uint8 image_blind_box_match_column(uint8 col,
-                                          uint8 center_y,
-                                          uint8 horizontal_span)
+static void image_blind_box_target_check(uint8 target_found)
 {
-    int16 row;
-    int16 scan_start;
-    int16 scan_end;
-    int16 scan_radius;
-    uint8 prev_pixel;
-    uint8 transition_count;
-    uint8 transition0;
-    uint8 transition1;
-    uint8 transition2;
-    uint8 transition3;
-
-    if((col >= IMAGE_W) || (center_y >= IMAGE_H))
-    {
-        return 0;
-    }
-
-    scan_radius = (int16)horizontal_span + IMAGE_BLIND_TARGET_SCAN_MARGIN;
-    scan_start = (int16)center_y - scan_radius;
-    scan_end = (int16)center_y + scan_radius;
-    if(scan_start < 0) scan_start = 0;
-    if(scan_end >= IMAGE_H) scan_end = IMAGE_H - 1;
-    if((scan_end - scan_start) < IMAGE_BLIND_TARGET_MIN_SPAN)
-    {
-        return 0;
-    }
-
-    prev_pixel = ImageBin[scan_start][col];
-    transition_count = 0;
-    transition0 = 0;
-    transition1 = 0;
-    transition2 = 0;
-    transition3 = 0;
-
-    for(row = scan_start + 1; row <= scan_end; row++)
-    {
-        if(ImageBin[row][col] == prev_pixel)
-        {
-            continue;
-        }
-
-        prev_pixel = ImageBin[row][col];
-        if(transition_count < 4)
-        {
-            if(transition_count == 0) transition0 = (uint8)row;
-            else if(transition_count == 1) transition1 = (uint8)row;
-            else if(transition_count == 2) transition2 = (uint8)row;
-            else transition3 = (uint8)row;
-            transition_count++;
-        }
-        else
-        {
-            transition0 = transition1;
-            transition1 = transition2;
-            transition2 = transition3;
-            transition3 = (uint8)row;
-        }
-
-        if((transition_count >= 4) &&
-           (prev_pixel == IMAGE_WHITE) &&
-           (transition0 <= center_y) &&
-           (transition3 >= center_y) &&
-           ((transition3 - transition0) >= IMAGE_BLIND_TARGET_MIN_SPAN))
-        {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-static void image_blind_box_target_check(uint8 horizontal_found)
-{
-    uint8 strict_found;
-    uint8 horizontal_span;
-
-    strict_found = 0;
-    if(horizontal_found && (TargetRightX > TargetLeftX))
-    {
-        horizontal_span = (uint8)(TargetRightX - TargetLeftX);
-        if(horizontal_span >= IMAGE_BLIND_TARGET_MIN_SPAN)
-        {
-            strict_found = image_blind_box_match_column(TargetCenterX,
-                                                        TargetCenterY,
-                                                        horizontal_span);
-        }
-    }
-
-    if(strict_found)
+    if(target_found)
     {
         BlindBoxTargetMissFrames = 0;
         if(BlindBoxTargetLatch == 0)
