@@ -43,10 +43,10 @@
 #define FAN_ENABLE                 (1)
 
 /* Camera */
-#define CAMERA_EXPOSURE            (100)
+#define CAMERA_EXPOSURE            (150)
 #define CAMERA_GAIN                (30)
-#define CAMERA_THRESHOLD_OFFSET    (11)
-#define CAMERA_THRESHOLD_TRI_DELTA (15)
+#define CAMERA_THRESHOLD_OFFSET    (18)
+#define CAMERA_THRESHOLD_TRI_DELTA (16)
 
 /* Laser */
 #define CAMERA_LASER_TEST          (0)
@@ -59,8 +59,8 @@
 #define CAMERA_LASER_LEFT1_COL     (29)
 #define CAMERA_LASER_CENTER_COL    (39)
 #define CAMERA_LASER_RIGHT1_COL    (49)
-#define CAMERA_LASER_RIGHT2_COL    (58)
-#define CAMERA_LASER_RIGHT3_COL    (69)
+#define CAMERA_LASER_RIGHT2_COL    (59)
+#define CAMERA_LASER_RIGHT3_COL    (68)
 #define CAMERA_LASER_ROW1          (58)
 #define CAMERA_LASER_ROW2          (57)
 #define CAMERA_LASER_ROW3          (56)
@@ -72,23 +72,23 @@
 #define CAMERA_LASER_ST_LEFT1_COL  (29)
 #define CAMERA_LASER_ST_CENTER_COL (39)
 #define CAMERA_LASER_ST_RIGHT1_COL (49)
-#define CAMERA_LASER_ST_RIGHT2_COL (58)
-#define CAMERA_LASER_ST_RIGHT3_COL (69)
-#define CAMERA_LASER_ST_ROW1       (56)
-#define CAMERA_LASER_ST_ROW2       (55)
-#define CAMERA_LASER_ST_ROW3       (54)
+#define CAMERA_LASER_ST_RIGHT2_COL (59)
+#define CAMERA_LASER_ST_RIGHT3_COL (68)
+#define CAMERA_LASER_ST_ROW1       (57)
+#define CAMERA_LASER_ST_ROW2       (56)
+#define CAMERA_LASER_ST_ROW3       (55)
 #define CAMERA_LASER_ST_OK_NUM     (1)
 #define CAMERA_LASER_ST_FIRE_INTERVAL (5)
 
 /* Other */
 // 圈数
-#define OTHER_LAP_COUNT            (1)
-#define OTHER_BLIND_BOX_SPEED      (150)
+#define OTHER_LAP_COUNT            (2)
+#define OTHER_BLIND_BOX_SPEED      (180)
 #define OTHER_BLIND_BOX_SLOW_SPEED (70)
 #define OTHER_BOX_LASER_ROW1       (56)
 #define OTHER_BOX_LASER_ROW2       (55)
 #define OTHER_BOX_LASER_ROW3       (54)
-#define OTHER_BOX_LASER_OK_NUM     (1)
+#define OTHER_BOX_LASER_OK_NUM     (2)
 #define OTHER_BOX_LASER_GAP        (10)
 
 /* 硬件配置 */
