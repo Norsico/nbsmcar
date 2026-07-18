@@ -549,6 +549,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\libraries\zf_driver\zf_driver_usb_cdc.c</FilePath>
             </File>
+            <File>
+              <FileName>zf_driver_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\libraries\zf_driver\zf_driver_uart.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -843,6 +848,16 @@
               <FileName>servo.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\code\servo.h</FilePath>
+            </File>
+            <File>
+              <FileName>direction_gate.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\code\direction_gate.c</FilePath>
+            </File>
+            <File>
+              <FileName>direction_gate.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\code\direction_gate.h</FilePath>
             </File>
           </Files>
         </Group>

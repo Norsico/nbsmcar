@@ -14,7 +14,7 @@
 #include "zf_common_debug.h"
 
 /* Driver / 单片机外设驱动 */
-//#include "zf_driver_uart.h"        /* UART / 串口，当前未用 */
+#include "zf_driver_uart.h"         /* UART / 串口 */
 #include "zf_driver_gpio.h"
 #include "zf_driver_adc.h"
 #include "zf_driver_spi.h"
@@ -60,5 +60,6 @@
 #include "servo.h"
 #include "image.h"
 #include "ui.h"
+#include "direction_gate.h"
 
 #endif

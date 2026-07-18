@@ -260,6 +260,29 @@ void INT4_IRQHandler(void) interrupt INT4_VECTOR
 	if (int_irq_handlers[4] != NULL)
     {
 		int_irq_handlers[4]();
+	}
+}
+
+void DMA_UART2_IRQHandler(void) interrupt DMA_UR2R_VECTOR
+{
+    uint8 dat;
+
+    if(DMA_UR2R_STA & 0x01)
+    {
+        dat = uart_rx_buff[UART_2][0];
+        DMA_UR2R_STA &= ~0x01;
+        uart_rx_start_buff(UART_2);
+
+        if(uart_rx_handlers[UART_2] != NULL)
+        {
+            uart_rx_handlers[UART_2](dat);
+        }
+    }
+
+    if(DMA_UR2R_STA & 0x02)
+    {
+        DMA_UR2R_STA &= ~0x02;
+        uart_rx_start_buff(UART_2);
     }
 }
 
