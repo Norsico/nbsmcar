@@ -29,18 +29,10 @@ void servo_update_motor_target(void)
     int16 ackerman;
     int32 diff_scale;
 
-    /* 盲盒停车和两段速度优先，其余状态沿用原有速度选择。 */
+    /* 停车状态优先，其余状态沿用原有速度选择。 */
     if(BlindBoxPhase == BLIND_BOX_STOP)
     {
         speed = 0;
-    }
-    else if(BlindBoxPhase == BLIND_BOX_SPEED1)
-    {
-        speed = SmartCar.other.blind_box_speed;
-    }
-    else if(BlindBoxPhase == BLIND_BOX_SPEED2)
-    {
-        speed = SmartCar.other.blind_box_slow_speed;
     }
     else if(Image.is_ramp)
     {

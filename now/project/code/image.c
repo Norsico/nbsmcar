@@ -91,8 +91,6 @@ uint8 ImageBin[IMAGE_H][IMAGE_W];
 #define IMAGE_TARGET_LASER_PERIOD_US   (500)         /* 激光关闭定时器周期，单位 us */
 #define IMAGE_TARGET_SCAN_ROWS         (3)           /* 每帧向上扫描的检测行数 */
 #define IMAGE_TARGET_MIN_OVERLAP       (3)           /* 多行命中区域的最小重叠宽度，单位像素 */
-#define IMAGE_BLIND_TARGET_CONFIRM     (2)           /* 盲盒靶标需要连续命中的帧数 */
-#define IMAGE_BLIND_TARGET_STOP_COUNT  (2)           /* 盲盒圈在第二个靶标处停车 */
 #define IMAGE_LASER_COUNT              (7)           /* 激光数量 */
 #define IMAGE_LASER_TEST_OFF           (0)           /* 激光测试关闭 */
 #define IMAGE_LASER_TEST_ALL_FIRST     (1)           /* 激光测试全开（快捷位） */
@@ -220,10 +218,6 @@ static uint8 TargetLeftX = 0;
 static uint8 TargetRightX = 0;
 static uint8 TargetTopY = 0;
 static uint8 TargetBottomY = 0;
-static uint8 BlindBoxTargetCount = 0;
-static uint8 BlindBoxTargetLatch = 0;
-static uint8 BlindBoxTargetConfirmFrames = 0;
-static uint8 BlindBoxTargetMissFrames = 0;
 static uint8 LaserBusy = 0;
 static uint8 LaserTestLast = 0;
 static uint8 LaserPitInit = 0;
@@ -420,10 +414,6 @@ static void image_target_normalize_config(void)
     SmartCar.camera.laser_st_row3 = image_target_normalize_row(SmartCar.camera.laser_st_row3);
     SmartCar.camera.laser_st_ok_num = image_target_normalize_ok_num(SmartCar.camera.laser_st_ok_num);
     SmartCar.camera.laser_ui_test_col = image_target_normalize_col(SmartCar.camera.laser_ui_test_col);
-    SmartCar.other.box_laser_row1 = image_target_normalize_row(SmartCar.other.box_laser_row1);
-    SmartCar.other.box_laser_row2 = image_target_normalize_row(SmartCar.other.box_laser_row2);
-    SmartCar.other.box_laser_row3 = image_target_normalize_row(SmartCar.other.box_laser_row3);
-    SmartCar.other.box_laser_ok_num = image_target_normalize_ok_num(SmartCar.other.box_laser_ok_num);
 }
 
 static uint8 image_laser_get_aim_col(uint8 index)
@@ -463,13 +453,6 @@ static uint8 image_laser_get_aim_col(uint8 index)
 
 static uint8 image_target_get_scan_row(uint8 index)
 {
-    if((BlindBoxPhase == BLIND_BOX_SPEED1) || (BlindBoxPhase == BLIND_BOX_SPEED2))
-    {
-        if(index == 0) { return SmartCar.other.box_laser_row1; }
-        if(index == 1) { return SmartCar.other.box_laser_row2; }
-        return SmartCar.other.box_laser_row3;
-    }
-
     if((Image.param_st != 0) && (Image.is_ramp == 0))
     {
         if(index == 0) { return SmartCar.camera.laser_st_row1; }
@@ -484,11 +467,6 @@ static uint8 image_target_get_scan_row(uint8 index)
 
 static uint8 image_target_get_ok_num(void)
 {
-    if((BlindBoxPhase == BLIND_BOX_SPEED1) || (BlindBoxPhase == BLIND_BOX_SPEED2))
-    {
-        return SmartCar.other.box_laser_ok_num;
-    }
-
     if((Image.param_st != 0) && (Image.is_ramp == 0))
     {
         return SmartCar.camera.laser_st_ok_num;
@@ -575,19 +553,6 @@ static void image_target_laser_start(uint8 center_x)
 static void image_target_update_laser_mode(void)
 {
     uint8 laser_test;
-
-    if(BlindBoxPhase != BLIND_BOX_OFF)
-    {
-        if((LaserBusy != 0) || (LaserTestLast != IMAGE_LASER_TEST_OFF))
-        {
-            LaserBusy = 0;
-            LaserTickLeft = 0;
-            LaserTestLast = IMAGE_LASER_TEST_OFF;
-            image_target_laser_pit_stop();
-            image_laser_all_off();
-        }
-        return;
-    }
 
     laser_test = image_target_laser_test_mode();
     if(laser_test != LaserTestLast)
@@ -763,67 +728,10 @@ static uint8 image_target_find(void)
     return 1;
 }
 
-static void image_blind_box_target_reset(void)
-{
-    BlindBoxTargetCount = 0;
-    BlindBoxTargetLatch = 0;
-    BlindBoxTargetConfirmFrames = 0;
-    BlindBoxTargetMissFrames = 0;
-}
-
 static void image_blind_box_stop(void)
 {
     BlindBoxPhase = BLIND_BOX_STOP;
     servo_update_motor_target();
-}
-
-static void image_blind_box_target_check(uint8 target_found)
-{
-    if(target_found)
-    {
-        BlindBoxTargetMissFrames = 0;
-        if(BlindBoxTargetLatch == 0)
-        {
-            if(BlindBoxTargetConfirmFrames < IMAGE_BLIND_TARGET_CONFIRM)
-            {
-                BlindBoxTargetConfirmFrames++;
-            }
-            if(BlindBoxTargetConfirmFrames >= IMAGE_BLIND_TARGET_CONFIRM)
-            {
-                BlindBoxTargetLatch = 1;
-                if(BlindBoxTargetCount < IMAGE_BLIND_TARGET_STOP_COUNT)
-                {
-                    BlindBoxTargetCount++;
-                }
-                buzzer_short();
-                if(BlindBoxTargetCount == 1)
-                {
-                    BlindBoxPhase = BLIND_BOX_SPEED2;
-                }
-                else if(BlindBoxTargetCount >= IMAGE_BLIND_TARGET_STOP_COUNT)
-                {
-                    image_blind_box_stop();
-                }
-            }
-        }
-        return;
-    }
-
-    if(BlindBoxTargetLatch == 0)
-    {
-        BlindBoxTargetConfirmFrames = 0;
-        return;
-    }
-
-    if(BlindBoxTargetMissFrames < SmartCar.other.box_laser_gap)
-    {
-        BlindBoxTargetMissFrames++;
-    }
-    if(BlindBoxTargetMissFrames >= SmartCar.other.box_laser_gap)
-    {
-        BlindBoxTargetLatch = 0;
-        BlindBoxTargetConfirmFrames = 0;
-    }
 }
 
 static void image_target_check(void)
@@ -837,21 +745,13 @@ static void image_target_check(void)
         return;
     }
 
-    if((BlindBoxPhase == BLIND_BOX_DELAY) ||
-       (BlindBoxPhase == BLIND_BOX_STOP))
+    if(BlindBoxPhase == BLIND_BOX_STOP)
     {
         image_target_reset_result();
         return;
     }
 
     target_found = image_target_find();
-
-    if((BlindBoxPhase == BLIND_BOX_SPEED1) ||
-       (BlindBoxPhase == BLIND_BOX_SPEED2))
-    {
-        image_blind_box_target_check(target_found);
-        return;
-    }
 
     if(image_target_laser_test_mode() != IMAGE_LASER_TEST_OFF)
     {
@@ -1347,7 +1247,6 @@ void image_init(void)
     ImageRunFrameCount = 0;
     TargetFrameGap = 255;
     TargetFound = 0;
-    image_blind_box_target_reset();
     LaserBusy = 0;
     LaserTestLast = 0;
     LaserPitInit = 0;
@@ -3581,15 +3480,6 @@ static void image_check_zebra(void)
         if(ZebraFrameLatch == 0)
         {
             ZebraFrameLatch = 1;
-            if(BlindBoxPhase != BLIND_BOX_OFF)
-            {
-                if((BlindBoxPhase == BLIND_BOX_SPEED1) ||
-                   (BlindBoxPhase == BLIND_BOX_SPEED2))
-                {
-                    image_blind_box_stop();
-                }
-                return;
-            }
             if(ZebraCooldownFrames == 0)
             {
                 zebra_stop_count = (uint8)(SmartCar.other.lap_count + 1);
@@ -3602,8 +3492,7 @@ static void image_check_zebra(void)
                 buzzer_short();
                 if(ZebraDetectCount >= zebra_stop_count)
                 {
-                    image_blind_box_target_reset();
-                    state_start_blind_box_delay();
+                    image_blind_box_stop();
                 }
 
                 ZebraCooldownFrames = IMAGE_ZEBRA_COOLDOWN_FRAMES;

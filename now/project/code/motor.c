@@ -72,7 +72,6 @@ static void motor_timer(void)
 
     buzzer_tick();
     image_ramp_tick();
-    state_tick();
 
     Motor.read_left = encoder_get_count(ENCODER_LEFT);
     Motor.read_right = -encoder_get_count(ENCODER_RIGHT);
