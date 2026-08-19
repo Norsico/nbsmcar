@@ -141,10 +141,12 @@
 
 #define FAN_PWM                    (PWMF_CH2_PA3)           // Brushless fan 无刷
 
-#define MOTOR_RIGHT_DIR            (IO_P75)                 // 左右电机
-#define MOTOR_RIGHT_PWM            (PWMB_CH1_P74)
-#define MOTOR_LEFT_DIR             (IO_P77)
-#define MOTOR_LEFT_PWM             (PWMB_CH3_P76)
+
+#define MOTOR_RIGHT_DIR            (IO_P76)                 // 左右电机
+#define MOTOR_RIGHT_PWM            (PWMB_CH4_P77)
+#define MOTOR_LEFT_DIR             (IO_P74)
+#define MOTOR_LEFT_PWM             (PWMB_CH2_P75)
+
 
 #define ENCODER_LEFT               (PWMC_ENCODER)           // 编码器
 #define ENCODER_LEFT_CHA           (PWMC_ENCODER_CH1P_P40)

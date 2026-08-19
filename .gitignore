@@ -28,5 +28,7 @@ out_file/
 
 #Git
 .git/
-
+.agents
+skills-lock.json
+报告
 00参考代码/code
