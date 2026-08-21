@@ -5,19 +5,19 @@
 
 /* Servo */
 // 右转
-#define SERVO_KP                   (144)
-#define SERVO_KD                   (124)
-#define SERVO_ERR2_K               (40)
-#define SERVO_IMU_D                (20)
+#define SERVO_KP                   (116)
+#define SERVO_KD                   (270)
+#define SERVO_ERR2_K               (28)
+#define SERVO_IMU_D                (18)
 #define SERVO_ACKERMAN             (1300)
-#define SERVO_POINT                (22)
+#define SERVO_POINT                (23)
 // 左转
-#define SERVO_LEFT_KP              (128)
-#define SERVO_LEFT_KD              (148)
-#define SERVO_LEFT_ERR2_K          (40)
-#define SERVO_LEFT_IMU_D           (64)
-#define SERVO_LEFT_ACKERMAN        (1200)
-#define SERVO_LEFT_POINT           (22)
+#define SERVO_LEFT_KP              (116)
+#define SERVO_LEFT_KD              (270)
+#define SERVO_LEFT_ERR2_K          (28)
+#define SERVO_LEFT_IMU_D           (18)
+#define SERVO_LEFT_ACKERMAN        (1300)
+#define SERVO_LEFT_POINT           (23)
 // 直道
 #define SERVO_ST_KP                (100)
 #define SERVO_ST_KD                (116)
@@ -26,7 +26,7 @@
 #define SERVO_ST_ACKERMAN          (1000)
 #define SERVO_ST_POINT             (18)
 // 环岛
-#define SERVO_IN_RING_POINT        (25)
+#define SERVO_IN_RING_POINT        (24)
 #define SERVO_OUT_RING_POINT       (24)
 
 /* Motor */
@@ -34,19 +34,19 @@
 #define MOTOR_LEFT_KI              (6)
 #define MOTOR_RIGHT_KP             (55)
 #define MOTOR_RIGHT_KI             (6)
-#define MOTOR_TARGET_SPEED         (230)
-#define MOTOR_STRAIGHT_SPEED       (230)
+#define MOTOR_TARGET_SPEED         (220)
+#define MOTOR_STRAIGHT_SPEED       (220)
 #define MOTOR_RING_SPEED           (220)
 #define MOTOR_RAMP_SPEED           (130)
-#define FAN_DUTY                   (70)
-#define FAN_STRAIGHT_DUTY          (70)
+#define FAN_DUTY                   (65)
+#define FAN_STRAIGHT_DUTY          (65)
 #define FAN_ENABLE                 (1)
 
 /* Camera */
-#define CAMERA_EXPOSURE            (150)
+#define CAMERA_EXPOSURE            (130)
 #define CAMERA_GAIN                (30)
-#define CAMERA_THRESHOLD_OFFSET    (18)
-#define CAMERA_THRESHOLD_TRI_DELTA (16)
+#define CAMERA_THRESHOLD_OFFSET    (9)
+#define CAMERA_THRESHOLD_TRI_DELTA (0)
 
 /* Laser */
 #define CAMERA_LASER_TEST          (0)
@@ -191,7 +191,7 @@ typedef struct
     int16 kd;
     int16 err2_k;
     int16 imu_d;
-	  int16 ackerman;
+    int16 ackerman;
     int16 tow_point;
     int16 left_kp;
     int16 left_kd;

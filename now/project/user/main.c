@@ -9,9 +9,9 @@ void main(void)
     debug_init();
     para_init();
     flash_init();
-		servo_init();      // IMU初始化（SPI通信）
-		state_init();      // 状态初始化
-		buzzer_init();
+    servo_init();      // IMU初始化（SPI通信）
+    state_init();      // 状态初始化
+    buzzer_init();
     motor_init();      // 仅初始化GPIO、PWM、编码器（不启动中断）
     image_init();      // 摄像头初始化（DMA + 中断）
 
@@ -23,6 +23,7 @@ void main(void)
     {
         ui_init();
     }
+
     while(1)
     {
         switch(CarMode)

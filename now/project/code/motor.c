@@ -198,6 +198,8 @@ void motor_start_control(void)
         if(SmartCar.motor.fan_en != 0)
         {
             fan_start_ramp(SmartCar.motor.fan_duty);
+        }else{
+            system_delay_ms(2000);
         }
     }
 

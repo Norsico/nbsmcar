@@ -65,19 +65,21 @@ void servo_update_motor_target(void)
     {
         ackerman = SmartCar.servo.ackerman;
     }
+
     diff_scale = ((int32)ackerman * tan_value) / 100;
     speed_delta = (int16)(((int32)speed * diff_scale) / 10000);
 
-    if(speed_delta <= 0)  // 左转
+    if(speed_delta <= 0)
     {
         Motor.target_left = speed + speed_delta;
-		Motor.target_right = speed - speed_delta;
+		Motor.target_right = speed;
     }
-    else if(speed_delta > 0) // 右转
+    else if(speed_delta > 0)
     {
-        Motor.target_right = speed - speed_delta ;
-		Motor.target_left = speed + speed_delta;
+        Motor.target_right = speed- speed_delta ;
+		Motor.target_left = speed;
     }
+
 }
 
 void servo_init(void)
