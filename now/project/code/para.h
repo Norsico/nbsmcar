@@ -34,17 +34,17 @@
 #define MOTOR_LEFT_KI              (6)
 #define MOTOR_RIGHT_KP             (55)
 #define MOTOR_RIGHT_KI             (6)
-#define MOTOR_TARGET_SPEED         (220)
-#define MOTOR_STRAIGHT_SPEED       (220)
+#define MOTOR_TARGET_SPEED         (50)
+#define MOTOR_STRAIGHT_SPEED       (50)
 #define MOTOR_RING_SPEED           (220)
 #define MOTOR_RAMP_SPEED           (130)
 #define FAN_DUTY                   (65)
 #define FAN_STRAIGHT_DUTY          (65)
-#define FAN_ENABLE                 (1)
+#define FAN_ENABLE                 (0)
 
 /* Camera */
-#define CAMERA_EXPOSURE            (130)
-#define CAMERA_GAIN                (30)
+#define CAMERA_EXPOSURE            (250)
+#define CAMERA_GAIN                (15)
 #define CAMERA_THRESHOLD_OFFSET    (9)
 #define CAMERA_THRESHOLD_TRI_DELTA (0)
 

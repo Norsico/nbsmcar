@@ -199,7 +199,10 @@ void motor_start_control(void)
         {
             fan_start_ramp(SmartCar.motor.fan_duty);
         }else{
-            system_delay_ms(2000);
+            system_delay_ms(500);
+            system_delay_ms(500);
+            system_delay_ms(500);
+            system_delay_ms(500);
         }
     }
 
@@ -226,12 +229,12 @@ void motor_output(int16 left_duty, int16 right_duty)
 
     if(left_duty >= 0)
     {
-        gpio_set_level(MOTOR_LEFT_DIR, GPIO_HIGH);
+        gpio_set_level(MOTOR_LEFT_DIR, GPIO_LOW);
         pwm_set_duty(MOTOR_LEFT_PWM, left_duty);
     }
     else
     {
-        gpio_set_level(MOTOR_LEFT_DIR, GPIO_LOW);
+        gpio_set_level(MOTOR_LEFT_DIR, GPIO_HIGH);
         pwm_set_duty(MOTOR_LEFT_PWM, -left_duty);
     }
 
